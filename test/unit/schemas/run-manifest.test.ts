@@ -6,7 +6,7 @@ const valid = {
   rounds: 2,
   preset: null,
   agents: ["alpha", "beta"],
-  resolveMode: "kody" as const,
+  resolveMode: "orchestrator" as const,
   startedAt: "2026-04-15T01:23:45.000Z",
   runDir: "/tmp/.swarm/runs/20260415-012345-sample-topic",
 };

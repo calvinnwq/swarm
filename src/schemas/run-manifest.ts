@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const ResolveModeSchema = z.enum(["off", "kody", "agents"]);
+export const ResolveModeSchema = z.enum(["off", "orchestrator", "agents"]);
 export type ResolveMode = z.infer<typeof ResolveModeSchema>;
 
 export const RunManifestSchema = z
