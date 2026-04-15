@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const cliPath = fileURLToPath(new URL("../dist/cli.mjs", import.meta.url));
+const cliPath = fileURLToPath(new URL("../../dist/cli.mjs", import.meta.url));
 
 describe("swarm cli", () => {
   it("prints help and exits 0", () => {
