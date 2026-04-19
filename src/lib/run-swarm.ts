@@ -1,6 +1,12 @@
+import { loadAgentRegistry } from "./agent-registry.js";
 import type { SwarmRunConfig } from "./config.js";
 
 export async function runSwarm(config: SwarmRunConfig): Promise<number> {
+  const registry = await loadAgentRegistry();
+  for (const agentName of config.agents) {
+    registry.getAgent(agentName);
+  }
+
   const summary = [
     `topic="${config.topic}"`,
     `rounds=${config.rounds}`,
