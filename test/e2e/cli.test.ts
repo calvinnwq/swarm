@@ -29,15 +29,27 @@ describe("swarm cli", () => {
       "sample",
       "topic",
       "--agents",
-      "alpha,beta",
+      "product-manager,orchestrator",
       "--resolve",
       "orchestrator",
     ]);
     expect(status).toBe(0);
     expect(stderr).toContain("topic=\"sample topic\"");
     expect(stderr).toContain("rounds=2");
-    expect(stderr).toContain("agents=alpha,beta");
+    expect(stderr).toContain("agents=product-manager,orchestrator");
     expect(stderr).toContain("resolve=orchestrator");
+  });
+
+  it("runs with bundled default agents and exits 0", () => {
+    const { status, stderr } = runCli([
+      "run",
+      "1",
+      "hi",
+      "--agents",
+      "product-manager,principal-engineer",
+    ]);
+    expect(status).toBe(0);
+    expect(stderr).toContain("agents=product-manager,principal-engineer");
   });
 
   it("fails when agents flag is missing", () => {
@@ -63,5 +75,19 @@ describe("swarm cli", () => {
     const { status, stderr } = runCli(["run", "1", "--agents", "alpha,beta"]);
     expect(status).not.toBe(0);
     expect(stderr.length).toBeGreaterThan(0);
+  });
+
+  it("fails when an agent definition cannot be resolved", () => {
+    const { status, stderr } = runCli([
+      "run",
+      "1",
+      "sample",
+      "topic",
+      "--agents",
+      "product-manager,missing-agent",
+    ]);
+    expect(status).not.toBe(0);
+    expect(stderr).toMatch(/missing-agent/);
+    expect(stderr).toMatch(/searched/i);
   });
 });
