@@ -1,3 +1,4 @@
+export * from "./artifact-writer.js";
 export * from "./brief-generator.js";
 export * from "./config.js";
 export * from "./parse-command.js";
