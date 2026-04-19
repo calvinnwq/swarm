@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { Command, InvalidArgumentError } from "commander";
 import { buildConfig, runSwarm, SwarmCommandError } from "./lib/index.js";
+import { ClaudeCliAdapter } from "./backends/claude-cli.js";
 
 const packageVersion = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
@@ -57,7 +58,18 @@ program
           preset: options.preset as string | undefined,
           commandText: process.argv.slice(2).join(" "),
         });
-        const exitCode = await runSwarm(config);
+        // Build agent definitions from the agent names in the config.
+        // In MVP, agents are simple stubs — the real agent loader (NGX-70)
+        // resolves YAML/markdown definitions from disk.
+        const agents = config.agents.map((name) => ({
+          name,
+          description: name,
+          persona: name,
+          prompt: `You are ${name}. Analyze the topic.`,
+          backend: "claude" as const,
+        }));
+        const backend = new ClaudeCliAdapter();
+        const exitCode = await runSwarm({ config, agents, backend });
         process.exit(exitCode);
       } catch (err) {
         if (err instanceof SwarmCommandError) {

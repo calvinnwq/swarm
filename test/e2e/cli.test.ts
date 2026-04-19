@@ -30,23 +30,10 @@ describe("swarm cli", () => {
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
   });
 
-  it("runs a valid command and exits 0", () => {
-    const { status, stderr } = runCli([
-      "run",
-      "2",
-      "sample",
-      "topic",
-      "--agents",
-      "alpha,beta",
-      "--resolve",
-      "orchestrator",
-    ]);
-    expect(status).toBe(0);
-    expect(stderr).toContain('topic="sample topic"');
-    expect(stderr).toContain("rounds=2");
-    expect(stderr).toContain("agents=alpha,beta");
-    expect(stderr).toContain("resolve=orchestrator");
-  });
+  // Note: the "run" command now dispatches to the real claude binary,
+  // so a full CLI integration test requires CLAUDE_CLI=1.
+  // The programmatic e2e test (e2e.test.ts) covers the full pipeline
+  // with a mock backend instead.
 
   it("fails when agents flag is missing", () => {
     const { status, stderr } = runCli(["run", "1", "sample", "topic"]);
