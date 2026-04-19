@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.swarm/runs/
 .DS_Store
 *.log
 npm-debug.log*

@@ -104,27 +104,27 @@ describe("buildConfig", () => {
   });
 
   it("rejects empty topic", () => {
-    expect(() =>
-      buildConfig({ ...baseInput, topic: ["   "] }),
-    ).toThrow(SwarmCommandError);
+    expect(() => buildConfig({ ...baseInput, topic: ["   "] })).toThrow(
+      SwarmCommandError,
+    );
   });
 
   it("rejects fewer than 2 agents", () => {
-    expect(() =>
-      buildConfig({ ...baseInput, agents: "alpha" }),
-    ).toThrow(SwarmCommandError);
+    expect(() => buildConfig({ ...baseInput, agents: "alpha" })).toThrow(
+      SwarmCommandError,
+    );
   });
 
   it("rejects more than 5 agents", () => {
-    expect(() =>
-      buildConfig({ ...baseInput, agents: "a,b,c,d,e,f" }),
-    ).toThrow(SwarmCommandError);
+    expect(() => buildConfig({ ...baseInput, agents: "a,b,c,d,e,f" })).toThrow(
+      SwarmCommandError,
+    );
   });
 
   it("rejects when --agents is omitted (preset registry deferred)", () => {
-    expect(() =>
-      buildConfig({ rounds: 1, topic: ["t"] }),
-    ).toThrow(SwarmCommandError);
+    expect(() => buildConfig({ rounds: 1, topic: ["t"] })).toThrow(
+      SwarmCommandError,
+    );
   });
 
   it("dedupes agents preserving order", () => {

@@ -4,9 +4,17 @@ import { describe, expect, it } from "vitest";
 
 const cliPath = fileURLToPath(new URL("../../dist/cli.mjs", import.meta.url));
 
-function runCli(args: string[]): { status: number | null; stdout: string; stderr: string } {
+function runCli(args: string[]): {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+} {
   const result = spawnSync("node", [cliPath, ...args], { encoding: "utf-8" });
-  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  return {
+    status: result.status,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
 }
 
 describe("swarm cli", () => {
@@ -22,35 +30,10 @@ describe("swarm cli", () => {
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
   });
 
-  it("runs a valid command and exits 0", () => {
-    const { status, stderr } = runCli([
-      "run",
-      "2",
-      "sample",
-      "topic",
-      "--agents",
-      "product-manager,orchestrator",
-      "--resolve",
-      "orchestrator",
-    ]);
-    expect(status).toBe(0);
-    expect(stderr).toContain("topic=\"sample topic\"");
-    expect(stderr).toContain("rounds=2");
-    expect(stderr).toContain("agents=product-manager,orchestrator");
-    expect(stderr).toContain("resolve=orchestrator");
-  });
-
-  it("runs with bundled default agents and exits 0", () => {
-    const { status, stderr } = runCli([
-      "run",
-      "1",
-      "hi",
-      "--agents",
-      "product-manager,principal-engineer",
-    ]);
-    expect(status).toBe(0);
-    expect(stderr).toContain("agents=product-manager,principal-engineer");
-  });
+  // Note: the "run" command now dispatches to the real claude binary,
+  // so a full CLI integration test requires CLAUDE_CLI=1.
+  // The programmatic e2e test (e2e.test.ts) covers the full pipeline
+  // with a mock backend instead.
 
   it("fails when agents flag is missing", () => {
     const { status, stderr } = runCli(["run", "1", "sample", "topic"]);
