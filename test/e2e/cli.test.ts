@@ -59,4 +59,18 @@ describe("swarm cli", () => {
     expect(status).not.toBe(0);
     expect(stderr.length).toBeGreaterThan(0);
   });
+
+  it("fails when an agent definition cannot be resolved", () => {
+    const { status, stderr } = runCli([
+      "run",
+      "1",
+      "sample",
+      "topic",
+      "--agents",
+      "product-manager,missing-agent",
+    ]);
+    expect(status).not.toBe(0);
+    expect(stderr).toMatch(/missing-agent/);
+    expect(stderr).toMatch(/searched/i);
+  });
 });
