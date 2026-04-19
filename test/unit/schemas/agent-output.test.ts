@@ -16,7 +16,9 @@ describe("AgentOutputSchema", () => {
     expect(parsed.confidence).toBe("high");
     expect(parsed.reasoning.length).toBeGreaterThan(0);
 
-    const reparsed = AgentOutputSchema.parse(JSON.parse(JSON.stringify(parsed)));
+    const reparsed = AgentOutputSchema.parse(
+      JSON.parse(JSON.stringify(parsed)),
+    );
     expect(reparsed).toEqual(parsed);
   });
 

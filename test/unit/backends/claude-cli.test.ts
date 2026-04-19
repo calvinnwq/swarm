@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { extractJson, parseAgentOutput } from "../../../src/backends/claude-cli.js";
+import {
+  extractJson,
+  parseAgentOutput,
+} from "../../../src/backends/claude-cli.js";
 
 const fixturePath = fileURLToPath(
   new URL("../fixtures/agent-output-sample.json", import.meta.url),
@@ -40,7 +43,9 @@ describe("extractJson", () => {
   });
 
   it("returns undefined for non-JSON text", () => {
-    expect(extractJson("This is just plain text with no JSON.")).toBeUndefined();
+    expect(
+      extractJson("This is just plain text with no JSON."),
+    ).toBeUndefined();
   });
 
   it("returns undefined for malformed JSON", () => {

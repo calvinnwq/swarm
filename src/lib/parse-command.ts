@@ -88,7 +88,9 @@ export interface BuildConfigInput {
 export function buildConfig(input: BuildConfigInput): SwarmRunConfig {
   const rounds = parseRounds(input.rounds);
 
-  const topic = (Array.isArray(input.topic) ? input.topic.join(" ") : input.topic).trim();
+  const topic = (
+    Array.isArray(input.topic) ? input.topic.join(" ") : input.topic
+  ).trim();
   if (!topic) {
     throw new SwarmCommandError("topic is required");
   }
@@ -111,7 +113,9 @@ export function buildConfig(input: BuildConfigInput): SwarmRunConfig {
   const resolveMode: ResolveMode =
     input.resolve === undefined ? "off" : parseResolveMode(input.resolve);
 
-  const docs = dedupeKeepOrder((input.docs ?? []).map((d) => d.trim()).filter(Boolean));
+  const docs = dedupeKeepOrder(
+    (input.docs ?? []).map((d) => d.trim()).filter(Boolean),
+  );
 
   const goal = input.goal?.trim() || null;
   const decision = input.decision?.trim() || null;

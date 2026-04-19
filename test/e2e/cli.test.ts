@@ -4,9 +4,17 @@ import { describe, expect, it } from "vitest";
 
 const cliPath = fileURLToPath(new URL("../../dist/cli.mjs", import.meta.url));
 
-function runCli(args: string[]): { status: number | null; stdout: string; stderr: string } {
+function runCli(args: string[]): {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+} {
   const result = spawnSync("node", [cliPath, ...args], { encoding: "utf-8" });
-  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  return {
+    status: result.status,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
 }
 
 describe("swarm cli", () => {
@@ -34,7 +42,7 @@ describe("swarm cli", () => {
       "orchestrator",
     ]);
     expect(status).toBe(0);
-    expect(stderr).toContain("topic=\"sample topic\"");
+    expect(stderr).toContain('topic="sample topic"');
     expect(stderr).toContain("rounds=2");
     expect(stderr).toContain("agents=alpha,beta");
     expect(stderr).toContain("resolve=orchestrator");

@@ -1,11 +1,7 @@
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { Command, InvalidArgumentError } from "commander";
-import {
-  buildConfig,
-  runSwarm,
-  SwarmCommandError,
-} from "./lib/index.js";
+import { buildConfig, runSwarm, SwarmCommandError } from "./lib/index.js";
 
 const packageVersion = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
@@ -43,29 +39,35 @@ program
   .option("--decision <text>", "decision target for the swarm")
   .option("--doc <path>", "carry-forward document (repeatable)", collectDoc, [])
   .option("--preset <name>", "named preset (pass-through; not yet resolved)")
-  .action(async (rounds: number, topic: string[], options: Record<string, unknown>) => {
-    try {
-      const config = buildConfig({
-        rounds,
-        topic,
-        agents: options.agents as string | undefined,
-        resolve: options.resolve as string | undefined,
-        goal: options.goal as string | undefined,
-        decision: options.decision as string | undefined,
-        docs: options.doc as string[] | undefined,
-        preset: options.preset as string | undefined,
-        commandText: process.argv.slice(2).join(" "),
-      });
-      const exitCode = await runSwarm(config);
-      process.exit(exitCode);
-    } catch (err) {
-      if (err instanceof SwarmCommandError) {
-        process.stderr.write(`swarm: ${err.message}\n`);
-        process.exit(2);
+  .action(
+    async (
+      rounds: number,
+      topic: string[],
+      options: Record<string, unknown>,
+    ) => {
+      try {
+        const config = buildConfig({
+          rounds,
+          topic,
+          agents: options.agents as string | undefined,
+          resolve: options.resolve as string | undefined,
+          goal: options.goal as string | undefined,
+          decision: options.decision as string | undefined,
+          docs: options.doc as string[] | undefined,
+          preset: options.preset as string | undefined,
+          commandText: process.argv.slice(2).join(" "),
+        });
+        const exitCode = await runSwarm(config);
+        process.exit(exitCode);
+      } catch (err) {
+        if (err instanceof SwarmCommandError) {
+          process.stderr.write(`swarm: ${err.message}\n`);
+          process.exit(2);
+        }
+        throw err;
       }
-      throw err;
-    }
-  });
+    },
+  );
 
 try {
   await program.parseAsync();

@@ -104,12 +104,7 @@ export function buildRoundBrief(args: BuildRoundBriefArgs): string {
   if (priorPacket === null) {
     lines.push("No prior round packet yet. This is the opening round.", "");
   } else {
-    lines.push(
-      "```json",
-      JSON.stringify(priorPacket, null, 2),
-      "```",
-      "",
-    );
+    lines.push("```json", JSON.stringify(priorPacket, null, 2), "```", "");
   }
 
   lines.push("## Instructions", ...ROUND_BRIEF_INSTRUCTIONS, "");

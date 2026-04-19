@@ -137,7 +137,9 @@ describe("buildRoundBrief", () => {
     expect(out).toContain("Round: 2/3");
     expect(out).toContain("```json");
     expect(out).toContain('"agent": "alpha"');
-    expect(out).toContain('"recommendation": "Pick option B and ship a thin slice."');
+    expect(out).toContain(
+      '"recommendation": "Pick option B and ship a thin slice."',
+    );
     expect(out).toContain("```\n\n## Instructions");
     expect(out).not.toContain("opening round");
   });
