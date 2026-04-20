@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { execa } from "execa";
 import { AgentOutputSchema } from "../schemas/index.js";
 import type { AgentDefinition, AgentOutput } from "../schemas/index.js";
@@ -59,14 +60,38 @@ export function parseAgentOutput(raw: string): AgentOutput {
   return AgentOutputSchema.parse(json);
 }
 
+async function resolveAgentPrompt(agent: AgentDefinition): Promise<string> {
+  if (typeof agent.prompt === "string") {
+    return agent.prompt;
+  }
+  return await readFile(agent.prompt.file, "utf-8");
+}
+
+export function composeSystemPrompt(
+  persona: string,
+  promptBody: string,
+): string {
+  return [persona.trim(), promptBody.trim()]
+    .filter((s) => s.length > 0)
+    .join("\n\n");
+}
+
 export class ClaudeCliAdapter implements BackendAdapter {
   async dispatch(
     prompt: string,
     agent: AgentDefinition,
     opts: { timeoutMs: number },
   ): Promise<AgentResponse> {
+    const promptBody = await resolveAgentPrompt(agent);
+    const systemPrompt = composeSystemPrompt(agent.persona, promptBody);
+
+    const args = ["--print"];
+    if (systemPrompt.length > 0) {
+      args.push("--system-prompt", systemPrompt);
+    }
+
     const start = performance.now();
-    const result = await execa("claude", ["--print"], {
+    const result = await execa("claude", args, {
       input: prompt,
       timeout: opts.timeoutMs,
       reject: false,

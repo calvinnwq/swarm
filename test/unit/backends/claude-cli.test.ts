@@ -1,10 +1,18 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("execa", () => ({
+  execa: vi.fn(),
+}));
+
+import { execa } from "execa";
 import {
+  ClaudeCliAdapter,
   extractJson,
   parseAgentOutput,
 } from "../../../src/backends/claude-cli.js";
+import type { AgentDefinition } from "../../../src/schemas/index.js";
 
 const fixturePath = fileURLToPath(
   new URL("../fixtures/agent-output-sample.json", import.meta.url),
@@ -91,5 +99,139 @@ describe("parseAgentOutput", () => {
     } catch (err) {
       expect((err as Error).message).toContain(garbage);
     }
+  });
+});
+
+describe("ClaudeCliAdapter.dispatch", () => {
+  const execaMock = vi.mocked(execa);
+
+  function makeAgent(
+    overrides: Partial<AgentDefinition> = {},
+  ): AgentDefinition {
+    return {
+      name: "alpha",
+      description: "alpha agent",
+      persona: "You are the alpha agent focused on rigorous analysis.",
+      prompt: "Analyze the brief as alpha.",
+      backend: "claude",
+      ...overrides,
+    };
+  }
+
+  function mockOkResponse(stdout = '{"ok":true}"') {
+    execaMock.mockResolvedValueOnce({
+      exitCode: 0,
+      stdout,
+      stderr: "",
+      timedOut: false,
+    } as never);
+  }
+
+  function getCallArgs() {
+    expect(execaMock).toHaveBeenCalledTimes(1);
+    const call = execaMock.mock.calls[0];
+    const [cmd, args, opts] = call as unknown as [
+      string,
+      string[],
+      { input: string; timeout: number; reject: boolean },
+    ];
+    return { cmd, args, opts };
+  }
+
+  it("invokes `claude --print` with --system-prompt composed from persona + prompt", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch("round brief", makeAgent(), { timeoutMs: 5000 });
+
+    const { cmd, args } = getCallArgs();
+    expect(cmd).toBe("claude");
+    expect(args).toContain("--print");
+    expect(args).toContain("--system-prompt");
+
+    const systemPromptIdx = args.indexOf("--system-prompt");
+    const systemPromptValue = args[systemPromptIdx + 1];
+    expect(systemPromptValue).toContain(
+      "You are the alpha agent focused on rigorous analysis.",
+    );
+    expect(systemPromptValue).toContain("Analyze the brief as alpha.");
+  });
+
+  it("produces distinct system prompts per agent so agents are differentiated", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+    mockOkResponse();
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch(
+      "brief",
+      makeAgent({
+        name: "product-manager",
+        persona: "You are a rigorous product manager.",
+        prompt: "Focus on user value and sequencing.",
+      }),
+      { timeoutMs: 5000 },
+    );
+    await adapter.dispatch(
+      "brief",
+      makeAgent({
+        name: "principal-engineer",
+        persona: "You are a principal engineer.",
+        prompt: "Focus on system design and failure modes.",
+      }),
+      { timeoutMs: 5000 },
+    );
+
+    const calls = execaMock.mock.calls as unknown as [string, string[]][];
+    expect(calls).toHaveLength(2);
+    const [, firstArgs] = calls[0];
+    const [, secondArgs] = calls[1];
+    const firstSystem = firstArgs[firstArgs.indexOf("--system-prompt") + 1];
+    const secondSystem = secondArgs[secondArgs.indexOf("--system-prompt") + 1];
+    expect(firstSystem).toContain("product manager");
+    expect(secondSystem).toContain("principal engineer");
+    expect(firstSystem).not.toEqual(secondSystem);
+  });
+
+  it("pipes the round brief via stdin and forwards the timeout", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch("the full round brief", makeAgent(), {
+      timeoutMs: 12345,
+    });
+
+    const { opts } = getCallArgs();
+    expect(opts.input).toBe("the full round brief");
+    expect(opts.timeout).toBe(12345);
+    expect(opts.reject).toBe(false);
+  });
+
+  it("resolves file-based prompt refs before composing the system prompt", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+
+    const fixtureFile = fileURLToPath(
+      new URL("../fixtures/agent-prompt.md", import.meta.url),
+    );
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch(
+      "brief",
+      makeAgent({
+        persona: "You are the file-backed agent.",
+        prompt: { file: fixtureFile },
+      }),
+      { timeoutMs: 5000 },
+    );
+
+    const { args } = getCallArgs();
+    const systemPromptValue = args[args.indexOf("--system-prompt") + 1];
+    expect(systemPromptValue).toContain("You are the file-backed agent.");
+    expect(systemPromptValue).toContain(
+      "Prompt body loaded from disk for testing.",
+    );
   });
 });
