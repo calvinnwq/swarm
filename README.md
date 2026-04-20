@@ -4,11 +4,24 @@ Standalone TypeScript CLI for running agent swarms — parse a topic, fan out ag
 
 ## Install
 
+Requires Node ≥ 20 (Node 24 LTS recommended — `.nvmrc` pins it; run `nvm use`) and pnpm 10.
+
 ```bash
 pnpm install
 pnpm build
 pnpm link --global
 ```
+
+> **First time using `pnpm link --global` on this machine?** You'll need pnpm's
+> global bin directory configured once. Run `pnpm setup`, then open a new
+> shell (or `source ~/.zshrc` / `source ~/.bashrc`) before re-running
+> `pnpm link --global`. This is a one-time pnpm setup, not a swarm-specific
+> step — see the [pnpm docs](https://pnpm.io/cli/setup).
+>
+> Prefer not to configure pnpm globally? Substitute `npm link` for
+> `pnpm link --global` — it uses npm's prefix (typically already on PATH via
+> nvm/Homebrew) and works fine against a pnpm-installed dep tree because
+> `bin` entries are standard.
 
 ## Usage
 
