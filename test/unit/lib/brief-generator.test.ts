@@ -4,7 +4,10 @@ import {
   buildSeedBrief,
   type SwarmRunConfig,
 } from "../../../src/lib/index.js";
-import type { RoundPacket } from "../../../src/schemas/index.js";
+import {
+  AgentOutputSchema,
+  type RoundPacket,
+} from "../../../src/schemas/index.js";
 
 function configWith(overrides: Partial<SwarmRunConfig> = {}): SwarmRunConfig {
   return {
@@ -78,6 +81,31 @@ describe("buildSeedBrief", () => {
       "The selected swarm agents run the question-resolution sub-pass between rounds before continuing.",
     );
     expect(out).not.toContain("The orchestrator runs");
+  });
+});
+
+describe("buildSeedBrief output contract typing", () => {
+  it("declares a concrete type for each agent-output field that was guessed wrong in real runs", () => {
+    const out = buildSeedBrief(configWith());
+    expect(out).toContain("## Output contract");
+    expect(out).toMatch(/recommendation:\s*string\b/);
+    expect(out).toMatch(/reasoning:\s*string\[\]/);
+    expect(out).toMatch(/changesFromPriorRound:\s*string\[\]/);
+    expect(out).toMatch(/confidence:\s*"low"\s*\|\s*"medium"\s*\|\s*"high"/);
+  });
+
+  it("hints that changesFromPriorRound should be [] in round 1", () => {
+    const out = buildSeedBrief(configWith());
+    expect(out).toMatch(/changesFromPriorRound[\s\S]*\[\][\s\S]*round\s*1/i);
+  });
+
+  it("mentions every AgentOutputSchema field in the output contract (drift protection)", () => {
+    const out = buildSeedBrief(configWith());
+    const fields = Object.keys(AgentOutputSchema.shape);
+    expect(fields.length).toBeGreaterThan(0);
+    for (const field of fields) {
+      expect(out).toContain(field);
+    }
   });
 });
 

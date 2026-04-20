@@ -1,8 +1,20 @@
 import type { RoundPacket } from "../schemas/index.js";
 import type { SwarmRunConfig } from "./config.js";
 
-const OUTPUT_CONTRACT_FIELDS =
-  "agent, round, stance, recommendation, reasoning, objections, risks, changesFromPriorRound, confidence, openQuestions";
+const OUTPUT_CONTRACT_BLOCK = [
+  "Return a single JSON object matching this exact shape (no extra fields):",
+  "  agent: string",
+  "  round: number",
+  "  stance: string",
+  "  recommendation: string",
+  "  reasoning: string[]",
+  "  objections: string[]",
+  "  risks: string[]",
+  "  changesFromPriorRound: string[]   // use [] in round 1",
+  '  confidence: "low" | "medium" | "high"',
+  "  openQuestions: string[]",
+  "Return ONLY the JSON object (optionally inside a ```json fenced block). No prose before or after.",
+].join("\n");
 
 const ROUND_INSTRUCTIONS = [
   "Round 1: independent stance + recommendation + risks.",
@@ -56,8 +68,7 @@ export function buildSeedBrief(config: SwarmRunConfig): string {
   lines.push(
     "",
     "## Output contract",
-    "Return the shared swarm JSON schema with fields:",
-    OUTPUT_CONTRACT_FIELDS,
+    OUTPUT_CONTRACT_BLOCK,
     "",
     "## Round instructions",
     ...ROUND_INSTRUCTIONS,
