@@ -1,10 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { buildOrchestratorSynthesis } from "../../../src/lib/synthesis.js";
 import { SynthesisSchema } from "../../../src/schemas/synthesis.js";
-import type { RunManifest, RoundPacket, AgentOutput } from "../../../src/schemas/index.js";
-import type { RoundResult, AgentResult } from "../../../src/lib/round-runner.js";
+import type {
+  RunManifest,
+  RoundPacket,
+  AgentOutput,
+} from "../../../src/schemas/index.js";
+import type {
+  RoundResult,
+  AgentResult,
+} from "../../../src/lib/round-runner.js";
 
-function makeAgentOutput(overrides: Partial<AgentOutput> & { agent: string; round: number }): AgentOutput {
+function makeAgentOutput(
+  overrides: Partial<AgentOutput> & { agent: string; round: number },
+): AgentOutput {
   return {
     stance: "Adopt option B",
     recommendation: "Ship option B as MVP",
@@ -23,7 +32,14 @@ function makeAgentResult(output: AgentOutput): AgentResult {
     agent: output.agent,
     ok: true,
     output,
-    raw: { ok: true, exitCode: 0, stdout: "{}", stderr: "", timedOut: false, durationMs: 1000 },
+    raw: {
+      ok: true,
+      exitCode: 0,
+      stdout: "{}",
+      stderr: "",
+      timedOut: false,
+      durationMs: 1000,
+    },
     error: null,
   };
 }
@@ -85,7 +101,10 @@ const r1pm = makeAgentOutput({
   round: 1,
   stance: "Adopt microservices for the payments domain",
   recommendation: "Start with payments extraction as the first bounded context",
-  reasoning: ["Payments is the highest-churn domain", "Independent deploy cadence reduces release risk"],
+  reasoning: [
+    "Payments is the highest-churn domain",
+    "Independent deploy cadence reduces release risk",
+  ],
   objections: ["Team lacks distributed-systems experience"],
   risks: ["Shared DB coupling risk", "Observability gap"],
   confidence: "medium",
@@ -97,7 +116,10 @@ const r1eng = makeAgentOutput({
   round: 1,
   stance: "Adopt microservices for the payments domain",
   recommendation: "Extract payments behind an API gateway first",
-  reasoning: ["API gateway provides a clean seam", "Gateway enables canary routing"],
+  reasoning: [
+    "API gateway provides a clean seam",
+    "Gateway enables canary routing",
+  ],
   objections: ["Gateway adds a hop and operational burden"],
   risks: ["Shared DB coupling risk", "Schema migration coordination"],
   confidence: "high",
@@ -121,7 +143,10 @@ const r2eng = makeAgentOutput({
   round: 2,
   stance: "Adopt microservices for the payments domain",
   recommendation: "Ship payments extraction behind gateway with canary",
-  reasoning: ["Gateway + canary is the safest path", "Shared DB can be migrated post-canary"],
+  reasoning: [
+    "Gateway + canary is the safest path",
+    "Shared DB can be migrated post-canary",
+  ],
   objections: ["Post-canary DB migration timeline unclear"],
   risks: ["Shared DB coupling risk"],
   confidence: "high",
@@ -144,7 +169,10 @@ describe("buildOrchestratorSynthesis", () => {
   it("reflects manifest metadata", () => {
     expect(result.json.topic).toBe("Should we adopt microservices?");
     expect(result.json.rounds).toBe(2);
-    expect(result.json.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(result.json.agents).toEqual([
+      "product-manager",
+      "principal-engineer",
+    ]);
     expect(result.json.resolveMode).toBe("orchestrator");
   });
 
@@ -160,8 +188,12 @@ describe("buildOrchestratorSynthesis", () => {
   });
 
   it("collects recommendation basis from last round reasoning", () => {
-    expect(result.json.topRecommendationBasis).toContain("Canary reduces blast radius");
-    expect(result.json.topRecommendationBasis).toContain("Gateway + canary is the safest path");
+    expect(result.json.topRecommendationBasis).toContain(
+      "Canary reduces blast radius",
+    );
+    expect(result.json.topRecommendationBasis).toContain(
+      "Gateway + canary is the safest path",
+    );
   });
 
   it("aggregates shared risks across all rounds with dedup", () => {
@@ -188,7 +220,9 @@ describe("buildOrchestratorSynthesis", () => {
 
   // Markdown structure tests
   it("renders markdown with the expected top-level heading", () => {
-    expect(result.markdown).toContain("# Synthesis: Should we adopt microservices?");
+    expect(result.markdown).toContain(
+      "# Synthesis: Should we adopt microservices?",
+    );
   });
 
   it("renders the metadata line", () => {
@@ -242,7 +276,9 @@ describe("buildOrchestratorSynthesis — disagreement", () => {
   it("renders stance breakdown in markdown when no consensus", () => {
     expect(result.markdown).toContain("Agents did not reach full consensus");
     expect(result.markdown).toContain("Defer microservices; monolith-first");
-    expect(result.markdown).toContain("Adopt microservices for the payments domain");
+    expect(result.markdown).toContain(
+      "Adopt microservices for the payments domain",
+    );
   });
 
   it("picks recommendation from higher-confidence agent on disagreement", () => {

@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import type { AgentOutput, RunManifest } from "../../../src/schemas/index.js";
 import type { AgentResponse } from "../../../src/backends/index.js";
-import type { AgentResult, RoundResult } from "../../../src/lib/round-runner.js";
+import type {
+  AgentResult,
+  RoundResult,
+} from "../../../src/lib/round-runner.js";
 import type { SynthesisResult } from "../../../src/lib/synthesis.js";
 import {
   slugify,
@@ -115,7 +118,11 @@ function makeSynthesis(): SynthesisResult {
       resolveMode: "orchestrator",
       consensus: true,
       stanceTally: [
-        { stance: "approve", agents: ["product-manager", "principal-engineer"], count: 2 },
+        {
+          stance: "approve",
+          agents: ["product-manager", "principal-engineer"],
+          count: 2,
+        },
       ],
       topRecommendation: "product-manager recommends adoption",
       topRecommendationBasis: ["Type safety", "Better DX"],
@@ -134,7 +141,10 @@ function makeSynthesis(): SynthesisResult {
 let testDir: string;
 
 beforeEach(() => {
-  testDir = join(tmpdir(), `artifact-writer-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  testDir = join(
+    tmpdir(),
+    `artifact-writer-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   mkdirSync(testDir, { recursive: true });
 });
 
@@ -189,7 +199,9 @@ describe("renderAgentMarkdown", () => {
     expect(md).toContain("Duration seconds: 5.0");
     expect(md).toContain("Wrapper: claude-cli");
     expect(md).toContain("## Stance\n\napprove");
-    expect(md).toContain("## Recommendation\n\nproduct-manager recommends adoption");
+    expect(md).toContain(
+      "## Recommendation\n\nproduct-manager recommends adoption",
+    );
     expect(md).toContain("## Reasoning\n\n- Type safety\n- Better DX");
     expect(md).toContain("## Objections\n\n- Migration cost");
     expect(md).toContain("## Risks\n\n- Learning curve");
@@ -250,7 +262,10 @@ describe("ArtifactWriter", () => {
       );
       expect(manifestJson.topic).toBe("Should we adopt TypeScript?");
       expect(manifestJson.rounds).toBe(2);
-      expect(manifestJson.agents).toEqual(["product-manager", "principal-engineer"]);
+      expect(manifestJson.agents).toEqual([
+        "product-manager",
+        "principal-engineer",
+      ]);
 
       const seedBrief = readFileSync(join(runDir, "seed-brief.md"), "utf-8");
       expect(seedBrief).toBe("# Seed Brief\n\nTopic: TypeScript");
@@ -284,10 +299,7 @@ describe("ArtifactWriter", () => {
       expect(existsSync(join(agentsDir, "product-manager.md"))).toBe(true);
       expect(existsSync(join(agentsDir, "principal-engineer.md"))).toBe(true);
 
-      const pmMd = readFileSync(
-        join(agentsDir, "product-manager.md"),
-        "utf-8",
-      );
+      const pmMd = readFileSync(join(agentsDir, "product-manager.md"), "utf-8");
       expect(pmMd).toContain("Agent: product-manager");
       expect(pmMd).toContain("## Stance");
     });

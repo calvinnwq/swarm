@@ -2,7 +2,10 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadAgentRegistry, SwarmCommandError } from "../../../src/lib/index.js";
+import {
+  loadAgentRegistry,
+  SwarmCommandError,
+} from "../../../src/lib/index.js";
 
 interface TempRegistryRoots {
   rootDir: string;
@@ -17,7 +20,11 @@ async function makeTempRoots(): Promise<TempRegistryRoots> {
   const homeDir = path.join(rootDir, "home");
   const bundledDir = path.join(rootDir, "bundled");
 
-  await Promise.all([mkdir(cwd, { recursive: true }), mkdir(homeDir, { recursive: true }), mkdir(bundledDir, { recursive: true })]);
+  await Promise.all([
+    mkdir(cwd, { recursive: true }),
+    mkdir(homeDir, { recursive: true }),
+    mkdir(bundledDir, { recursive: true }),
+  ]);
 
   return { rootDir, cwd, homeDir, bundledDir };
 }
@@ -30,7 +37,11 @@ function globalAgentsDir(roots: TempRegistryRoots): string {
   return path.join(roots.homeDir, ".swarm", "agents");
 }
 
-async function writeDefinition(dir: string, filename: string, contents: string): Promise<string> {
+async function writeDefinition(
+  dir: string,
+  filename: string,
+  contents: string,
+): Promise<string> {
   await mkdir(dir, { recursive: true });
   const filePath = path.join(dir, filename);
   await writeFile(filePath, contents, "utf-8");
@@ -41,7 +52,9 @@ const cleanupDirs: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    cleanupDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
+    cleanupDirs
+      .splice(0)
+      .map((dir) => rm(dir, { recursive: true, force: true })),
   );
 });
 
@@ -111,7 +124,9 @@ describe("loadAgentRegistry", () => {
     expect(() => registry.getAgent("missing-agent")).toThrow(SwarmCommandError);
     expect(() => registry.getAgent("missing-agent")).toThrow(/missing-agent/);
     expect(() => registry.getAgent("missing-agent")).toThrow(
-      new RegExp(projectAgentsDir(roots).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      new RegExp(
+        projectAgentsDir(roots).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+      ),
     );
     expect(() => registry.getAgent("missing-agent")).toThrow(
       new RegExp(globalAgentsDir(roots).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
@@ -214,7 +229,9 @@ describe("loadAgentRegistry", () => {
     const filePath = await writeDefinition(
       projectAgentsDir(roots),
       "broken.md",
-      ["---", "name: broken", "prompt: [unterminated", "---", "", "body"].join("\n"),
+      ["---", "name: broken", "prompt: [unterminated", "---", "", "body"].join(
+        "\n",
+      ),
     );
 
     await expect(

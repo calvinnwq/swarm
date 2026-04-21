@@ -3,9 +3,14 @@ import process from "node:process";
 import { Command, InvalidArgumentError } from "commander";
 import {
   buildConfig,
+  formatDoctorReport,
   loadAgentRegistry,
+  loadPresetRegistry,
+  loadProjectConfig,
+  runDoctor,
   runSwarm,
   SwarmCommandError,
+  type AgentSelectionSource,
 } from "./lib/index.js";
 import { ClaudeCliAdapter } from "./backends/claude-cli.js";
 
@@ -40,11 +45,21 @@ program
   .argument("<rounds>", "number of rounds (1–3)", parseRoundsArg)
   .argument("<topic...>", "topic for the swarm")
   .option("--agents <list>", "comma-separated agent names")
-  .option("--resolve <mode>", "resolution mode: off | orchestrator | agents")
+  .option(
+    "--resolve <mode>",
+    "record resolution mode in manifest: off | orchestrator | agents (between-round sub-pass not yet implemented)",
+  )
   .option("--goal <text>", "primary goal for the swarm")
   .option("--decision <text>", "decision target for the swarm")
   .option("--doc <path>", "carry-forward document (repeatable)", collectDoc, [])
-  .option("--preset <name>", "named preset (pass-through; not yet resolved)")
+  .option(
+    "--preset <name>",
+    "named preset (resolves to agents when --agents not provided)",
+  )
+  .option(
+    "--quiet",
+    "force quiet (one-line-per-event) output; default auto by TTY",
+  )
   .action(
     async (
       rounds: number,
@@ -52,21 +67,69 @@ program
       options: Record<string, unknown>,
     ) => {
       try {
+        const loadedProjectConfig = await loadProjectConfig();
+        const projectConfig = loadedProjectConfig?.config ?? {};
+        const cliDocs = options.doc as string[] | undefined;
+        const cliAgents = options.agents as string | undefined;
+        const configAgents = projectConfig.agents?.join(",");
+        const cliPresetName = options.preset as string | undefined;
+        const configPresetName = projectConfig.preset;
+
+        let resolvedAgents: string | undefined = cliAgents;
+        let resolvedResolve =
+          (options.resolve as string | undefined) ?? projectConfig.resolve;
+        let resolvedGoal =
+          (options.goal as string | undefined) ?? projectConfig.goal;
+        let resolvedDecision =
+          (options.decision as string | undefined) ?? projectConfig.decision;
+        let resolvedPresetName: string | undefined;
+        let selectionSource: AgentSelectionSource | undefined;
+
+        if (cliAgents === undefined && cliPresetName !== undefined) {
+          const presetRegistry = await loadPresetRegistry();
+          const preset = presetRegistry.getPreset(cliPresetName);
+          resolvedAgents = preset.agents.join(",");
+          resolvedPresetName = cliPresetName;
+          selectionSource = "preset";
+          resolvedResolve = resolvedResolve ?? preset.resolve;
+          resolvedGoal = resolvedGoal ?? preset.goal;
+          resolvedDecision = resolvedDecision ?? preset.decision;
+        } else if (resolvedAgents === undefined && configAgents !== undefined) {
+          resolvedAgents = configAgents;
+        } else if (
+          resolvedAgents === undefined &&
+          configPresetName !== undefined
+        ) {
+          const presetRegistry = await loadPresetRegistry();
+          const preset = presetRegistry.getPreset(configPresetName);
+          resolvedAgents = preset.agents.join(",");
+          resolvedPresetName = configPresetName;
+          selectionSource = "preset";
+          resolvedResolve = resolvedResolve ?? preset.resolve;
+          resolvedGoal = resolvedGoal ?? preset.goal;
+          resolvedDecision = resolvedDecision ?? preset.decision;
+        }
+
         const config = buildConfig({
           rounds,
           topic,
-          agents: options.agents as string | undefined,
-          resolve: options.resolve as string | undefined,
-          goal: options.goal as string | undefined,
-          decision: options.decision as string | undefined,
-          docs: options.doc as string[] | undefined,
-          preset: options.preset as string | undefined,
+          agents: resolvedAgents,
+          resolve: resolvedResolve,
+          goal: resolvedGoal,
+          decision: resolvedDecision,
+          docs:
+            cliDocs && cliDocs.length > 0
+              ? cliDocs
+              : (projectConfig.docs ?? []),
+          preset: resolvedPresetName,
+          selectionSource,
           commandText: process.argv.slice(2).join(" "),
         });
         const registry = await loadAgentRegistry();
         const agents = config.agents.map((name) => registry.getAgent(name));
         const backend = new ClaudeCliAdapter();
-        const exitCode = await runSwarm({ config, agents, backend });
+        const ui = options.quiet === true ? "quiet" : undefined;
+        const exitCode = await runSwarm({ config, agents, backend, ui });
         process.exit(exitCode);
       } catch (err) {
         if (err instanceof SwarmCommandError) {
@@ -77,6 +140,23 @@ program
       }
     },
   );
+
+program
+  .command("doctor")
+  .description("Diagnose swarm setup: config, agents, and presets")
+  .action(async () => {
+    try {
+      const report = await runDoctor();
+      process.stdout.write(`${formatDoctorReport(report)}\n`);
+      process.exit(report.ok ? 0 : 1);
+    } catch (err) {
+      if (err instanceof SwarmCommandError) {
+        process.stderr.write(`swarm: ${err.message}\n`);
+        process.exit(2);
+      }
+      throw err;
+    }
+  });
 
 try {
   await program.parseAsync();

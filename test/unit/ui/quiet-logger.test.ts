@@ -13,7 +13,10 @@ function setup() {
 describe("attachQuietLogger", () => {
   it("logs round:start", () => {
     const { emitter, lines } = setup();
-    emitter.emit("round:start", { round: 1, agents: ["product-manager", "principal-engineer"] });
+    emitter.emit("round:start", {
+      round: 1,
+      agents: ["product-manager", "principal-engineer"],
+    });
     expect(lines).toHaveLength(1);
     expect(lines[0]).toBe(
       "[round 1] start agents=product-manager,principal-engineer\n",
@@ -55,8 +58,20 @@ describe("attachQuietLogger", () => {
   it("logs round:done with ok/fail counts", () => {
     const { emitter, lines } = setup();
     const agentResults: AgentResult[] = [
-      { agent: "product-manager", ok: true, output: null, raw: null, error: null },
-      { agent: "principal-engineer", ok: false, output: null, raw: null, error: "err" },
+      {
+        agent: "product-manager",
+        ok: true,
+        output: null,
+        raw: null,
+        error: null,
+      },
+      {
+        agent: "principal-engineer",
+        ok: false,
+        output: null,
+        raw: null,
+        error: "err",
+      },
       { agent: "orchestrator", ok: true, output: null, raw: null, error: null },
     ];
     emitter.emit("round:done", { round: 1, packet: {}, agentResults });
@@ -77,7 +92,10 @@ describe("attachQuietLogger", () => {
 
   it("logs full event sequence for a 2-agent 1-round run", () => {
     const { emitter, lines } = setup();
-    emitter.emit("round:start", { round: 1, agents: ["product-manager", "principal-engineer"] });
+    emitter.emit("round:start", {
+      round: 1,
+      agents: ["product-manager", "principal-engineer"],
+    });
     emitter.emit("agent:start", { round: 1, agent: "product-manager" });
     emitter.emit("agent:start", { round: 1, agent: "principal-engineer" });
     emitter.emit("agent:ok", {
@@ -96,8 +114,20 @@ describe("attachQuietLogger", () => {
       round: 1,
       packet: {},
       agentResults: [
-        { agent: "product-manager", ok: true, output: null, raw: null, error: null },
-        { agent: "principal-engineer", ok: true, output: null, raw: null, error: null },
+        {
+          agent: "product-manager",
+          ok: true,
+          output: null,
+          raw: null,
+          error: null,
+        },
+        {
+          agent: "principal-engineer",
+          ok: true,
+          output: null,
+          raw: null,
+          error: null,
+        },
       ],
     });
     emitter.emit("run:done", { ok: true, rounds: [{}] });

@@ -2,6 +2,8 @@
 
 Standalone TypeScript CLI for running agent swarms — parse a topic, fan out agents in parallel rounds, collect structured output, synthesize.
 
+> **Alpha status.** This README documents the one supported golden path. Features not listed here (and especially modes flagged _stub_ or _not yet implemented_) are not part of the alpha contract and may not behave as advertised.
+
 ## Install
 
 Requires Node ≥ 20 (Node 24 LTS recommended — `.nvmrc` pins it; run `nvm use`) and pnpm 10.
@@ -23,6 +25,23 @@ pnpm link --global
 > nvm/Homebrew) and works fine against a pnpm-installed dep tree because
 > `bin` entries are standard.
 
+## Quickstart (golden path)
+
+The supported alpha flow uses the bundled `product-decision` preset, which pairs the bundled `product-manager` and `principal-engineer` agents — no config or custom agent definitions required.
+
+```bash
+# 1. Verify your setup
+swarm doctor
+
+# 2. Run a 2-round swarm on a framed product decision
+swarm run 2 "Should we adopt server components?" \
+  --preset product-decision \
+  --goal "Decide on migration strategy" \
+  --decision "Adopt / Defer / Reject"
+```
+
+Artifacts land under `.swarm/runs/<timestamp>-<slug>/` (see [Artifact layout](#artifact-layout)), with a deterministic `synthesis.md` at the end. Use `--quiet` for CI-style one-line-per-event output.
+
 ## Usage
 
 ```
@@ -36,6 +55,7 @@ Options:
 
 Commands:
   run [options] <rounds> <topic...>  Run a swarm
+  doctor                             Diagnose swarm setup: config, agents, and presets
   help [command]                     display help for command
 ```
 
@@ -52,34 +72,95 @@ Arguments:
 
 Options:
   --agents <list>    comma-separated agent names
-  --resolve <mode>   resolution mode: off | orchestrator | agents
+  --resolve <mode>   record resolution mode in manifest: off | orchestrator | agents
+                     (between-round sub-pass not yet implemented)
   --goal <text>      primary goal for the swarm
   --decision <text>  decision target for the swarm
   --doc <path>       carry-forward document (repeatable)
-  --preset <name>    named preset (pass-through; not yet resolved)
+  --preset <name>    named preset (resolves to agents when --agents not provided)
+  --quiet            force quiet (one-line-per-event) output; default auto by TTY
   -h, --help         display help for command
 ```
 
-**Example:**
+> **Heads up — `--resolve` is a stub for alpha.** The value is accepted, persisted in the run manifest, and carried through synthesis, but no between-round question-resolution sub-pass runs yet. Pass it for forward-compatibility; expect no functional change between modes today.
+
+### Bundled presets
+
+Swarm ships with one opinionated built-in preset:
+
+| Preset             | Agents                                  | Resolve        | Best for                                                                             |
+| ------------------ | --------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
+| `product-decision` | `product-manager`, `principal-engineer` | `orchestrator` | Framing a product decision with paired user-value and engineering-feasibility lenses |
+
+Invoke it by name — no `--agents` required:
 
 ```bash
-swarm run 2 "Should we adopt server components?" \
-  --agents product-manager,principal-engineer \
-  --resolve orchestrator \
-  --goal "Decide on migration strategy" \
-  --decision "Adopt / Defer / Reject"
+swarm run 2 "Should we adopt server components?" --preset product-decision
 ```
+
+CLI flags still win over preset defaults, so you can override `--resolve`, `--goal`, or `--decision` per run. Drop a YAML file into `.swarm/presets/<name>.yml` (project) or `~/.swarm/presets/<name>.yml` (global) to define your own; project entries take precedence over global, and global over bundled.
+
+Custom preset files are strict YAML objects with required `name` and `agents` fields plus optional `description`, `resolve`, `goal`, and `decision` fields:
+
+```yaml
+name: product-decision
+description: Product and engineering framing for major product bets
+agents:
+  - product-manager
+  - principal-engineer
+resolve: orchestrator
+goal: Decide on migration strategy
+decision: Adopt / Defer / Reject
+```
+
+Preset names must use lowercase letters, numbers, `-`, or `_`, and `agents` must list 2-5 agent names.
+
+### `swarm doctor`
+
+Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, and that any agents or preset referenced in the project config actually resolve. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
+
+```bash
+swarm doctor
+```
+
+## Project config (`.swarm/config.yml`)
+
+Optional. Set project defaults so teammates don't have to remember the flags.
+
+```yaml
+preset: product-decision
+# or instead of preset, pin an explicit agent list:
+# agents: [product-manager, principal-engineer]
+goal: Decide on migration strategy
+decision: Adopt / Defer / Reject
+resolve: off # off | orchestrator | agents (stub; see note above)
+docs:
+  - docs/architecture.md
+```
+
+Precedence: **CLI flags > config values > preset defaults**. The file is optional — when missing, CLI flags alone fully describe the run. Validation errors (unknown keys, wrong types) are reported by `swarm doctor` and at run start.
+
+Supported fields: `preset`, `agents` (2–5 names), `resolve`, `goal`, `decision`, `docs`. The `rounds` key is reserved but not yet applied — pass `<rounds>` on the CLI.
 
 ## Agent configuration
 
-Agent definitions are YAML or Markdown files loaded from two locations:
+Agent definitions are YAML or Markdown files resolved from three roots (first wins):
 
-| Path | Scope |
-|------|-------|
-| `.swarm/agents/*.yml` / `.swarm/agents/*.md` | Project-local |
-| `~/.swarm/agents/*.yml` / `~/.swarm/agents/*.md` | Global (user-wide) |
+| Path                                             | Scope                             |
+| ------------------------------------------------ | --------------------------------- |
+| `.swarm/agents/*.yml` / `.swarm/agents/*.md`     | Project-local                     |
+| `~/.swarm/agents/*.yml` / `~/.swarm/agents/*.md` | Global (user-wide)                |
+| _(bundled)_                                      | Ships with swarm; see table below |
 
-Project-local agents take precedence over global agents with the same name.
+Swarm ships with three bundled agents the golden path relies on:
+
+| Agent                | Role                                                            |
+| -------------------- | --------------------------------------------------------------- |
+| `product-manager`    | User value, scope, and decision framing                         |
+| `principal-engineer` | System design, feasibility, and operational risk                |
+| `orchestrator`       | Coordinator persona reserved for resolve modes (not active yet) |
+
+Custom project or global agents override bundled names.
 
 ### YAML format
 
@@ -92,7 +173,7 @@ persona: >
 prompt: >
   Evaluate the topic from a product strategy lens. Consider
   user impact, competitive landscape, and delivery risk.
-backend: claude   # default; only supported backend currently
+backend: claude # default; only supported backend currently
 ```
 
 ### Markdown format
@@ -176,10 +257,13 @@ The CLI provides two rendering modes:
 ```bash
 pnpm test            # unit tests
 pnpm test:e2e        # end-to-end tests (builds first)
+pnpm smoke           # golden-path smoke check (builds, runs doctor + preset flow)
 pnpm typecheck       # type checking
 pnpm lint            # eslint
 pnpm format:check    # prettier check
 ```
+
+`pnpm smoke` is the repeatable alpha verification: it builds, runs `swarm doctor` against the built CLI, and exercises the `--preset product-decision` flow end to end with a mock backend. Use it before cutting a release or after touching bundled agents, presets, or CLI wiring.
 
 ### Architecture
 

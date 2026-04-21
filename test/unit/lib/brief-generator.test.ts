@@ -65,22 +65,18 @@ describe("buildSeedBrief", () => {
     expect(out).toContain("Preset: default");
   });
 
-  it("emits the orchestrator resolution-mode line when resolve=orchestrator", () => {
+  it("records resolveMode as metadata without promising a between-round sub-pass (orchestrator)", () => {
     const out = buildSeedBrief(configWith({ resolveMode: "orchestrator" }));
-    expect(out).toContain("## Resolution mode");
-    expect(out).toContain(
-      "The orchestrator runs the question-resolution sub-pass between rounds before continuing.",
-    );
-    expect(out).not.toContain("selected swarm agents run");
+    expect(out).toContain("Resolution mode: orchestrator");
+    expect(out).not.toContain("## Resolution mode");
+    expect(out).not.toContain("sub-pass");
   });
 
-  it("emits the agents resolution-mode line when resolve=agents", () => {
+  it("records resolveMode as metadata without promising a between-round sub-pass (agents)", () => {
     const out = buildSeedBrief(configWith({ resolveMode: "agents" }));
-    expect(out).toContain("## Resolution mode");
-    expect(out).toContain(
-      "The selected swarm agents run the question-resolution sub-pass between rounds before continuing.",
-    );
-    expect(out).not.toContain("The orchestrator runs");
+    expect(out).toContain("Resolution mode: agents");
+    expect(out).not.toContain("## Resolution mode");
+    expect(out).not.toContain("sub-pass");
   });
 });
 
