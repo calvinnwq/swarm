@@ -3,9 +3,11 @@ import process from "node:process";
 import { Command, InvalidArgumentError } from "commander";
 import {
   buildConfig,
+  formatDoctorReport,
   loadAgentRegistry,
   loadPresetRegistry,
   loadProjectConfig,
+  runDoctor,
   runSwarm,
   SwarmCommandError,
   type AgentSelectionSource,
@@ -115,6 +117,23 @@ program
       }
     },
   );
+
+program
+  .command("doctor")
+  .description("Diagnose swarm setup: config, agents, and presets")
+  .action(async () => {
+    try {
+      const report = await runDoctor();
+      process.stdout.write(`${formatDoctorReport(report)}\n`);
+      process.exit(report.ok ? 0 : 1);
+    } catch (err) {
+      if (err instanceof SwarmCommandError) {
+        process.stderr.write(`swarm: ${err.message}\n`);
+        process.exit(2);
+      }
+      throw err;
+    }
+  });
 
 try {
   await program.parseAsync();

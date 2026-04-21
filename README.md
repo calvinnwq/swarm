@@ -86,6 +86,14 @@ swarm run 2 "Should we adopt server components?" --preset product-decision
 
 CLI flags still win over preset defaults, so you can override `--resolve`, `--goal`, or `--decision` per run. Drop a YAML file into `.swarm/presets/<name>.yml` (project) or `~/.swarm/presets/<name>.yml` (global) to define your own; project entries take precedence over global, and global over bundled.
 
+### `swarm doctor`
+
+Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, and that any agents or preset referenced in the project config actually resolve. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
+
+```bash
+swarm doctor
+```
+
 ## Agent configuration
 
 Agent definitions are YAML or Markdown files loaded from two locations:

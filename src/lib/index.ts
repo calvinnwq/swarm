@@ -2,6 +2,7 @@ export * from "./agent-registry.js";
 export * from "./artifact-writer.js";
 export * from "./brief-generator.js";
 export * from "./config.js";
+export * from "./doctor.js";
 export * from "./load-project-config.js";
 export * from "./parse-command.js";
 export * from "./preset-registry.js";
