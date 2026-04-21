@@ -56,6 +56,26 @@ function agentYaml(name: string): string {
 describe("runDoctor", () => {
   it("reports OK when there is no project config and registries load cleanly", async () => {
     const roots = await makeIsolatedRoots();
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer.yml",
+      agentYaml("principal-engineer"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+      ].join("\n"),
+    );
     const report = await runDoctor(roots);
     expect(report.ok).toBe(true);
     const names = report.checks.map((c) => c.name);
@@ -69,6 +89,18 @@ describe("runDoctor", () => {
     const config = report.checks.find((c) => c.name === "project config");
     expect(config?.status).toBe("ok");
     expect(config?.message).toContain("no .swarm/config.yml");
+  });
+
+  it("reports FAIL when both registries are empty", async () => {
+    const roots = await makeIsolatedRoots();
+    const report = await runDoctor(roots);
+    expect(report.ok).toBe(false);
+    expect(report.checks.find((c) => c.name === "agent registry")?.status).toBe(
+      "fail",
+    );
+    expect(report.checks.find((c) => c.name === "preset registry")?.status).toBe(
+      "fail",
+    );
   });
 
   it("reports FAIL when config references an unknown agent", async () => {
@@ -151,6 +183,47 @@ describe("runDoctor", () => {
     const check = report.checks.find((c) => c.name === "config preset");
     expect(check?.status).toBe("ok");
     expect(check?.message).toContain("product-decision");
+  });
+
+  it("skips preset validation when explicit config agents are present", async () => {
+    const roots = await makeIsolatedRoots();
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer.yml",
+      agentYaml("principal-engineer"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - missing-agent",
+        "resolve: orchestrator",
+      ].join("\n"),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+        "preset: product-decision",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+    expect(report.ok).toBe(true);
+    expect(report.checks.find((c) => c.name === "config agents")?.status).toBe(
+      "ok",
+    );
+    expect(report.checks.find((c) => c.name === "config preset")).toBeUndefined();
   });
 });
 

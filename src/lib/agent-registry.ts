@@ -21,6 +21,7 @@ export interface LoadAgentRegistryOptions {
 
 export interface AgentRegistry {
   getAgent(name: string): AgentDefinition;
+  listAgents(): AgentDefinition[];
   searchedRoots: string[];
 }
 
@@ -54,6 +55,9 @@ export async function loadAgentRegistry(
 
   return {
     searchedRoots,
+    listAgents(): AgentDefinition[] {
+      return Array.from(definitions.values());
+    },
     getAgent(name: string): AgentDefinition {
       const normalizedName = name.trim().toLowerCase();
       const definition = definitions.get(normalizedName);

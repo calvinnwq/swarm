@@ -68,7 +68,11 @@ export async function runDoctor(
     checks.push(checkConfigAgents(loadedConfig.config.agents, agentRegistry));
   }
 
-  if (loadedConfig?.config.preset && presetRegistry) {
+  if (
+    loadedConfig?.config.preset &&
+    presetRegistry &&
+    !loadedConfig.config.agents
+  ) {
     checks.push(
       checkConfigPreset(
         loadedConfig.config.preset,
@@ -123,12 +127,16 @@ async function checkAgentRegistry(
 ): Promise<{ check: DoctorCheck; registry: AgentRegistry | null }> {
   try {
     const registry = await loadAgentRegistry(options);
+    const count = registry.listAgents().length;
     return {
       registry,
       check: {
         name: "agent registry",
-        status: "ok",
-        message: `searched ${registry.searchedRoots.length} root(s)`,
+        status: count > 0 ? "ok" : "fail",
+        message:
+          count > 0
+            ? `loaded ${count} agent(s) from ${registry.searchedRoots.length} root(s)`
+            : `loaded 0 agents from ${registry.searchedRoots.length} root(s)`,
         detail: registry.searchedRoots.join("\n"),
       },
     };
@@ -154,8 +162,11 @@ async function checkPresetRegistry(
       registry,
       check: {
         name: "preset registry",
-        status: "ok",
-        message: `loaded ${count} preset(s) from ${registry.searchedRoots.length} root(s)`,
+        status: count > 0 ? "ok" : "fail",
+        message:
+          count > 0
+            ? `loaded ${count} preset(s) from ${registry.searchedRoots.length} root(s)`
+            : `loaded 0 presets from ${registry.searchedRoots.length} root(s)`,
         detail: registry.searchedRoots.join("\n"),
       },
     };

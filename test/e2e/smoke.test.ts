@@ -6,86 +6,88 @@
  *   2. `swarm run 2 "<topic>" --preset product-decision` resolves the bundled
  *      preset + bundled agents and produces the full artifact tree
  *
- * This file exercises both halves end-to-end. The doctor check spawns the
- * built CLI so we catch packaging regressions (bundled-dir resolution, CLI
- * wiring). The run check uses the programmatic API with a mock backend —
- * the only stand-in is the claude CLI boundary itself, everything else
- * (preset registry, agent registry, brief generation, round runner,
- * synthesis, artifact writer) runs exactly as the CLI would.
+ * This file exercises both halves end-to-end through the built CLI so we
+ * catch packaging regressions in bundled asset resolution and command wiring.
+ * The only stand-in is the external `claude` binary, replaced here with a
+ * fixture executable on PATH.
  */
-import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
-
-import type {
-  BackendAdapter,
-  AgentResponse,
-} from "../../src/backends/index.js";
-import {
-  buildConfig,
-  loadAgentRegistry,
-  loadPresetRegistry,
-  runSwarm,
-} from "../../src/lib/index.js";
-import type { AgentDefinition, AgentOutput } from "../../src/schemas/index.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const cliPath = fileURLToPath(new URL("../../dist/cli.mjs", import.meta.url));
 
-function makeAgentOutput(
-  agent: string,
-  round: number,
-  stance: string,
-): AgentOutput {
-  return {
+function installClaudeStub(binDir: string): void {
+  mkdirSync(binDir, { recursive: true });
+  const scriptPath = join(binDir, "claude");
+  writeFileSync(
+    scriptPath,
+    `#!/usr/bin/env node
+const fs = require("node:fs");
+const path = require("node:path");
+
+const systemPromptFlag = process.argv.indexOf("--system-prompt");
+const systemPrompt = systemPromptFlag >= 0 ? (process.argv[systemPromptFlag + 1] ?? "") : "";
+const brief = fs.readFileSync(0, "utf8");
+const statePath = path.join(path.dirname(process.argv[1]), ".claude-state.json");
+
+let counters = {};
+try {
+  counters = JSON.parse(fs.readFileSync(statePath, "utf8"));
+} catch {}
+
+const agent = /product manager/i.test(systemPrompt)
+  ? "product-manager"
+  : /principal engineer/i.test(systemPrompt)
+    ? "principal-engineer"
+    : "unknown-agent";
+const round = (counters[agent] ?? 0) + 1;
+counters[agent] = round;
+fs.writeFileSync(statePath, JSON.stringify(counters));
+
+process.stdout.write(
+  JSON.stringify({
     agent,
     round,
-    stance,
-    recommendation: `${agent} recommends ${stance} in round ${round}`,
-    reasoning: [`${agent} reasoning for round ${round}`],
+    stance: "Adopt",
+    recommendation: agent + " recommends Adopt in round " + round,
+    reasoning: [agent + " reasoning for round " + round],
     objections: [],
     risks: ["shared migration risk"],
     changesFromPriorRound:
-      round > 1 ? [`${agent} refined stance in round ${round}`] : [],
+      round > 1 ? [agent + " refined stance in round " + round] : [],
     confidence: "high",
-    openQuestions: [],
-  };
-}
-
-/**
- * Stand-in for the claude CLI backend. Returns a valid AgentOutput JSON
- * keyed by agent name, incrementing the round counter per call so the
- * second invocation of an agent returns its round-2 output.
- */
-class SmokeBackend implements BackendAdapter {
-  private readonly counters = new Map<string, number>();
-
-  async dispatch(
-    _prompt: string,
-    agent: AgentDefinition,
-  ): Promise<AgentResponse> {
-    const roundIdx = this.counters.get(agent.name) ?? 0;
-    this.counters.set(agent.name, roundIdx + 1);
-    const output = makeAgentOutput(agent.name, roundIdx + 1, "Adopt");
-    return {
-      ok: true,
-      exitCode: 0,
-      stdout: JSON.stringify(output),
-      stderr: "",
-      timedOut: false,
-      durationMs: 10,
-    };
-  }
+    openQuestions: brief.includes("Prior Round Packet")
+      ? ["Confirm execution sequencing"]
+      : [],
+  }),
+);
+`,
+    "utf-8",
+  );
+  chmodSync(scriptPath, 0o755);
 }
 
 describe("smoke: README golden path", () => {
   let baseDir: string;
+  let binDir: string;
 
   beforeEach(() => {
     baseDir = join(tmpdir(), `swarm-smoke-${randomUUID()}`);
+    binDir = join(baseDir, "bin");
+    installClaudeStub(binDir);
   });
 
   afterEach(() => {
@@ -96,8 +98,10 @@ describe("smoke: README golden path", () => {
 
   it("`swarm doctor` reports ready against the built CLI", () => {
     const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
       encoding: "utf-8",
     });
+
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("swarm doctor: ready");
     expect(result.stdout).toContain("[OK] agent registry");
@@ -105,53 +109,38 @@ describe("smoke: README golden path", () => {
     expect(result.stderr).toBe("");
   });
 
-  it("`swarm run 2 ... --preset product-decision` resolves bundled assets and produces the golden-path artifacts", async () => {
-    // Mirror the CLI flow exactly (minus the claude backend): resolve the
-    // bundled `product-decision` preset, then load the two bundled agents
-    // it names via the real agent registry.
-    const presetRegistry = await loadPresetRegistry();
-    const preset = presetRegistry.getPreset("product-decision");
-    expect(preset.agents).toEqual(["product-manager", "principal-engineer"]);
-
-    const agentRegistry = await loadAgentRegistry();
-    const agents = preset.agents.map((name) => agentRegistry.getAgent(name));
-    expect(agents.map((a) => a.name)).toEqual([
-      "product-manager",
-      "principal-engineer",
-    ]);
-
-    const config = buildConfig({
-      rounds: 2,
-      topic: ["Should", "we", "adopt", "server", "components?"],
-      agents: preset.agents.join(","),
-      resolve: preset.resolve,
-      goal: "Decide on migration strategy",
-      decision: "Adopt / Defer / Reject",
-      docs: [],
-      preset: preset.name,
-      selectionSource: "preset",
-      commandText:
-        'run 2 "Should we adopt server components?" --preset product-decision',
-    });
-
-    const exitCode = await runSwarm({
-      config,
-      agents,
-      backend: new SmokeBackend(),
-      baseDir,
-      startedAt: new Date("2026-04-21T09:00:00.000Z"),
-      ui: "silent",
-    });
-
-    expect(exitCode).toBe(0);
-
-    const runDir = join(
-      baseDir,
-      "20260421-090000-should-we-adopt-server-components",
+  it("`swarm run 2 ... --preset product-decision` resolves bundled assets and produces the golden-path artifacts", () => {
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "2",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
     );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("[round 1] start");
+    expect(result.stderr).toContain("[run] complete");
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDirEntries = readdirSync(runsDir);
+    expect(runDirEntries).toHaveLength(1);
+
+    const runDir = join(runsDir, runDirEntries[0]);
     expect(existsSync(runDir)).toBe(true);
 
-    // manifest.json records the golden-path shape (preset + bundled agents)
     const manifest = JSON.parse(
       readFileSync(join(runDir, "manifest.json"), "utf-8"),
     );
@@ -161,7 +150,6 @@ describe("smoke: README golden path", () => {
     expect(manifest.resolveMode).toBe("orchestrator");
     expect(manifest.finishedAt).toBeDefined();
 
-    // Full artifact tree documented in README's "Artifact layout" section
     expect(existsSync(join(runDir, "seed-brief.md"))).toBe(true);
     for (const round of ["round-01", "round-02"]) {
       expect(existsSync(join(runDir, round, "brief.md"))).toBe(true);
@@ -173,8 +161,6 @@ describe("smoke: README golden path", () => {
       ).toBe(true);
     }
 
-    // synthesis.json + synthesis.md exist, and synthesis reports consensus
-    // (all agents returned the same stance across both rounds)
     const synthesis = JSON.parse(
       readFileSync(join(runDir, "synthesis.json"), "utf-8"),
     );
