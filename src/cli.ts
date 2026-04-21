@@ -72,8 +72,9 @@ program
         const cliDocs = options.doc as string[] | undefined;
         const cliAgents = options.agents as string | undefined;
         const configAgents = projectConfig.agents?.join(",");
-        const presetName =
-          (options.preset as string | undefined) ?? projectConfig.preset;
+        const cliPresetName = options.preset as string | undefined;
+        const configPresetName = projectConfig.preset;
+        const presetName = cliPresetName ?? configPresetName;
 
         let resolvedAgents: string | undefined = cliAgents;
         let resolvedResolve =
@@ -84,16 +85,24 @@ program
           (options.decision as string | undefined) ?? projectConfig.decision;
         let selectionSource: AgentSelectionSource | undefined;
 
-        if (cliAgents === undefined && presetName !== undefined) {
+        if (cliAgents === undefined && cliPresetName !== undefined) {
           const presetRegistry = await loadPresetRegistry();
-          const preset = presetRegistry.getPreset(presetName);
+          const preset = presetRegistry.getPreset(cliPresetName);
           resolvedAgents = preset.agents.join(",");
           selectionSource = "preset";
           resolvedResolve = resolvedResolve ?? preset.resolve;
           resolvedGoal = resolvedGoal ?? preset.goal;
           resolvedDecision = resolvedDecision ?? preset.decision;
-        } else if (resolvedAgents === undefined) {
+        } else if (resolvedAgents === undefined && configAgents !== undefined) {
           resolvedAgents = configAgents;
+        } else if (resolvedAgents === undefined && configPresetName !== undefined) {
+          const presetRegistry = await loadPresetRegistry();
+          const preset = presetRegistry.getPreset(configPresetName);
+          resolvedAgents = preset.agents.join(",");
+          selectionSource = "preset";
+          resolvedResolve = resolvedResolve ?? preset.resolve;
+          resolvedGoal = resolvedGoal ?? preset.goal;
+          resolvedDecision = resolvedDecision ?? preset.decision;
         }
 
         const config = buildConfig({

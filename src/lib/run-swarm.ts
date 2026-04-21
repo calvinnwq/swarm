@@ -42,6 +42,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   const manifest: RunManifest = {
     topic: config.topic,
     rounds: config.rounds,
+    preset: config.preset,
     agents: config.agents,
     resolveMode: config.resolveMode,
     startedAt: startedAtIso,
