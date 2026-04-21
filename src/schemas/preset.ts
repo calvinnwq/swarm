@@ -14,7 +14,6 @@ export const SwarmPresetSchema = z
     description: trimmedString.optional(),
     agents: z.array(trimmedString).min(2).max(5),
     resolve: ResolveModeSchema.optional(),
-    rounds: z.int().min(1).max(3).optional(),
     goal: trimmedString.optional(),
     decision: trimmedString.optional(),
   })

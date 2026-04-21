@@ -222,4 +222,42 @@ describe("smoke: README golden path", () => {
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
     expect(manifest.resolveMode).toBe("off");
   });
+
+  it("config presets do not leak into explicit-agent runs", () => {
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      [
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+        "preset: missing-preset",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [cliPath, "run", "1", "Should we adopt server components?"],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
+
+    expect(manifest.preset).toBeNull();
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+  });
 });

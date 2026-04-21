@@ -74,7 +74,6 @@ program
         const configAgents = projectConfig.agents?.join(",");
         const cliPresetName = options.preset as string | undefined;
         const configPresetName = projectConfig.preset;
-        const presetName = cliPresetName ?? configPresetName;
 
         let resolvedAgents: string | undefined = cliAgents;
         let resolvedResolve =
@@ -83,12 +82,14 @@ program
           (options.goal as string | undefined) ?? projectConfig.goal;
         let resolvedDecision =
           (options.decision as string | undefined) ?? projectConfig.decision;
+        let resolvedPresetName: string | undefined;
         let selectionSource: AgentSelectionSource | undefined;
 
         if (cliAgents === undefined && cliPresetName !== undefined) {
           const presetRegistry = await loadPresetRegistry();
           const preset = presetRegistry.getPreset(cliPresetName);
           resolvedAgents = preset.agents.join(",");
+          resolvedPresetName = cliPresetName;
           selectionSource = "preset";
           resolvedResolve = resolvedResolve ?? preset.resolve;
           resolvedGoal = resolvedGoal ?? preset.goal;
@@ -99,6 +100,7 @@ program
           const presetRegistry = await loadPresetRegistry();
           const preset = presetRegistry.getPreset(configPresetName);
           resolvedAgents = preset.agents.join(",");
+          resolvedPresetName = configPresetName;
           selectionSource = "preset";
           resolvedResolve = resolvedResolve ?? preset.resolve;
           resolvedGoal = resolvedGoal ?? preset.goal;
@@ -116,7 +118,7 @@ program
             cliDocs && cliDocs.length > 0
               ? cliDocs
               : (projectConfig.docs ?? []),
-          preset: presetName,
+          preset: resolvedPresetName,
           selectionSource,
           commandText: process.argv.slice(2).join(" "),
         });

@@ -17,12 +17,11 @@ describe("SwarmPresetSchema", () => {
       description: "Full preset",
       agents: ["a", "b", "c"],
       resolve: "orchestrator",
-      rounds: 2,
       goal: "ship",
       decision: "pick one",
     });
     expect(parsed.resolve).toBe("orchestrator");
-    expect(parsed.rounds).toBe(2);
+    expect(parsed.goal).toBe("ship");
   });
 
   it("rejects fewer than 2 agents", () => {
@@ -46,12 +45,12 @@ describe("SwarmPresetSchema", () => {
     ).toThrow();
   });
 
-  it("rejects rounds out of range", () => {
+  it("rejects rounds because presets do not control it", () => {
     expect(() =>
       SwarmPresetSchema.parse({
         name: "x",
         agents: ["a", "b"],
-        rounds: 4,
+        rounds: 2,
       }),
     ).toThrow();
   });
