@@ -70,13 +70,12 @@ program
         const loadedProjectConfig = await loadProjectConfig();
         const projectConfig = loadedProjectConfig?.config ?? {};
         const cliDocs = options.doc as string[] | undefined;
-        const explicitAgents =
-          (options.agents as string | undefined) ??
-          (projectConfig.agents ? projectConfig.agents.join(",") : undefined);
+        const cliAgents = options.agents as string | undefined;
+        const configAgents = projectConfig.agents?.join(",");
         const presetName =
           (options.preset as string | undefined) ?? projectConfig.preset;
 
-        let resolvedAgents: string | undefined = explicitAgents;
+        let resolvedAgents: string | undefined = cliAgents;
         let resolvedResolve =
           (options.resolve as string | undefined) ?? projectConfig.resolve;
         let resolvedGoal =
@@ -85,7 +84,7 @@ program
           (options.decision as string | undefined) ?? projectConfig.decision;
         let selectionSource: AgentSelectionSource | undefined;
 
-        if (explicitAgents === undefined && presetName !== undefined) {
+        if (cliAgents === undefined && presetName !== undefined) {
           const presetRegistry = await loadPresetRegistry();
           const preset = presetRegistry.getPreset(presetName);
           resolvedAgents = preset.agents.join(",");
@@ -93,6 +92,8 @@ program
           resolvedResolve = resolvedResolve ?? preset.resolve;
           resolvedGoal = resolvedGoal ?? preset.goal;
           resolvedDecision = resolvedDecision ?? preset.decision;
+        } else if (resolvedAgents === undefined) {
+          resolvedAgents = configAgents;
         }
 
         const config = buildConfig({

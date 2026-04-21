@@ -176,4 +176,50 @@ describe("smoke: README golden path", () => {
     expect(synthesisMd).toContain("### Round 1");
     expect(synthesisMd).toContain("### Round 2");
   });
+
+  it("CLI preset overrides config agents", () => {
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      [
+        "agents:",
+        "  - product-manager",
+        "  - staff-engineer",
+        "resolve: off",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
+
+    expect(manifest.preset).toBe("product-decision");
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(manifest.resolveMode).toBe("off");
+  });
 });

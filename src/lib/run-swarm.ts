@@ -95,17 +95,19 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     },
   );
 
-  const result = await run();
+  try {
+    const result = await run();
 
-  if (result.ok) {
-    const synthesis = buildOrchestratorSynthesis(manifest, result.rounds);
-    writer.writeSynthesis(synthesis);
+    if (result.ok) {
+      const synthesis = buildOrchestratorSynthesis(manifest, result.rounds);
+      writer.writeSynthesis(synthesis);
+    }
+
+    const finishedAt = new Date().toISOString();
+    writer.finalize(finishedAt);
+
+    return result.ok ? 0 : 1;
+  } finally {
+    liveHandle?.destroy();
   }
-
-  const finishedAt = new Date().toISOString();
-  writer.finalize(finishedAt);
-
-  liveHandle?.destroy();
-
-  return result.ok ? 0 : 1;
 }
