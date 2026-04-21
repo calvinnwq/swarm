@@ -21,12 +21,14 @@ vi.mock("../../../src/lib/round-runner.js", () => ({
 }));
 
 vi.mock("../../../src/lib/artifact-writer.js", () => ({
-  ArtifactWriter: vi.fn(() => ({
-    init: initMock,
-    finalize: finalizeMock,
-    writeRound: writeRoundMock,
-    writeSynthesis: writeSynthesisMock,
-  })),
+  ArtifactWriter: vi.fn(function ArtifactWriter() {
+    return {
+      init: initMock,
+      finalize: finalizeMock,
+      writeRound: writeRoundMock,
+      writeSynthesis: writeSynthesisMock,
+    };
+  }),
   buildRunDirName: vi.fn(() => "run-dir"),
 }));
 

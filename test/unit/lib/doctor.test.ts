@@ -204,6 +204,7 @@ describe("runDoctor", () => {
         "name: product-decision",
         "agents:",
         "  - missing-agent",
+        "  - another-missing-agent",
         "resolve: orchestrator",
       ].join("\n"),
     );
