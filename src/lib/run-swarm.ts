@@ -8,6 +8,9 @@ import { ArtifactWriter } from "./artifact-writer.js";
 import { buildRunDirName } from "./artifact-writer.js";
 import { buildSeedBrief, buildRoundBrief } from "./brief-generator.js";
 import { buildOrchestratorSynthesis } from "./synthesis.js";
+import { attachLiveRenderer, attachQuietLogger } from "../ui/index.js";
+
+export type SwarmUiMode = "live" | "quiet" | "silent";
 
 export interface RunSwarmOpts {
   config: SwarmRunConfig;
@@ -17,6 +20,11 @@ export interface RunSwarmOpts {
   baseDir?: string;
   /** Override start time for deterministic output */
   startedAt?: Date;
+  /**
+   * Terminal output mode. Defaults to "live" when stderr is a TTY, else "quiet".
+   * "silent" disables UI attachment (artifacts still written).
+   */
+  ui?: SwarmUiMode;
 }
 
 /**
@@ -50,6 +58,15 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     agents,
     backend,
   });
+
+  const uiMode: SwarmUiMode =
+    opts.ui ?? (process.stderr.isTTY ? "live" : "quiet");
+  let liveHandle: { destroy: () => void } | null = null;
+  if (uiMode === "live") {
+    liveHandle = attachLiveRenderer(emitter);
+  } else if (uiMode === "quiet") {
+    attachQuietLogger(emitter);
+  }
 
   // Track round briefs for artifact writing
   const roundBriefs = new Map<number, string>();
@@ -87,6 +104,8 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
 
   const finishedAt = new Date().toISOString();
   writer.finalize(finishedAt);
+
+  liveHandle?.destroy();
 
   return result.ok ? 0 : 1;
 }

@@ -52,11 +52,13 @@ Arguments:
 
 Options:
   --agents <list>    comma-separated agent names
-  --resolve <mode>   resolution mode: off | orchestrator | agents
+  --resolve <mode>   record resolution mode in manifest: off | orchestrator | agents
+                     (between-round sub-pass not yet implemented)
   --goal <text>      primary goal for the swarm
   --decision <text>  decision target for the swarm
   --doc <path>       carry-forward document (repeatable)
   --preset <name>    named preset (resolves to agents when --agents not provided)
+  --quiet            force quiet (one-line-per-event) output; default auto by TTY
   -h, --help         display help for command
 ```
 
@@ -65,10 +67,11 @@ Options:
 ```bash
 swarm run 2 "Should we adopt server components?" \
   --agents product-manager,principal-engineer \
-  --resolve orchestrator \
   --goal "Decide on migration strategy" \
   --decision "Adopt / Defer / Reject"
 ```
+
+> **Heads up — `--resolve` is a stub for alpha.** The value is accepted, persisted in the run manifest, and carried through synthesis, but no between-round question-resolution sub-pass runs yet. Pass it for forward-compatibility; expect no functional change between modes today.
 
 ### Bundled presets
 

@@ -74,16 +74,6 @@ export function buildSeedBrief(config: SwarmRunConfig): string {
     ...ROUND_INSTRUCTIONS,
   );
 
-  if (config.resolveMode !== "off") {
-    lines.push(
-      "",
-      "## Resolution mode",
-      config.resolveMode === "orchestrator"
-        ? "Explicit resolution is enabled. The orchestrator runs the question-resolution sub-pass between rounds before continuing."
-        : "Explicit resolution is enabled. The selected swarm agents run the question-resolution sub-pass between rounds before continuing.",
-    );
-  }
-
   return lines.join("\n").trim() + "\n";
 }
 

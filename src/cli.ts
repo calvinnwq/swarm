@@ -45,13 +45,20 @@ program
   .argument("<rounds>", "number of rounds (1–3)", parseRoundsArg)
   .argument("<topic...>", "topic for the swarm")
   .option("--agents <list>", "comma-separated agent names")
-  .option("--resolve <mode>", "resolution mode: off | orchestrator | agents")
+  .option(
+    "--resolve <mode>",
+    "record resolution mode in manifest: off | orchestrator | agents (between-round sub-pass not yet implemented)",
+  )
   .option("--goal <text>", "primary goal for the swarm")
   .option("--decision <text>", "decision target for the swarm")
   .option("--doc <path>", "carry-forward document (repeatable)", collectDoc, [])
   .option(
     "--preset <name>",
     "named preset (resolves to agents when --agents not provided)",
+  )
+  .option(
+    "--quiet",
+    "force quiet (one-line-per-event) output; default auto by TTY",
   )
   .action(
     async (
@@ -106,7 +113,8 @@ program
         const registry = await loadAgentRegistry();
         const agents = config.agents.map((name) => registry.getAgent(name));
         const backend = new ClaudeCliAdapter();
-        const exitCode = await runSwarm({ config, agents, backend });
+        const ui = options.quiet === true ? "quiet" : undefined;
+        const exitCode = await runSwarm({ config, agents, backend, ui });
         process.exit(exitCode);
       } catch (err) {
         if (err instanceof SwarmCommandError) {
