@@ -7,7 +7,7 @@
     "swarm": "dist/cli.mjs"
   },
   "scripts": {
-    "build": "tsdown && mkdir -p dist/agents/bundled && cp src/agents/bundled/* dist/agents/bundled/",
+    "build": "tsdown && mkdir -p dist/agents/bundled dist/presets/bundled && cp src/agents/bundled/* dist/agents/bundled/ && cp src/presets/bundled/* dist/presets/bundled/",
     "dev": "tsdown --watch",
     "start": "node dist/cli.mjs",
     "lint": "eslint src",

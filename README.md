@@ -56,7 +56,7 @@ Options:
   --goal <text>      primary goal for the swarm
   --decision <text>  decision target for the swarm
   --doc <path>       carry-forward document (repeatable)
-  --preset <name>    named preset (pass-through; not yet resolved)
+  --preset <name>    named preset (resolves to agents when --agents not provided)
   -h, --help         display help for command
 ```
 
@@ -70,13 +70,29 @@ swarm run 2 "Should we adopt server components?" \
   --decision "Adopt / Defer / Reject"
 ```
 
+### Bundled presets
+
+Swarm ships with one opinionated built-in preset:
+
+| Preset             | Agents                                  | Resolve        | Best for                                                                             |
+| ------------------ | --------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
+| `product-decision` | `product-manager`, `principal-engineer` | `orchestrator` | Framing a product decision with paired user-value and engineering-feasibility lenses |
+
+Invoke it by name — no `--agents` required:
+
+```bash
+swarm run 2 "Should we adopt server components?" --preset product-decision
+```
+
+CLI flags still win over preset defaults, so you can override `--resolve`, `--goal`, or `--decision` per run. Drop a YAML file into `.swarm/presets/<name>.yml` (project) or `~/.swarm/presets/<name>.yml` (global) to define your own; project entries take precedence over global, and global over bundled.
+
 ## Agent configuration
 
 Agent definitions are YAML or Markdown files loaded from two locations:
 
-| Path | Scope |
-|------|-------|
-| `.swarm/agents/*.yml` / `.swarm/agents/*.md` | Project-local |
+| Path                                             | Scope              |
+| ------------------------------------------------ | ------------------ |
+| `.swarm/agents/*.yml` / `.swarm/agents/*.md`     | Project-local      |
 | `~/.swarm/agents/*.yml` / `~/.swarm/agents/*.md` | Global (user-wide) |
 
 Project-local agents take precedence over global agents with the same name.
@@ -92,7 +108,7 @@ persona: >
 prompt: >
   Evaluate the topic from a product strategy lens. Consider
   user impact, competitive landscape, and delivery risk.
-backend: claude   # default; only supported backend currently
+backend: claude # default; only supported backend currently
 ```
 
 ### Markdown format

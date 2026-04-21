@@ -159,6 +159,17 @@ describe("loadPresetRegistry", () => {
     expect(registry.getPreset("  MINE  ").agents).toEqual(["a", "b"]);
   });
 
+  it("loads the bundled product-decision preset from the default bundled directory", async () => {
+    const cwd = await makeTempDir("swarm-preset-cwd-");
+    const homeDir = await makeTempDir("swarm-preset-home-");
+
+    const registry = await loadPresetRegistry({ cwd, homeDir });
+    const preset = registry.getPreset("product-decision");
+    expect(preset.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(preset.resolve).toBe("orchestrator");
+    expect(preset.goal).toMatch(/decision-ready/i);
+  });
+
   it("rejects preset names with uppercase letters", async () => {
     const { cwd, homeDir, bundledDir } = await makeIsolatedRoots();
     await writePresetFile(

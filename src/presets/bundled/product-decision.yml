@@ -1,0 +1,11 @@
+name: product-decision
+description: >
+  Opinionated two-agent swarm for product decisions — a product manager frames
+  user value and scope, a principal engineer grounds it in feasibility and
+  execution, with an orchestrator resolving the convergence.
+agents:
+  - product-manager
+  - principal-engineer
+resolve: orchestrator
+goal: Reach a decision-ready recommendation grounded in user value and engineering feasibility.
+decision: Proceed / Defer / Reject
