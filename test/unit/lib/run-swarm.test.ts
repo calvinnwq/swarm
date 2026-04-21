@@ -73,7 +73,8 @@ describe("runSwarm", () => {
       goal: null,
       decision: null,
       docs: [],
-      commandText: "swarm run 1 topic --agents product-manager,principal-engineer",
+      commandText:
+        "swarm run 1 topic --agents product-manager,principal-engineer",
     };
 
     const agents: AgentDefinition[] = [

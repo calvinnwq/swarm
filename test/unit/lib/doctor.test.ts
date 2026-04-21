@@ -98,9 +98,9 @@ describe("runDoctor", () => {
     expect(report.checks.find((c) => c.name === "agent registry")?.status).toBe(
       "fail",
     );
-    expect(report.checks.find((c) => c.name === "preset registry")?.status).toBe(
-      "fail",
-    );
+    expect(
+      report.checks.find((c) => c.name === "preset registry")?.status,
+    ).toBe("fail");
   });
 
   it("reports FAIL when config references an unknown agent", async () => {
@@ -224,7 +224,9 @@ describe("runDoctor", () => {
     expect(report.checks.find((c) => c.name === "config agents")?.status).toBe(
       "ok",
     );
-    expect(report.checks.find((c) => c.name === "config preset")).toBeUndefined();
+    expect(
+      report.checks.find((c) => c.name === "config preset"),
+    ).toBeUndefined();
   });
 });
 

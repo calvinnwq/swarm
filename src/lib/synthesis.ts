@@ -84,7 +84,8 @@ function pickTopRecommendation(lastPacket: RoundPacket): string {
   // Pick the recommendation from the highest-confidence agent in the last round.
   // On ties, prefer the first agent alphabetically for determinism.
   const sorted = [...lastPacket.summaries].sort((a, b) => {
-    const confDiff = confidenceRank(b.confidence) - confidenceRank(a.confidence);
+    const confDiff =
+      confidenceRank(b.confidence) - confidenceRank(a.confidence);
     if (confDiff !== 0) return confDiff;
     return a.agent.localeCompare(b.agent);
   });
@@ -156,9 +157,7 @@ function renderSynthesisMarkdown(
   lines.push("## Consensus");
   lines.push("");
   if (synthesis.consensus) {
-    lines.push(
-      `All agents converged on: ${synthesis.stanceTally[0].stance}`,
-    );
+    lines.push(`All agents converged on: ${synthesis.stanceTally[0].stance}`);
   } else {
     lines.push("Agents did not reach full consensus. Stance breakdown:");
     lines.push("");

@@ -42,7 +42,10 @@ export function buildRunDirName(startedAt: Date, topic: string): string {
  *             Changes From Prior Round, Confidence, Open Questions
  *   ## Raw Output code block
  */
-export function renderAgentMarkdown(result: AgentResult, round: number): string {
+export function renderAgentMarkdown(
+  result: AgentResult,
+  round: number,
+): string {
   const lines: string[] = [];
 
   const status = result.ok ? "ok" : "failed";

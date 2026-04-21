@@ -136,7 +136,11 @@ describe("emitDiff", () => {
 
   it("emits cursor position and character", () => {
     const changes = [
-      { row: 0, col: 0, cell: { char: "A", style: "normal" as const, width: 1 } },
+      {
+        row: 0,
+        col: 0,
+        cell: { char: "A", style: "normal" as const, width: 1 },
+      },
     ];
     const result = emitDiff(changes);
     expect(result).toContain("\x1b[1;1H");
@@ -154,8 +158,16 @@ describe("emitDiff", () => {
 
   it("skips cursor repositioning for consecutive cells", () => {
     const changes = [
-      { row: 0, col: 0, cell: { char: "A", style: "normal" as const, width: 1 } },
-      { row: 0, col: 1, cell: { char: "B", style: "normal" as const, width: 1 } },
+      {
+        row: 0,
+        col: 0,
+        cell: { char: "A", style: "normal" as const, width: 1 },
+      },
+      {
+        row: 0,
+        col: 1,
+        cell: { char: "B", style: "normal" as const, width: 1 },
+      },
     ];
     const result = emitDiff(changes);
     // Only one cursor position escape (for the first cell)

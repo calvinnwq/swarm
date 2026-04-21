@@ -96,7 +96,10 @@ program
           resolvedDecision = resolvedDecision ?? preset.decision;
         } else if (resolvedAgents === undefined && configAgents !== undefined) {
           resolvedAgents = configAgents;
-        } else if (resolvedAgents === undefined && configPresetName !== undefined) {
+        } else if (
+          resolvedAgents === undefined &&
+          configPresetName !== undefined
+        ) {
           const presetRegistry = await loadPresetRegistry();
           const preset = presetRegistry.getPreset(configPresetName);
           resolvedAgents = preset.agents.join(",");

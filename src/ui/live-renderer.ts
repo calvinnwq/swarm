@@ -161,7 +161,10 @@ export function buildFrame(
   width: number,
   now: number,
 ): Cell[][] {
-  const nameWidth = Math.max(...state.agents.map((a) => stringWidth(a.name)), 4);
+  const nameWidth = Math.max(
+    ...state.agents.map((a) => stringWidth(a.name)),
+    4,
+  );
   const rows: Cell[][] = [];
 
   rows.push(buildBanner(state, width));
@@ -244,92 +247,74 @@ export function attachLiveRenderer(
     }
   }
 
-  emitter.on(
-    "round:start",
-    (e: RoundRunnerEvents["round:start"]) => {
-      state.phase = "round";
-      state.currentRound = e.round;
-      if (e.round === 1) {
-        state.totalRounds = 0; // will be set when we know
-        state.agents = e.agents.map((name) => ({
-          name,
-          status: "waiting" as AgentStatus,
-          startedAt: null,
-          durationMs: null,
-        }));
-      } else {
-        // Reset agent states for new round
-        for (const agent of state.agents) {
-          agent.status = "waiting";
-          agent.startedAt = null;
-          agent.durationMs = null;
-        }
+  emitter.on("round:start", (e: RoundRunnerEvents["round:start"]) => {
+    state.phase = "round";
+    state.currentRound = e.round;
+    if (e.round === 1) {
+      state.totalRounds = 0; // will be set when we know
+      state.agents = e.agents.map((name) => ({
+        name,
+        status: "waiting" as AgentStatus,
+        startedAt: null,
+        durationMs: null,
+      }));
+    } else {
+      // Reset agent states for new round
+      for (const agent of state.agents) {
+        agent.status = "waiting";
+        agent.startedAt = null;
+        agent.durationMs = null;
       }
-      // Infer totalRounds — it grows if we see more rounds
-      if (e.round > state.totalRounds) {
-        state.totalRounds = e.round;
-      }
-      render();
-      startTimer();
-    },
-  );
+    }
+    // Infer totalRounds — it grows if we see more rounds
+    if (e.round > state.totalRounds) {
+      state.totalRounds = e.round;
+    }
+    render();
+    startTimer();
+  });
 
-  emitter.on(
-    "agent:start",
-    (e: RoundRunnerEvents["agent:start"]) => {
-      const agent = state.agents.find((a) => a.name === e.agent);
-      if (agent) {
-        agent.status = "working";
-        agent.startedAt = now();
-      }
-      render();
-    },
-  );
+  emitter.on("agent:start", (e: RoundRunnerEvents["agent:start"]) => {
+    const agent = state.agents.find((a) => a.name === e.agent);
+    if (agent) {
+      agent.status = "working";
+      agent.startedAt = now();
+    }
+    render();
+  });
 
-  emitter.on(
-    "agent:ok",
-    (e: RoundRunnerEvents["agent:ok"]) => {
-      const agent = state.agents.find((a) => a.name === e.agent);
-      if (agent) {
-        agent.status = "ok";
-        agent.durationMs = e.durationMs;
-      }
-      render();
-    },
-  );
+  emitter.on("agent:ok", (e: RoundRunnerEvents["agent:ok"]) => {
+    const agent = state.agents.find((a) => a.name === e.agent);
+    if (agent) {
+      agent.status = "ok";
+      agent.durationMs = e.durationMs;
+    }
+    render();
+  });
 
-  emitter.on(
-    "agent:fail",
-    (e: RoundRunnerEvents["agent:fail"]) => {
-      const agent = state.agents.find((a) => a.name === e.agent);
-      if (agent) {
-        agent.status = "failed";
-        agent.durationMs = e.durationMs;
-      }
-      render();
-    },
-  );
+  emitter.on("agent:fail", (e: RoundRunnerEvents["agent:fail"]) => {
+    const agent = state.agents.find((a) => a.name === e.agent);
+    if (agent) {
+      agent.status = "failed";
+      agent.durationMs = e.durationMs;
+    }
+    render();
+  });
 
-  emitter.on(
-    "round:done",
-    () => {
-      render();
-    },
-  );
+  emitter.on("round:done", () => {
+    render();
+  });
 
-  emitter.on(
-    "run:done",
-    (e: RoundRunnerEvents["run:done"]) => {
-      state.phase = "done";
-      // Update totalRounds from actual result
-      state.totalRounds = e.rounds.length;
-      stopTimer();
-      render();
-      // Show cursor, move below the rendered area
-      write(`\x1b[${prevFrame.length + 1};1H`);
-      write("\x1b[?25h"); // show cursor
-    },
-  );
+  emitter.on("run:done", (e: RoundRunnerEvents["run:done"]) => {
+    state.phase = "done";
+    // Update totalRounds from actual result
+    state.totalRounds = e.rounds.length;
+    stopTimer();
+    render();
+    // Show cursor, move below the rendered area
+    write(`\x1b[${prevFrame.length + 1};1H`);
+    write("\x1b[?25h"); // show cursor
+  });
 
   function destroy(): void {
     stopTimer();

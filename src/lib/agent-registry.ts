@@ -3,7 +3,10 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { load as loadYaml } from "js-yaml";
-import { AgentDefinitionSchema, type AgentDefinition } from "../schemas/index.js";
+import {
+  AgentDefinitionSchema,
+  type AgentDefinition,
+} from "../schemas/index.js";
 import { SwarmCommandError } from "./parse-command.js";
 
 const DEFINITION_EXTENSIONS = new Set([".yml", ".yaml", ".md"]);
@@ -85,7 +88,9 @@ async function resolveDefaultBundledDir(): Promise<string> {
   return DEFAULT_BUNDLED_DIR_CANDIDATES[1];
 }
 
-async function loadDefinitionsFromRoot(root: string): Promise<RootDefinition[]> {
+async function loadDefinitionsFromRoot(
+  root: string,
+): Promise<RootDefinition[]> {
   let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });
@@ -99,7 +104,9 @@ async function loadDefinitionsFromRoot(root: string): Promise<RootDefinition[]> 
   const fileNames = entries
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
-    .filter((name) => DEFINITION_EXTENSIONS.has(path.extname(name).toLowerCase()))
+    .filter((name) =>
+      DEFINITION_EXTENSIONS.has(path.extname(name).toLowerCase()),
+    )
     .sort((left, right) => left.localeCompare(right));
 
   const definitions: RootDefinition[] = [];
@@ -138,7 +145,10 @@ function parseYamlDefinition(raw: string, filePath: string): AgentDefinition {
   return validateDefinition(loaded, filePath);
 }
 
-function parseMarkdownDefinition(raw: string, filePath: string): AgentDefinition {
+function parseMarkdownDefinition(
+  raw: string,
+  filePath: string,
+): AgentDefinition {
   const { frontmatter, body } = splitFrontmatter(raw, filePath);
   const loaded = parseYamlDocument(frontmatter, filePath, "frontmatter");
 
@@ -165,15 +175,24 @@ function parseMarkdownDefinition(raw: string, filePath: string): AgentDefinition
   return validateDefinition({ ...loaded, prompt }, filePath);
 }
 
-function splitFrontmatter(raw: string, filePath: string): { frontmatter: string; body: string } {
+function splitFrontmatter(
+  raw: string,
+  filePath: string,
+): { frontmatter: string; body: string } {
   const lines = raw.split(/\r?\n/);
   if (lines[0]?.trim() !== "---") {
-    throw new SwarmCommandError(`markdown definition is missing frontmatter fence: ${filePath}`);
+    throw new SwarmCommandError(
+      `markdown definition is missing frontmatter fence: ${filePath}`,
+    );
   }
 
-  const endIndex = lines.findIndex((line, index) => index > 0 && line.trim() === "---");
+  const endIndex = lines.findIndex(
+    (line, index) => index > 0 && line.trim() === "---",
+  );
   if (endIndex === -1) {
-    throw new SwarmCommandError(`markdown definition is missing closing frontmatter fence: ${filePath}`);
+    throw new SwarmCommandError(
+      `markdown definition is missing closing frontmatter fence: ${filePath}`,
+    );
   }
 
   return {
@@ -182,12 +201,18 @@ function splitFrontmatter(raw: string, filePath: string): { frontmatter: string;
   };
 }
 
-function parseYamlDocument(raw: string, filePath: string, label: string): unknown {
+function parseYamlDocument(
+  raw: string,
+  filePath: string,
+  label: string,
+): unknown {
   try {
     return loadYaml(raw);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new SwarmCommandError(`failed to parse ${label} in ${filePath}: ${message}`);
+    throw new SwarmCommandError(
+      `failed to parse ${label} in ${filePath}: ${message}`,
+    );
   }
 }
 

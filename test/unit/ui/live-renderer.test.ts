@@ -26,8 +26,18 @@ function makeState(overrides: Partial<RendererState> = {}): RendererState {
     currentRound: 1,
     totalRounds: 2,
     agents: [
-      { name: "product-manager", status: "working", startedAt: 1000, durationMs: null },
-      { name: "principal-engineer", status: "waiting", startedAt: null, durationMs: null },
+      {
+        name: "product-manager",
+        status: "working",
+        startedAt: 1000,
+        durationMs: null,
+      },
+      {
+        name: "principal-engineer",
+        status: "waiting",
+        startedAt: null,
+        durationMs: null,
+      },
     ],
     ...overrides,
   };
@@ -37,7 +47,11 @@ function makeState(overrides: Partial<RendererState> = {}): RendererState {
 
 describe("buildBanner", () => {
   it("shows all phases with current phase emphasized", () => {
-    const state = makeState({ phase: "round", currentRound: 1, totalRounds: 2 });
+    const state = makeState({
+      phase: "round",
+      currentRound: 1,
+      totalRounds: 2,
+    });
     const row = buildBanner(state, 60);
     const text = stripAnsi(rowToString(row));
     expect(text).toContain("seed");

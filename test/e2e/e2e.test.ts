@@ -172,10 +172,7 @@ describe("e2e: full pipeline with mock backend", () => {
     );
     expect(manifest.topic).toBe("Should we adopt GraphQL");
     expect(manifest.rounds).toBe(2);
-    expect(manifest.agents).toEqual([
-      "product-manager",
-      "principal-engineer",
-    ]);
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
     expect(manifest.resolveMode).toBe("orchestrator");
     expect(manifest.startedAt).toBe("2026-01-15T10:30:00.000Z");
     expect(manifest.finishedAt).toBeDefined();
@@ -238,13 +235,8 @@ describe("e2e: full pipeline with mock backend", () => {
     expect(synthesis.stanceTally.length).toBeGreaterThan(0);
 
     // -- synthesis.md --
-    const synthesisMd = readFileSync(
-      join(runDir, "synthesis.md"),
-      "utf-8",
-    );
-    expect(synthesisMd).toContain(
-      "# Synthesis: Should we adopt GraphQL",
-    );
+    const synthesisMd = readFileSync(join(runDir, "synthesis.md"), "utf-8");
+    expect(synthesisMd).toContain("# Synthesis: Should we adopt GraphQL");
     expect(synthesisMd).toContain("Round-by-Round Summary");
     expect(synthesisMd).toContain("### Round 1");
     expect(synthesisMd).toContain("### Round 2");
