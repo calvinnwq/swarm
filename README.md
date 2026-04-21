@@ -55,6 +55,7 @@ Options:
 
 Commands:
   run [options] <rounds> <topic...>  Run a swarm
+  doctor                             Diagnose swarm setup: config, agents, and presets
   help [command]                     display help for command
 ```
 
@@ -98,6 +99,21 @@ swarm run 2 "Should we adopt server components?" --preset product-decision
 ```
 
 CLI flags still win over preset defaults, so you can override `--resolve`, `--goal`, or `--decision` per run. Drop a YAML file into `.swarm/presets/<name>.yml` (project) or `~/.swarm/presets/<name>.yml` (global) to define your own; project entries take precedence over global, and global over bundled.
+
+Custom preset files are strict YAML objects with required `name` and `agents` fields plus optional `description`, `resolve`, `goal`, and `decision` fields:
+
+```yaml
+name: product-decision
+description: Product and engineering framing for major product bets
+agents:
+  - product-manager
+  - principal-engineer
+resolve: orchestrator
+goal: Decide on migration strategy
+decision: Adopt / Defer / Reject
+```
+
+Preset names must use lowercase letters, numbers, `-`, or `_`, and `agents` must list 2-5 agent names.
 
 ### `swarm doctor`
 
