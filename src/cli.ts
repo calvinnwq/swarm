@@ -4,6 +4,7 @@ import { Command, InvalidArgumentError } from "commander";
 import {
   buildConfig,
   loadAgentRegistry,
+  loadProjectConfig,
   runSwarm,
   SwarmCommandError,
 } from "./lib/index.js";
@@ -52,15 +53,26 @@ program
       options: Record<string, unknown>,
     ) => {
       try {
+        const loadedProjectConfig = await loadProjectConfig();
+        const projectConfig = loadedProjectConfig?.config ?? {};
+        const cliDocs = options.doc as string[] | undefined;
         const config = buildConfig({
           rounds,
           topic,
-          agents: options.agents as string | undefined,
-          resolve: options.resolve as string | undefined,
-          goal: options.goal as string | undefined,
-          decision: options.decision as string | undefined,
-          docs: options.doc as string[] | undefined,
-          preset: options.preset as string | undefined,
+          agents:
+            (options.agents as string | undefined) ??
+            (projectConfig.agents ? projectConfig.agents.join(",") : undefined),
+          resolve:
+            (options.resolve as string | undefined) ?? projectConfig.resolve,
+          goal: (options.goal as string | undefined) ?? projectConfig.goal,
+          decision:
+            (options.decision as string | undefined) ?? projectConfig.decision,
+          docs:
+            cliDocs && cliDocs.length > 0
+              ? cliDocs
+              : (projectConfig.docs ?? []),
+          preset:
+            (options.preset as string | undefined) ?? projectConfig.preset,
           commandText: process.argv.slice(2).join(" "),
         });
         const registry = await loadAgentRegistry();
