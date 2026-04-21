@@ -241,10 +241,13 @@ The CLI provides two rendering modes:
 ```bash
 pnpm test            # unit tests
 pnpm test:e2e        # end-to-end tests (builds first)
+pnpm smoke           # golden-path smoke check (builds, runs doctor + preset flow)
 pnpm typecheck       # type checking
 pnpm lint            # eslint
 pnpm format:check    # prettier check
 ```
+
+`pnpm smoke` is the repeatable alpha verification: it builds, runs `swarm doctor` against the built CLI, and exercises the `--preset product-decision` flow end to end with a mock backend. Use it before cutting a release or after touching bundled agents, presets, or CLI wiring.
 
 ### Architecture
 
