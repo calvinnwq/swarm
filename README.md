@@ -2,6 +2,8 @@
 
 Standalone TypeScript CLI for running agent swarms — parse a topic, fan out agents in parallel rounds, collect structured output, synthesize.
 
+> **Alpha status.** This README documents the one supported golden path. Features not listed here (and especially modes flagged _stub_ or _not yet implemented_) are not part of the alpha contract and may not behave as advertised.
+
 ## Install
 
 Requires Node ≥ 20 (Node 24 LTS recommended — `.nvmrc` pins it; run `nvm use`) and pnpm 10.
@@ -22,6 +24,23 @@ pnpm link --global
 > `pnpm link --global` — it uses npm's prefix (typically already on PATH via
 > nvm/Homebrew) and works fine against a pnpm-installed dep tree because
 > `bin` entries are standard.
+
+## Quickstart (golden path)
+
+The supported alpha flow uses the bundled `product-decision` preset, which pairs the bundled `product-manager` and `principal-engineer` agents — no config or custom agent definitions required.
+
+```bash
+# 1. Verify your setup
+swarm doctor
+
+# 2. Run a 2-round swarm on a framed product decision
+swarm run 2 "Should we adopt server components?" \
+  --preset product-decision \
+  --goal "Decide on migration strategy" \
+  --decision "Adopt / Defer / Reject"
+```
+
+Artifacts land under `.swarm/runs/<timestamp>-<slug>/` (see [Artifact layout](#artifact-layout)), with a deterministic `synthesis.md` at the end. Use `--quiet` for CI-style one-line-per-event output.
 
 ## Usage
 
@@ -62,15 +81,6 @@ Options:
   -h, --help         display help for command
 ```
 
-**Example:**
-
-```bash
-swarm run 2 "Should we adopt server components?" \
-  --agents product-manager,principal-engineer \
-  --goal "Decide on migration strategy" \
-  --decision "Adopt / Defer / Reject"
-```
-
 > **Heads up — `--resolve` is a stub for alpha.** The value is accepted, persisted in the run manifest, and carried through synthesis, but no between-round question-resolution sub-pass runs yet. Pass it for forward-compatibility; expect no functional change between modes today.
 
 ### Bundled presets
@@ -97,16 +107,44 @@ Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/c
 swarm doctor
 ```
 
+## Project config (`.swarm/config.yml`)
+
+Optional. Set project defaults so teammates don't have to remember the flags.
+
+```yaml
+preset: product-decision
+# or instead of preset, pin an explicit agent list:
+# agents: [product-manager, principal-engineer]
+goal: Decide on migration strategy
+decision: Adopt / Defer / Reject
+resolve: off # off | orchestrator | agents (stub; see note above)
+docs:
+  - docs/architecture.md
+```
+
+Precedence: **CLI flags > config values > preset defaults**. The file is optional — when missing, CLI flags alone fully describe the run. Validation errors (unknown keys, wrong types) are reported by `swarm doctor` and at run start.
+
+Supported fields: `preset`, `agents` (2–5 names), `resolve`, `goal`, `decision`, `docs`. The `rounds` key is reserved but not yet applied — pass `<rounds>` on the CLI.
+
 ## Agent configuration
 
-Agent definitions are YAML or Markdown files loaded from two locations:
+Agent definitions are YAML or Markdown files resolved from three roots (first wins):
 
-| Path                                             | Scope              |
-| ------------------------------------------------ | ------------------ |
-| `.swarm/agents/*.yml` / `.swarm/agents/*.md`     | Project-local      |
-| `~/.swarm/agents/*.yml` / `~/.swarm/agents/*.md` | Global (user-wide) |
+| Path                                             | Scope                             |
+| ------------------------------------------------ | --------------------------------- |
+| `.swarm/agents/*.yml` / `.swarm/agents/*.md`     | Project-local                     |
+| `~/.swarm/agents/*.yml` / `~/.swarm/agents/*.md` | Global (user-wide)                |
+| _(bundled)_                                      | Ships with swarm; see table below |
 
-Project-local agents take precedence over global agents with the same name.
+Swarm ships with three bundled agents the golden path relies on:
+
+| Agent                | Role                                                            |
+| -------------------- | --------------------------------------------------------------- |
+| `product-manager`    | User value, scope, and decision framing                         |
+| `principal-engineer` | System design, feasibility, and operational risk                |
+| `orchestrator`       | Coordinator persona reserved for resolve modes (not active yet) |
+
+Custom project or global agents override bundled names.
 
 ### YAML format
 
