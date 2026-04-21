@@ -82,6 +82,7 @@ export interface BuildConfigInput {
   decision?: string;
   docs?: string[];
   preset?: string;
+  selectionSource?: AgentSelectionSource;
   commandText?: string;
 }
 
@@ -96,11 +97,17 @@ export function buildConfig(input: BuildConfigInput): SwarmRunConfig {
   }
 
   let agents: string[] = [];
-  let selectionSource: AgentSelectionSource = "default-preset";
+  let selectionSource: AgentSelectionSource =
+    input.selectionSource ?? "default-preset";
   if (input.agents !== undefined) {
     agents = dedupeKeepOrder(parseAgentsCsv(input.agents));
-    selectionSource = "explicit-agents";
-  } else if (input.preset !== undefined) {
+    if (input.selectionSource === undefined) {
+      selectionSource = "explicit-agents";
+    }
+  } else if (
+    input.preset !== undefined &&
+    input.selectionSource === undefined
+  ) {
     selectionSource = "preset";
   }
 

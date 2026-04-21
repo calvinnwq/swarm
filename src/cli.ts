@@ -4,9 +4,11 @@ import { Command, InvalidArgumentError } from "commander";
 import {
   buildConfig,
   loadAgentRegistry,
+  loadPresetRegistry,
   loadProjectConfig,
   runSwarm,
   SwarmCommandError,
+  type AgentSelectionSource,
 } from "./lib/index.js";
 import { ClaudeCliAdapter } from "./backends/claude-cli.js";
 
@@ -45,7 +47,10 @@ program
   .option("--goal <text>", "primary goal for the swarm")
   .option("--decision <text>", "decision target for the swarm")
   .option("--doc <path>", "carry-forward document (repeatable)", collectDoc, [])
-  .option("--preset <name>", "named preset (pass-through; not yet resolved)")
+  .option(
+    "--preset <name>",
+    "named preset (resolves to agents when --agents not provided)",
+  )
   .action(
     async (
       rounds: number,
@@ -56,23 +61,44 @@ program
         const loadedProjectConfig = await loadProjectConfig();
         const projectConfig = loadedProjectConfig?.config ?? {};
         const cliDocs = options.doc as string[] | undefined;
+        const explicitAgents =
+          (options.agents as string | undefined) ??
+          (projectConfig.agents ? projectConfig.agents.join(",") : undefined);
+        const presetName =
+          (options.preset as string | undefined) ?? projectConfig.preset;
+
+        let resolvedAgents: string | undefined = explicitAgents;
+        let resolvedResolve =
+          (options.resolve as string | undefined) ?? projectConfig.resolve;
+        let resolvedGoal =
+          (options.goal as string | undefined) ?? projectConfig.goal;
+        let resolvedDecision =
+          (options.decision as string | undefined) ?? projectConfig.decision;
+        let selectionSource: AgentSelectionSource | undefined;
+
+        if (explicitAgents === undefined && presetName !== undefined) {
+          const presetRegistry = await loadPresetRegistry();
+          const preset = presetRegistry.getPreset(presetName);
+          resolvedAgents = preset.agents.join(",");
+          selectionSource = "preset";
+          resolvedResolve = resolvedResolve ?? preset.resolve;
+          resolvedGoal = resolvedGoal ?? preset.goal;
+          resolvedDecision = resolvedDecision ?? preset.decision;
+        }
+
         const config = buildConfig({
           rounds,
           topic,
-          agents:
-            (options.agents as string | undefined) ??
-            (projectConfig.agents ? projectConfig.agents.join(",") : undefined),
-          resolve:
-            (options.resolve as string | undefined) ?? projectConfig.resolve,
-          goal: (options.goal as string | undefined) ?? projectConfig.goal,
-          decision:
-            (options.decision as string | undefined) ?? projectConfig.decision,
+          agents: resolvedAgents,
+          resolve: resolvedResolve,
+          goal: resolvedGoal,
+          decision: resolvedDecision,
           docs:
             cliDocs && cliDocs.length > 0
               ? cliDocs
               : (projectConfig.docs ?? []),
-          preset:
-            (options.preset as string | undefined) ?? projectConfig.preset,
+          preset: presetName,
+          selectionSource,
           commandText: process.argv.slice(2).join(" "),
         });
         const registry = await loadAgentRegistry();
