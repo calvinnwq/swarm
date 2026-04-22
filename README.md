@@ -55,7 +55,7 @@ Options:
 
 Commands:
   run [options] <rounds> <topic...>  Run a swarm
-  doctor                             Diagnose swarm setup: config, agents, and presets
+  doctor                             Diagnose swarm setup: config, agents, presets, and backend selection
   help [command]                     display help for command
 ```
 
