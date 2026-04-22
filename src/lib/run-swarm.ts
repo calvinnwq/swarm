@@ -43,6 +43,8 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     topic: config.topic,
     rounds: config.rounds,
     preset: config.preset,
+    goal: config.goal,
+    decision: config.decision,
     agents: config.agents,
     resolveMode: config.resolveMode,
     startedAt: startedAtIso,
@@ -74,7 +76,10 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   let priorPacket: import("../schemas/index.js").RoundPacket | null = null;
 
   emitter.on("round:start", ({ round }: { round: number }) => {
-    const brief = buildRoundBrief({ config, round, seedBrief, priorPacket });
+    const brief =
+      round === 1
+        ? seedBrief
+        : buildRoundBrief({ config, round, seedBrief, priorPacket });
     roundBriefs.set(round, brief);
   });
 
