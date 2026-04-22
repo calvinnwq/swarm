@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   loadPresetRegistry,
+  resolvePresetByName,
   SwarmCommandError,
 } from "../../../src/lib/index.js";
 
@@ -180,5 +181,113 @@ describe("loadPresetRegistry", () => {
     await expect(
       loadPresetRegistry({ cwd, homeDir, bundledDir }),
     ).rejects.toThrow(/invalid preset/);
+  });
+});
+
+describe("resolvePresetByName", () => {
+  it("prefers project-local presets over home and bundled roots", async () => {
+    const { cwd, homeDir, bundledDir } = await makeIsolatedRoots();
+    const presetName = "product-decision";
+
+    await writePresetFile(
+      path.join(cwd, ".swarm", "presets"),
+      "product-decision.yml",
+      [
+        `name: ${presetName}`,
+        "agents:",
+        "  - from-project",
+        "  - principal-engineer",
+        "resolve: agents",
+      ].join("\n"),
+    );
+    await writePresetFile(
+      path.join(homeDir, ".swarm", "presets"),
+      "product-decision.yml",
+      [
+        `name: ${presetName}`,
+        "agents:",
+        "  - from-home",
+        "  - principal-engineer",
+        "resolve: off",
+      ].join("\n"),
+    );
+    await writePresetFile(
+      bundledDir,
+      "product-decision.yml",
+      [
+        `name: ${presetName}`,
+        "agents:",
+        "  - from-bundled",
+        "  - principal-engineer",
+        "resolve: orchestrator",
+      ].join("\n"),
+    );
+
+    const preset = await resolvePresetByName(presetName, {
+      cwd,
+      homeDir,
+      bundledDir,
+    });
+
+    expect(preset.agents).toEqual(["from-project", "principal-engineer"]);
+    expect(preset.resolve).toBe("agents");
+  });
+
+  it("resolves the requested preset while ignoring unrelated invalid preset files", async () => {
+    const { cwd, homeDir, bundledDir } = await makeIsolatedRoots();
+    await writePresetFile(
+      path.join(cwd, ".swarm", "presets"),
+      "broken-preset.yml",
+      "name: broken-preset\nagents: [solo]",
+    );
+    await writePresetFile(
+      bundledDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+        "resolve: orchestrator",
+      ].join("\n"),
+    );
+
+    const preset = await resolvePresetByName("product-decision", {
+      cwd,
+      homeDir,
+      bundledDir,
+    });
+
+    expect(preset.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(preset.resolve).toBe("orchestrator");
+  });
+
+  it("resolves the requested preset while ignoring unrelated invalid home preset files", async () => {
+    const { cwd, homeDir, bundledDir } = await makeIsolatedRoots();
+    await writePresetFile(
+      path.join(homeDir, ".swarm", "presets"),
+      "broken-preset.yml",
+      "name: broken-preset\nagents: [solo]",
+    );
+    await writePresetFile(
+      bundledDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+        "resolve: orchestrator",
+      ].join("\n"),
+    );
+
+    const preset = await resolvePresetByName("product-decision", {
+      cwd,
+      homeDir,
+      bundledDir,
+    });
+
+    expect(preset.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(preset.resolve).toBe("orchestrator");
   });
 });
