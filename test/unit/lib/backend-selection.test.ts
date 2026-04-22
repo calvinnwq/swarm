@@ -23,7 +23,9 @@ describe("assertAgentBackendsMatch", () => {
     ];
 
     expect(typeof lib.assertAgentBackendsMatch).toBe("function");
-    expect(() => lib.assertAgentBackendsMatch?.("claude", agents)).not.toThrow();
+    expect(() =>
+      lib.assertAgentBackendsMatch?.("claude", agents),
+    ).not.toThrow();
   });
 
   it("fails fast when an agent backend disagrees with the selected runtime backend", async () => {
@@ -45,11 +47,11 @@ describe("assertAgentBackendsMatch", () => {
       },
     ] as AgentDefinition[];
 
-    expect(() =>
-      lib.assertAgentBackendsMatch?.("claude", agents),
-    ).toThrow(SwarmCommandError);
-    expect(() =>
-      lib.assertAgentBackendsMatch?.("claude", agents),
-    ).toThrow(/beta/);
+    expect(() => lib.assertAgentBackendsMatch?.("claude", agents)).toThrow(
+      SwarmCommandError,
+    );
+    expect(() => lib.assertAgentBackendsMatch?.("claude", agents)).toThrow(
+      /beta/,
+    );
   });
 });

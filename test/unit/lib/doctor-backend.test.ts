@@ -90,7 +90,9 @@ describe("runDoctor backend checks", () => {
 
     const report = await runDoctor(roots);
 
-    const check = report.checks.find((entry) => entry.name === "config backend");
+    const check = report.checks.find(
+      (entry) => entry.name === "config backend",
+    );
     expect(check?.status).toBe("ok");
     expect(check?.message).toContain("claude");
     expect(report.ok).toBe(true);

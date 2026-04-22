@@ -15,8 +15,8 @@ describe("createBackendAdapter", () => {
   it("throws for unsupported backends", async () => {
     const backends = await import("../../../src/backends/index.js");
 
-    expect(() =>
-      backends.createBackendAdapter?.("openai" as never),
-    ).toThrow(SwarmCommandError);
+    expect(() => backends.createBackendAdapter?.("openai" as never)).toThrow(
+      SwarmCommandError,
+    );
   });
 });

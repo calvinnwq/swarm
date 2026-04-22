@@ -36,7 +36,12 @@ describe("backend config support", () => {
     const cwd = await makeTempCwd();
     await writeConfig(
       cwd,
-      ["backend: claude", "agents:", "  - product-manager", "  - principal-engineer"].join("\n"),
+      [
+        "backend: claude",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+      ].join("\n"),
     );
 
     const loaded = await loadProjectConfig({ cwd });
