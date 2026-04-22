@@ -6,7 +6,7 @@ import type {
 } from "../schemas/index.js";
 import { AgentOutputSchema } from "../schemas/index.js";
 import type { AgentResponse, BackendAdapter } from "../backends/index.js";
-import { extractJson } from "../backends/claude-cli.js";
+import { extractAgentOutputJson } from "../backends/claude-cli.js";
 import type { SwarmRunConfig } from "./config.js";
 import { buildSeedBrief, buildRoundBrief } from "./brief-generator.js";
 
@@ -68,7 +68,7 @@ export interface RoundRunnerOpts {
 function validateAgentOutput(
   stdout: string,
 ): { ok: true; output: AgentOutput } | { ok: false; error: string } {
-  const json = extractJson(stdout);
+  const json = extractAgentOutputJson(stdout);
   if (json === undefined) {
     return {
       ok: false,
