@@ -114,8 +114,773 @@ describe("smoke: README golden path", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("swarm doctor: ready");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("no .swarm/config.yml (CLI flags only)");
     expect(result.stdout).toContain("[OK] agent registry");
     expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` reports ready when project config references a valid preset", () => {
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "preset: product-decision\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("swarm doctor: ready");
+    expect(result.stdout).toContain("[OK] config preset");
+    expect(result.stdout).toContain(
+      'preset "product-decision" resolves (2 agent(s))',
+    );
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` reports actionable problems when project config references an unknown preset", () => {
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "preset: missing-preset\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[FAIL] config preset");
+    expect(result.stdout).toContain('unknown preset "missing-preset"');
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` reports actionable problems when project config is invalid", () => {
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "rounds: 9\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[FAIL] project config");
+    expect(result.stdout).toContain("invalid .swarm/config.yml");
+    expect(result.stdout).toContain("rounds");
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` reports actionable problems when project config preset references an unknown agent", () => {
+    mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "preset: project-decision\n",
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "presets", "project-decision.yml"),
+      [
+        "name: project-decision",
+        "agents:",
+        "  - product-manager",
+        "  - ghost-agent",
+        "resolve: orchestrator",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[FAIL] config preset");
+    expect(result.stdout).toContain(
+      'preset "project-decision" references unknown agent(s): ghost-agent',
+    );
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` reports actionable problems when project config references an unknown agent", () => {
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      ["agents:", "  - product-manager", "  - ghost-agent"].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[FAIL] config agents");
+    expect(result.stdout).toContain(
+      "unknown agent(s) referenced in config: ghost-agent",
+    );
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` prioritizes explicit config agents even when they fail", () => {
+    mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      [
+        "agents:",
+        "  - product-manager",
+        "  - ghost-agent",
+        "preset: project-decision",
+      ].join("\n"),
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "presets", "project-decision.yml"),
+      [
+        "name: project-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+        "resolve: orchestrator",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[FAIL] config agents");
+    expect(result.stdout).toContain(
+      "unknown agent(s) referenced in config: ghost-agent",
+    );
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` skips preset validation when explicit project config agents are valid", () => {
+    mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      [
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+        "preset: project-decision",
+      ].join("\n"),
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "presets", "project-decision.yml"),
+      [
+        "name: project-decision",
+        "agents:",
+        "  - ghost-agent",
+        "  - another-ghost-agent",
+        "resolve: orchestrator",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("swarm doctor: ready");
+    expect(result.stdout).toContain("[OK] config agents");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` reports ready when project config references valid explicit agents", () => {
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      ["agents:", "  - product-manager", "  - principal-engineer"].join(
+        "\n",
+      ),
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("swarm doctor: ready");
+    expect(result.stdout).toContain("[OK] config agents");
+    expect(result.stdout).toContain("all 2 config agent(s) resolve");
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` reports ready when project config is present but empty", () => {
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    writeFileSync(join(baseDir, ".swarm", "config.yml"), "", "utf-8");
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("swarm doctor: ready");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("loaded .swarm/config.yml");
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` reports actionable problems when the agent registry contains an invalid project-local definition", () => {
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "broken-agent.md"),
+      "name: broken-agent\ndescription: missing frontmatter fences\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[FAIL] agent registry");
+    expect(result.stdout).toContain(
+      "markdown definition is missing frontmatter fence",
+    );
+    expect(result.stdout).toContain("broken-agent.md");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` reports actionable problems when the agent registry contains an invalid global definition", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "broken-agent.md"),
+      "name: broken-agent\ndescription: missing frontmatter fences\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+      env: {
+        ...process.env,
+        HOME: homeDir,
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("no .swarm/config.yml (CLI flags only)");
+    expect(result.stdout).toContain("[FAIL] agent registry");
+    expect(result.stdout).toContain(
+      "markdown definition is missing frontmatter fence",
+    );
+    expect(result.stdout).toContain("broken-agent.md");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` still validates config preset when the global agent registry fails to load", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "preset: product-decision\n",
+      "utf-8",
+    );
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "broken-agent.md"),
+      "name: broken-agent\ndescription: missing frontmatter fences\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+      env: {
+        ...process.env,
+        HOME: homeDir,
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("loaded .swarm/config.yml");
+    expect(result.stdout).toContain("[FAIL] agent registry");
+    expect(result.stdout).toContain(
+      "markdown definition is missing frontmatter fence",
+    );
+    expect(result.stdout).toContain("broken-agent.md");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).toContain("[OK] config preset");
+    expect(result.stdout).toContain(
+      'preset "product-decision" resolves (2 agent(s))',
+    );
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` suppresses config agent checks when the agent registry fails to load", () => {
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      ["agents:", "  - product-manager", "  - principal-engineer"].join("\n"),
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "broken-agent.md"),
+      "name: broken-agent\ndescription: missing frontmatter fences\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("loaded .swarm/config.yml");
+    expect(result.stdout).toContain("[FAIL] agent registry");
+    expect(result.stdout).toContain(
+      "markdown definition is missing frontmatter fence",
+    );
+    expect(result.stdout).toContain("broken-agent.md");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` still validates config preset when the agent registry fails to load", () => {
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "preset: product-decision\n",
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "broken-agent.md"),
+      "name: broken-agent\ndescription: missing frontmatter fences\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("loaded .swarm/config.yml");
+    expect(result.stdout).toContain("[FAIL] agent registry");
+    expect(result.stdout).toContain(
+      "markdown definition is missing frontmatter fence",
+    );
+    expect(result.stdout).toContain("broken-agent.md");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).toContain("[OK] config preset");
+    expect(result.stdout).toContain(
+      'preset "product-decision" resolves (2 agent(s))',
+    );
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` skips preset agent validation when the agent registry fails to load", () => {
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "preset: project-decision\n",
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "broken-agent.md"),
+      "name: broken-agent\ndescription: missing frontmatter fences\n",
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "presets", "project-decision.yml"),
+      [
+        "name: project-decision",
+        "agents:",
+        "  - product-manager",
+        "  - ghost-agent",
+        "resolve: orchestrator",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("loaded .swarm/config.yml");
+    expect(result.stdout).toContain("[FAIL] agent registry");
+    expect(result.stdout).toContain(
+      "markdown definition is missing frontmatter fence",
+    );
+    expect(result.stdout).toContain("broken-agent.md");
+    expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).toContain("[OK] config preset");
+    expect(result.stdout).toContain(
+      'preset "project-decision" resolves (2 agent(s))',
+    );
+    expect(result.stdout).not.toContain("unknown agent(s) referenced in config");
+    expect(result.stdout).not.toContain("references unknown agent(s): ghost-agent");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` reports actionable problems when the preset registry contains an invalid project-local definition", () => {
+    mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "presets", "broken-preset.yml"),
+      "name: broken-preset\nagents: [solo]\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[FAIL] preset registry");
+    expect(result.stdout).toContain("invalid preset in");
+    expect(result.stdout).toContain("broken-preset.yml");
+    expect(result.stdout).toContain("agents: Too small");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` reports actionable problems when the preset registry contains an invalid global definition", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "presets", "broken-preset.yml"),
+      "name: broken-preset\nagents: [solo]\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+      env: {
+        ...process.env,
+        HOME: homeDir,
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("no .swarm/config.yml (CLI flags only)");
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[FAIL] preset registry");
+    expect(result.stdout).toContain("invalid preset in");
+    expect(result.stdout).toContain("broken-preset.yml");
+    expect(result.stdout).toContain("agents: Too small");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` still validates config agents when the global preset registry fails to load", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    mkdirSync(join(homeDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      ["agents:", "  - product-manager", "  - principal-engineer"].join(
+        "\n",
+      ),
+      "utf-8",
+    );
+    writeFileSync(
+      join(homeDir, ".swarm", "presets", "broken-preset.yml"),
+      "name: broken-preset\nagents: [solo]\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+      env: {
+        ...process.env,
+        HOME: homeDir,
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("loaded .swarm/config.yml");
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[FAIL] preset registry");
+    expect(result.stdout).toContain("invalid preset in");
+    expect(result.stdout).toContain("broken-preset.yml");
+    expect(result.stdout).toContain("agents: Too small");
+    expect(result.stdout).toContain("[OK] config agents");
+    expect(result.stdout).toContain("all 2 config agent(s) resolve");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` suppresses config preset checks when the global preset registry fails to load", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    mkdirSync(join(homeDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "preset: product-decision\n",
+      "utf-8",
+    );
+    writeFileSync(
+      join(homeDir, ".swarm", "presets", "broken-preset.yml"),
+      "name: broken-preset\nagents: [solo]\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+      env: {
+        ...process.env,
+        HOME: homeDir,
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("loaded .swarm/config.yml");
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[FAIL] preset registry");
+    expect(result.stdout).toContain("invalid preset in");
+    expect(result.stdout).toContain("broken-preset.yml");
+    expect(result.stdout).toContain("agents: Too small");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` suppresses config preset checks when the preset registry fails to load", () => {
+    mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "preset: broken-preset\n",
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "presets", "broken-preset.yml"),
+      "name: broken-preset\nagents: [solo]\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("loaded .swarm/config.yml");
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[FAIL] preset registry");
+    expect(result.stdout).toContain("invalid preset in");
+    expect(result.stdout).toContain("broken-preset.yml");
+    expect(result.stdout).toContain("agents: Too small");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` still validates config agents when the preset registry fails to load", () => {
+    mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      ["agents:", "  - product-manager", "  - principal-engineer"].join(
+        "\n",
+      ),
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "presets", "broken-preset.yml"),
+      "name: broken-preset\nagents: [solo]\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("loaded .swarm/config.yml");
+    expect(result.stdout).toContain("[OK] agent registry");
+    expect(result.stdout).toContain("[FAIL] preset registry");
+    expect(result.stdout).toContain("invalid preset in");
+    expect(result.stdout).toContain("broken-preset.yml");
+    expect(result.stdout).toContain("agents: Too small");
+    expect(result.stdout).toContain("[OK] config agents");
+    expect(result.stdout).toContain("all 2 config agent(s) resolve");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` suppresses config preset checks when both registries fail to load", () => {
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "preset: product-decision\n",
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "broken-agent.md"),
+      "name: broken-agent\ndescription: missing frontmatter fences\n",
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "presets", "broken-preset.yml"),
+      "name: broken-preset\nagents: [solo]\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("loaded .swarm/config.yml");
+    expect(result.stdout).toContain("[FAIL] agent registry");
+    expect(result.stdout).toContain(
+      "markdown definition is missing frontmatter fence",
+    );
+    expect(result.stdout).toContain("broken-agent.md");
+    expect(result.stdout).toContain("[FAIL] preset registry");
+    expect(result.stdout).toContain("invalid preset in");
+    expect(result.stdout).toContain("broken-preset.yml");
+    expect(result.stdout).toContain("agents: Too small");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stdout).not.toContain("config preset");
+    expect(result.stderr).toBe("");
+  });
+
+  it("`swarm doctor` suppresses config checks when both registries fail to load for explicit-agent config", () => {
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      ["agents:", "  - product-manager", "  - principal-engineer"].join(
+        "\n",
+      ),
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "broken-agent.md"),
+      "name: broken-agent\ndescription: missing frontmatter fences\n",
+      "utf-8",
+    );
+    writeFileSync(
+      join(baseDir, ".swarm", "presets", "broken-preset.yml"),
+      "name: broken-preset\nagents: [solo]\n",
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("swarm doctor: problems found");
+    expect(result.stdout).toContain("[OK] project config");
+    expect(result.stdout).toContain("loaded .swarm/config.yml");
+    expect(result.stdout).toContain("[FAIL] agent registry");
+    expect(result.stdout).toContain(
+      "markdown definition is missing frontmatter fence",
+    );
+    expect(result.stdout).toContain("broken-agent.md");
+    expect(result.stdout).toContain("[FAIL] preset registry");
+    expect(result.stdout).toContain("invalid preset in");
+    expect(result.stdout).toContain("broken-preset.yml");
+    expect(result.stdout).toContain("agents: Too small");
+    expect(result.stdout).not.toContain("config agents");
+    expect(result.stdout).not.toContain("config preset");
     expect(result.stderr).toBe("");
   });
 
@@ -1508,7 +2273,7 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).not.toContain("docs/from-config.md");
   });
 
-  it("config presets do not leak into explicit-agent runs", () => {
+  it("config explicit-agent runs ignore preset names but retain other config defaults", () => {
     mkdirSync(join(baseDir, ".swarm"), { recursive: true });
     writeFileSync(
       join(baseDir, ".swarm", "config.yml"),
@@ -1517,6 +2282,11 @@ describe("smoke: README golden path", () => {
         "  - product-manager",
         "  - principal-engineer",
         "preset: missing-preset",
+        "goal: Decide on migration strategy",
+        "decision: Adopt / Defer / Reject",
+        "resolve: orchestrator",
+        "docs:",
+        "  - docs/architecture.md",
       ].join("\n"),
       "utf-8",
     );
@@ -1544,6 +2314,65 @@ describe("smoke: README golden path", () => {
 
     expect(manifest.preset).toBeNull();
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(manifest.resolveMode).toBe("orchestrator");
+    expect(manifest.goal).toBe("Decide on migration strategy");
+    expect(manifest.decision).toBe("Adopt / Defer / Reject");
+
+    const seedBrief = readFileSync(join(runDir, "seed-brief.md"), "utf-8");
+    expect(seedBrief).toContain("Selection source: explicit-agents");
+    expect(seedBrief).toContain("Goal: Decide on migration strategy");
+    expect(seedBrief).toContain("Decision target: Adopt / Defer / Reject");
+    expect(seedBrief).toContain("Carry-forward docs: docs/architecture.md");
+    expect(seedBrief).not.toContain("Preset: missing-preset");
+  });
+
+  it("config explicit-agent runs do not inherit defaults from a valid preset", () => {
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      [
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+        "preset: product-decision",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [cliPath, "run", "1", "Should we adopt server components?"],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
+
+    expect(manifest.preset).toBeNull();
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(manifest.resolveMode).toBe("off");
+    expect(manifest.goal).toBeNull();
+    expect(manifest.decision).toBeNull();
+
+    const seedBrief = readFileSync(join(runDir, "seed-brief.md"), "utf-8");
+    expect(seedBrief).toContain("Selection source: explicit-agents");
+    expect(seedBrief).toContain("Preset: none");
+    expect(seedBrief).toContain("Resolution mode: off");
+    expect(seedBrief).toContain("Goal: n/a");
+    expect(seedBrief).toContain("Decision target: n/a");
+    expect(seedBrief).not.toContain("Preset: product-decision");
   });
 
   it("explicit CLI --agents override a configured preset", () => {
