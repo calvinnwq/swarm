@@ -53,6 +53,12 @@ const agent = /product manager/i.test(systemPrompt)
   : /principal engineer/i.test(systemPrompt)
     ? "principal-engineer"
     : "unknown-agent";
+const usesProjectOverride =
+  agent === "product-manager" &&
+  systemPrompt.includes("PROJECT_AGENT_OVERRIDE_MARKER");
+const usesGlobalOverride =
+  agent === "product-manager" &&
+  systemPrompt.includes("GLOBAL_AGENT_OVERRIDE_MARKER");
 const round = (counters[agent] ?? 0) + 1;
 counters[agent] = round;
 fs.writeFileSync(statePath, JSON.stringify(counters));
@@ -62,7 +68,11 @@ process.stdout.write(
     agent,
     round,
     stance: "Adopt",
-    recommendation: agent + " recommends Adopt in round " + round,
+    recommendation: usesProjectOverride
+      ? "project-local product-manager override active in round " + round
+      : usesGlobalOverride
+        ? "global product-manager override active in round " + round
+      : agent + " recommends Adopt in round " + round,
     reasoning: [agent + " reasoning for round " + round],
     objections: [],
     risks: ["shared migration risk"],
@@ -345,6 +355,1111 @@ describe("smoke: README golden path", () => {
     expect(synthesis.resolveMode).toBe("agents");
   });
 
+  it("project-local presets override the bundled preset of the same name", () => {
+    mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "presets", "product-decision.yml"),
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+        "resolve: agents",
+        "goal: Decide on support policy",
+        "decision: Ship / Defer / Sunset",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
+
+    expect(manifest.preset).toBe("product-decision");
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(manifest.resolveMode).toBe("agents");
+    expect(manifest.goal).toBe("Decide on support policy");
+    expect(manifest.decision).toBe("Ship / Defer / Sunset");
+  });
+
+  it("global presets override the bundled preset of the same name", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "presets", "product-decision.yml"),
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+        "resolve: agents",
+        "goal: Decide on support policy",
+        "decision: Ship / Defer / Sunset",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
+
+    expect(manifest.preset).toBe("product-decision");
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(manifest.resolveMode).toBe("agents");
+    expect(manifest.goal).toBe("Decide on support policy");
+    expect(manifest.decision).toBe("Ship / Defer / Sunset");
+  });
+
+  it("project-local presets override same-name global presets", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "presets", "product-decision.yml"),
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+        "resolve: agents",
+        "goal: Global policy decision",
+        "decision: Global ship / Global defer / Global sunset",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "presets", "product-decision.yml"),
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+        "resolve: orchestrator",
+        "goal: Project policy decision",
+        "decision: Project ship / Project defer / Project sunset",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
+
+    expect(manifest.preset).toBe("product-decision");
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(manifest.resolveMode).toBe("orchestrator");
+    expect(manifest.goal).toBe("Project policy decision");
+    expect(manifest.decision).toBe(
+      "Project ship / Project defer / Project sunset",
+    );
+  });
+
+  it("project-local agents override bundled agents of the same name", () => {
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Project-local override for smoke coverage",
+        "persona: Product manager with a project-local override",
+        "backend: claude",
+        "---",
+        "PROJECT_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+
+    expect(productManagerOutput).toContain(
+      "project-local product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("project-local agents override bundled agents in explicit-agent runs", () => {
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Project-local override for smoke coverage",
+        "persona: Product manager with a project-local override",
+        "backend: claude",
+        "---",
+        "PROJECT_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--agents",
+        "product-manager,principal-engineer",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+
+    expect(manifest.preset).toBeNull();
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(productManagerOutput).toContain(
+      "project-local product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("project-local YAML agents override bundled agents in explicit-agent runs", () => {
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "product-manager.yml"),
+      [
+        "name: product-manager",
+        "description: Project-local YAML override for smoke coverage",
+        "persona: Product manager with a project-local YAML override",
+        "backend: claude",
+        "prompt: PROJECT_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--agents",
+        "product-manager,principal-engineer",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+
+    expect(manifest.preset).toBeNull();
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(productManagerOutput).toContain(
+      "project-local product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("global agents override bundled agents in explicit-agent runs", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Global override for smoke coverage",
+        "persona: Product manager with a global override",
+        "backend: claude",
+        "---",
+        "GLOBAL_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--agents",
+        "product-manager,principal-engineer",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+
+    expect(manifest.preset).toBeNull();
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(productManagerOutput).toContain(
+      "global product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("global YAML agents override bundled agents in explicit-agent runs", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "product-manager.yml"),
+      [
+        "name: product-manager",
+        "description: Global YAML override for smoke coverage",
+        "persona: Product manager with a global YAML override",
+        "backend: claude",
+        "prompt: GLOBAL_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--agents",
+        "product-manager,principal-engineer",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+
+    expect(manifest.preset).toBeNull();
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(productManagerOutput).toContain(
+      "global product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("project-local agents override same-name global agents in explicit-agent runs", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Global override for smoke coverage",
+        "persona: Product manager with a global override",
+        "backend: claude",
+        "---",
+        "GLOBAL_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Project-local override for smoke coverage",
+        "persona: Product manager with a project-local override",
+        "backend: claude",
+        "---",
+        "PROJECT_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--agents",
+        "product-manager,principal-engineer",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+
+    expect(manifest.preset).toBeNull();
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(productManagerOutput).toContain(
+      "project-local product-manager override active in round 1",
+    );
+    expect(productManagerOutput).not.toContain(
+      "global product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("project-local YAML agents override same-name global Markdown agents in explicit-agent runs", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Global markdown override for smoke coverage",
+        "persona: Product manager with a global markdown override",
+        "backend: claude",
+        "---",
+        "GLOBAL_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "product-manager.yml"),
+      [
+        "name: product-manager",
+        "description: Project-local YAML override for smoke coverage",
+        "persona: Product manager with a project-local YAML override",
+        "backend: claude",
+        "prompt: PROJECT_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--agents",
+        "product-manager,principal-engineer",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+
+    expect(manifest.preset).toBeNull();
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(productManagerOutput).toContain(
+      "project-local product-manager override active in round 1",
+    );
+    expect(productManagerOutput).not.toContain(
+      "global product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("project-local Markdown agents override same-name global YAML agents in explicit-agent runs", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "product-manager.yml"),
+      [
+        "name: product-manager",
+        "description: Global YAML override for smoke coverage",
+        "persona: Product manager with a global YAML override",
+        "backend: claude",
+        "prompt: GLOBAL_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Project-local markdown override for smoke coverage",
+        "persona: Product manager with a project-local markdown override",
+        "backend: claude",
+        "---",
+        "PROJECT_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--agents",
+        "product-manager,principal-engineer",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+
+    expect(manifest.preset).toBeNull();
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(productManagerOutput).toContain(
+      "project-local product-manager override active in round 1",
+    );
+    expect(productManagerOutput).not.toContain(
+      "global product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("project-local YAML agents override bundled agents of the same name", () => {
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "product-manager.yml"),
+      [
+        "name: product-manager",
+        "description: Project-local YAML override for smoke coverage",
+        "persona: Product manager with a project-local YAML override",
+        "backend: claude",
+        "prompt: PROJECT_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+
+    expect(productManagerOutput).toContain(
+      "project-local product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("global agents override bundled agents of the same name", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Global override for smoke coverage",
+        "persona: Product manager with a global override",
+        "backend: claude",
+        "---",
+        "GLOBAL_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+
+    expect(productManagerOutput).toContain(
+      "global product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("global YAML agents override bundled agents of the same name", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "product-manager.yml"),
+      [
+        "name: product-manager",
+        "description: Global YAML override for smoke coverage",
+        "persona: Product manager with a global YAML override",
+        "backend: claude",
+        "prompt: GLOBAL_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+
+    expect(productManagerOutput).toContain(
+      "global product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("project-local agents override same-name global agents", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Global override for smoke coverage",
+        "persona: Product manager with a global override",
+        "backend: claude",
+        "---",
+        "GLOBAL_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Project-local override for smoke coverage",
+        "persona: Product manager with a project-local override",
+        "backend: claude",
+        "---",
+        "PROJECT_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+
+    expect(productManagerOutput).toContain(
+      "project-local product-manager override active in round 1",
+    );
+    expect(productManagerOutput).not.toContain(
+      "global product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("project-local YAML agents override same-name global Markdown agents", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Global markdown override for smoke coverage",
+        "persona: Product manager with a global markdown override",
+        "backend: claude",
+        "---",
+        "GLOBAL_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "product-manager.yml"),
+      [
+        "name: product-manager",
+        "description: Project-local YAML override for smoke coverage",
+        "persona: Product manager with a project-local YAML override",
+        "backend: claude",
+        "prompt: PROJECT_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+
+    expect(productManagerOutput).toContain(
+      "project-local product-manager override active in round 1",
+    );
+    expect(productManagerOutput).not.toContain(
+      "global product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
+  it("project-local Markdown agents override same-name global YAML agents", () => {
+    const homeDir = join(baseDir, "home");
+    mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(homeDir, ".swarm", "agents", "product-manager.yml"),
+      [
+        "name: product-manager",
+        "description: Global YAML override for smoke coverage",
+        "persona: Product manager with a global YAML override",
+        "backend: claude",
+        "prompt: GLOBAL_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "agents", "product-manager.md"),
+      [
+        "---",
+        "name: product-manager",
+        "description: Project-local markdown override for smoke coverage",
+        "persona: Product manager with a project-local markdown override",
+        "backend: claude",
+        "---",
+        "PROJECT_AGENT_OVERRIDE_MARKER",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          HOME: homeDir,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const productManagerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "product-manager.md"),
+      "utf-8",
+    );
+    const principalEngineerOutput = readFileSync(
+      join(runDir, "round-01", "agents", "principal-engineer.md"),
+      "utf-8",
+    );
+
+    expect(productManagerOutput).toContain(
+      "project-local product-manager override active in round 1",
+    );
+    expect(productManagerOutput).not.toContain(
+      "global product-manager override active in round 1",
+    );
+    expect(principalEngineerOutput).toContain(
+      "principal-engineer recommends Adopt in round 1",
+    );
+  });
+
   it("repeated CLI --doc flags override config docs and land in the seed brief", () => {
     mkdirSync(join(baseDir, ".swarm"), { recursive: true });
     writeFileSync(
@@ -429,6 +1544,58 @@ describe("smoke: README golden path", () => {
 
     expect(manifest.preset).toBeNull();
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+  });
+
+  it("explicit CLI --agents override a configured preset", () => {
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      [
+        "preset: product-decision",
+        "goal: Decide on migration strategy",
+        "decision: Adopt / Defer / Reject",
+        "resolve: orchestrator",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--agents",
+        "product-manager,principal-engineer",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
+
+    expect(manifest.preset).toBeNull();
+    expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
+    expect(manifest.resolveMode).toBe("orchestrator");
+    expect(manifest.goal).toBe("Decide on migration strategy");
+    expect(manifest.decision).toBe("Adopt / Defer / Reject");
+
+    const seedBrief = readFileSync(join(runDir, "seed-brief.md"), "utf-8");
+    expect(seedBrief).toContain("Selection source: explicit-agents");
+    expect(seedBrief).not.toContain("Preset: product-decision");
   });
 
   it("project config can drive the golden path without repeating preset intent on the CLI", () => {
