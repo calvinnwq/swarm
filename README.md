@@ -72,6 +72,7 @@ Arguments:
 
 Options:
   --agents <list>    comma-separated agent names
+  --backend <name>   runtime backend adapter (currently: claude)
   --resolve <mode>   record resolution mode in manifest: off | orchestrator | agents
                      (between-round sub-pass not yet implemented)
   --goal <text>      primary goal for the swarm
@@ -117,7 +118,7 @@ Preset names must use lowercase letters, numbers, `-`, or `_`, and `agents` must
 
 ### `swarm doctor`
 
-Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, and that any agents or preset referenced in the project config actually resolve. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
+Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, that any agents or preset referenced in the project config actually resolve, and that the selected backend matches the resolved config agents or preset agents. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
 
 ```bash
 swarm doctor
@@ -220,7 +221,7 @@ Each run produces a self-contained directory under `.swarm/runs/`:
 
 ```
 .swarm/runs/20260419-121439-should-we-adopt-server-components/
-├── manifest.json          # Run metadata (topic, goal, decision, rounds, agents, timestamps)
+├── manifest.json          # Run metadata (topic, goal, decision, rounds, backend, agents, timestamps)
 ├── seed-brief.md          # Initial brief sent to all agents in round 1
 ├── round-01/
 │   ├── brief.md           # Round brief (same as seed-brief for round 1)
