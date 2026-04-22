@@ -118,7 +118,7 @@ Preset names must use lowercase letters, numbers, `-`, or `_`, and `agents` must
 
 ### `swarm doctor`
 
-Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, that any agents or preset referenced in the project config actually resolve, and that the selected backend matches the resolved config agents or preset agents. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
+Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, that any agents or preset referenced in the project config actually resolve, and that any configured backend is supported and matches the resolved config agents or preset agents. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
 
 ```bash
 swarm doctor
@@ -273,8 +273,10 @@ pnpm format:check    # prettier check
 src/
 ├── cli.ts                 # Commander entry point
 ├── backends/
-│   └── claude-cli.ts      # Claude CLI backend adapter
+│   ├── claude-cli.ts      # Claude CLI backend adapter
+│   └── factory.ts         # Backend adapter selection
 ├── lib/
+│   ├── backend-selection.ts # Backend/config compatibility checks
 │   ├── brief-generator.ts # Seed + round brief generation
 │   ├── round-runner.ts    # Concurrent agent dispatch with events
 │   ├── synthesis.ts       # Deterministic synthesis engine
@@ -283,6 +285,7 @@ src/
 │   ├── parse-command.ts   # CLI argument parsing/validation
 │   └── config.ts          # SwarmRunConfig types
 ├── schemas/               # Zod schemas for all data contracts
+│   └── backend-id.ts      # Shared backend identifier schema
 └── ui/                    # Terminal rendering (live + quiet)
 ```
 
