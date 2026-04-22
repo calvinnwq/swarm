@@ -20,6 +20,7 @@ function makeManifest(runDir: string): RunManifest {
   return {
     topic: "Should we adopt TypeScript?",
     rounds: 2,
+    backend: "claude",
     preset: null,
     agents: ["product-manager", "principal-engineer"],
     resolveMode: "orchestrator",

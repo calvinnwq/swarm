@@ -68,6 +68,7 @@ describe("runSwarm", () => {
     const config: SwarmRunConfig = {
       topic: "topic",
       rounds: 1,
+      backend: "claude",
       preset: null,
       agents: ["product-manager", "principal-engineer"],
       selectionSource: "explicit-agents",
@@ -125,6 +126,7 @@ describe("runSwarm", () => {
     const config: SwarmRunConfig = {
       topic: "topic",
       rounds: 1,
+      backend: "claude",
       preset: null,
       agents: ["product-manager", "principal-engineer"],
       selectionSource: "explicit-agents",

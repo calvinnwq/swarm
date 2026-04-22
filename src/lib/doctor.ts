@@ -16,6 +16,7 @@ import {
   type LoadProjectConfigOptions,
 } from "./load-project-config.js";
 import type { AgentDefinition } from "../schemas/index.js";
+import type { BackendId } from "../schemas/backend-id.js";
 import { SwarmCommandError } from "./parse-command.js";
 
 export type DoctorCheckStatus = "ok" | "warn" | "fail";
@@ -316,7 +317,7 @@ function checkConfigBackend(
 }
 
 function buildConfigBackendCheck(
-  backend: LoadedProjectConfig["config"]["backend"] | "claude",
+  backend: BackendId,
   agents: AgentDefinition[],
   messages: { okMessage: string; mismatchPrefix: string },
 ): DoctorCheck {

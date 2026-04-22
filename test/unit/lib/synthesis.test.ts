@@ -89,6 +89,7 @@ function makeRoundResult(round: number, outputs: AgentOutput[]): RoundResult {
 const baseManifest: RunManifest = {
   topic: "Should we adopt microservices?",
   rounds: 2,
+  backend: "claude",
   preset: null,
   agents: ["product-manager", "principal-engineer"],
   resolveMode: "orchestrator",

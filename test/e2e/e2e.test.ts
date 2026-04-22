@@ -115,6 +115,7 @@ describe("e2e: full pipeline with mock backend", () => {
   const config: SwarmRunConfig = {
     topic: "Should we adopt GraphQL",
     rounds: 2,
+    backend: "claude",
     preset: null,
     agents: ["product-manager", "principal-engineer"],
     selectionSource: "explicit-agents",

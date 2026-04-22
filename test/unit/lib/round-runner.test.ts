@@ -19,6 +19,7 @@ function makeConfig(overrides: Partial<SwarmRunConfig> = {}): SwarmRunConfig {
   return {
     topic: "Should we adopt option B?",
     rounds: 2,
+    backend: "claude",
     preset: null,
     agents: ["alpha", "beta", "gamma"],
     selectionSource: "explicit-agents",
