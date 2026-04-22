@@ -362,6 +362,37 @@ describe("createRoundRunner", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("repairs malformed JSON with one retry", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "beta" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: "Not valid JSON at all",
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(3);
+  });
+
   it("handles agent returning valid JSON that fails schema", async () => {
     const config = makeConfig({
       rounds: 1,
@@ -393,6 +424,4813 @@ describe("createRoundRunner", () => {
     );
     expect(gamma?.ok).toBe(false);
     expect(gamma?.error).toMatch(/Schema validation failed/);
+  });
+
+  it("repairs schema-invalid JSON with one retry", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: JSON.stringify({ agent: "gamma", round: 1 }),
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(4);
+  });
+
+  it("repairs a later schema-invalid agent payload instead of earlier irrelevant JSON metadata", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(
+              {
+                agent: "gamma",
+                round: 1,
+                recommendation: "missing required fields",
+              },
+            )}`,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"agent"');
+  });
+
+  it("repairs a later schema-invalid agent payload instead of earlier irrelevant json-fenced metadata", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`json
+${JSON.stringify({ note: "ignore fenced metadata" })}
+\`\`\`
+
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "missing required fields",
+})}`,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"agent"');
+  });
+
+  it("repairs a later schema-invalid agent payload instead of earlier irrelevant bare-fenced metadata", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`
+${JSON.stringify({ note: "ignore bare fenced metadata" })}
+\`\`\`
+
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "missing required fields",
+})}`,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"agent"');
+  });
+
+  it("repairs a later schema-invalid agent payload instead of earlier malformed plain JSON", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `{ "broken": \n\n${JSON.stringify({
+              agent: "gamma",
+              round: 1,
+              recommendation: "missing required fields",
+            })}`,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"agent"');
+  });
+
+  it("repairs a later schema-invalid agent payload instead of earlier malformed fenced JSON", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`json
+{ "broken": 
+\`\`\`
+
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "missing required fields",
+})}`,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"agent"');
+  });
+
+  it("repairs a later schema-invalid agent payload instead of earlier malformed bare-fenced JSON", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`
+{ "broken": 
+\`\`\`
+
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "missing required fields",
+})}`,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"agent"');
+  });
+
+  it("repairs the first schema-invalid agent payload when multiple agent-like candidates are invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `${JSON.stringify({
+              agent: "gamma",
+              round: 1,
+              recommendation: "keep first invalid payload",
+              reasoning: ["reason 1"],
+              objections: ["objection 1"],
+              risks: ["risk 1"],
+              changesFromPriorRound: [],
+              confidence: "medium",
+              openQuestions: ["question 1"],
+            })}
+
+
+
+\`\`\`json
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation instead",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}
+\`\`\``,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("repairs the first json-fenced schema-invalid agent payload when a later plain agent-like payload is also invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`json
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "keep fenced invalid payload",
+  reasoning: ["reason 1"],
+  objections: ["objection 1"],
+  risks: ["risk 1"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 1"],
+})}
+\`\`\`
+
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation instead",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}`,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("repairs the first json-fenced schema-invalid agent payload when a later bare-fenced agent-like payload is also invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`json
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "keep json-fenced invalid payload",
+  reasoning: ["reason 1"],
+  objections: ["objection 1"],
+  risks: ["risk 1"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 1"],
+})}
+\`\`\`
+
+\`\`\`
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation instead",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}
+\`\`\``,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("repairs the first json-fenced schema-invalid agent payload when a later json-fenced agent-like payload is also invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`json
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "keep first json-fenced invalid payload",
+  reasoning: ["reason 1"],
+  objections: ["objection 1"],
+  risks: ["risk 1"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 1"],
+})}
+\`\`\`
+
+\`\`\`json
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation instead",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}
+\`\`\``,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("repairs the first bare-fenced schema-invalid agent payload when a later plain agent-like payload is also invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "keep bare-fenced invalid payload",
+  reasoning: ["reason 1"],
+  objections: ["objection 1"],
+  risks: ["risk 1"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 1"],
+})}
+\`\`\`
+
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation instead",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}`,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("repairs the first bare-fenced schema-invalid agent payload when a later json-fenced agent-like payload is also invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "keep bare-fenced invalid payload",
+  reasoning: ["reason 1"],
+  objections: ["objection 1"],
+  risks: ["risk 1"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 1"],
+})}
+\`\`\`
+
+\`\`\`json
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation instead",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}
+\`\`\``,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("repairs the first bare-fenced schema-invalid agent payload when a later bare-fenced agent-like payload is also invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "keep first bare-fenced invalid payload",
+  reasoning: ["reason 1"],
+  objections: ["objection 1"],
+  risks: ["risk 1"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 1"],
+})}
+\`\`\`
+
+\`\`\`
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation instead",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}
+\`\`\``,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("repairs the first plain schema-invalid agent payload when a later bare-fenced agent-like payload is also invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `${JSON.stringify({
+              agent: "gamma",
+              round: 1,
+              recommendation: "keep plain invalid payload",
+              reasoning: ["reason 1"],
+              objections: ["objection 1"],
+              risks: ["risk 1"],
+              changesFromPriorRound: [],
+              confidence: "medium",
+              openQuestions: ["question 1"],
+            })}
+
+\`\`\`
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation instead",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}
+\`\`\``,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("repairs the first plain schema-invalid agent payload when a later plain agent-like payload is also invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `${JSON.stringify({
+              agent: "gamma",
+              round: 1,
+              recommendation: "keep first plain invalid payload",
+              reasoning: ["reason 1"],
+              objections: ["objection 1"],
+              risks: ["risk 1"],
+              changesFromPriorRound: [],
+              confidence: "medium",
+              openQuestions: ["question 1"],
+            })}
+
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation instead",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}`,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("repairs the first plain schema-invalid agent payload when later json-fenced and bare-fenced agent-like payloads are also invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `${JSON.stringify({
+              agent: "gamma",
+              round: 1,
+              recommendation: "keep first plain invalid payload",
+              reasoning: ["reason 1"],
+              objections: ["objection 1"],
+              risks: ["risk 1"],
+              changesFromPriorRound: [],
+              confidence: "medium",
+              openQuestions: ["question 1"],
+            })}
+
+\`\`\`json
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation in json fence",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}
+\`\`\`
+
+\`\`\`
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation in bare fence",
+  reasoning: ["reason 3"],
+  objections: ["objection 3"],
+  risks: ["risk 3"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 3"],
+})}
+\`\`\``,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("repairs the first json-fenced schema-invalid agent payload when later plain and bare-fenced agent-like payloads are also invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`json
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "keep first json-fenced invalid payload",
+  reasoning: ["reason 1"],
+  objections: ["objection 1"],
+  risks: ["risk 1"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 1"],
+})}
+\`\`\`
+
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation in plain JSON",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}
+
+\`\`\`
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation in bare fence",
+  reasoning: ["reason 3"],
+  objections: ["objection 3"],
+  risks: ["risk 3"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 3"],
+})}
+\`\`\``,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("repairs the first bare-fenced schema-invalid agent payload when later plain and json-fenced agent-like payloads are also invalid", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: `\`\`\`
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  recommendation: "keep first bare-fenced invalid payload",
+  reasoning: ["reason 1"],
+  objections: ["objection 1"],
+  risks: ["risk 1"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 1"],
+})}
+\`\`\`
+
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation in plain JSON",
+  reasoning: ["reason 2"],
+  objections: ["objection 2"],
+  risks: ["risk 2"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 2"],
+})}
+
+\`\`\`json
+${JSON.stringify({
+  agent: "gamma",
+  round: 1,
+  stance: "missing recommendation in json fence",
+  reasoning: ["reason 3"],
+  objections: ["objection 3"],
+  risks: ["risk 3"],
+  changesFromPriorRound: [],
+  confidence: "medium",
+  openQuestions: ["question 3"],
+})}
+\`\`\``,
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+
+    const gammaRepairCall = (
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls as Array<
+        [string, AgentDefinition]
+      >
+    ).find(
+      ([prompt, dispatchedAgent]) =>
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
+    );
+
+    expect(gammaRepairCall).toBeDefined();
+    const validationSection = gammaRepairCall?.[0].split(
+      "Return only a single valid JSON object",
+    )[0];
+    expect(validationSection).toContain('"stance"');
+    expect(validationSection).not.toContain('"recommendation"');
+  });
+
+  it("accepts the first schema-valid payload when stdout contains multiple JSON objects", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later schema-valid payload when stdout starts with fenced JSON metadata", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later json-fenced schema-valid payload when stdout starts with json-fenced JSON metadata", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later json-fenced schema-valid payload when stdout starts with irrelevant JSON metadata", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later schema-valid payload when stdout starts with irrelevant JSON metadata", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later bare-fenced schema-valid payload when stdout starts with irrelevant JSON metadata", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}
+
+\`\`\`
+${JSON.stringify(makeAgentOutput("beta", 1))}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later schema-valid payload when stdout starts with bare-fenced JSON metadata", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`
+${JSON.stringify({ note: "ignore bare fenced metadata" })}
+\`\`\`
+
+${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later json-fenced schema-valid payload when stdout starts with bare-fenced JSON metadata", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`
+${JSON.stringify({ note: "ignore bare fenced metadata" })}
+\`\`\`
+
+\`\`\`json
+${JSON.stringify(makeAgentOutput("beta", 1))}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later bare-fenced schema-valid payload when stdout starts with bare-fenced JSON metadata", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`
+${JSON.stringify({ note: "ignore bare fenced metadata" })}
+\`\`\`
+
+\`\`\`
+${JSON.stringify(makeAgentOutput("beta", 1))}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later bare-fenced schema-valid payload when stdout starts with json-fenced JSON metadata", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json
+${JSON.stringify({ note: "ignore fenced metadata" })}
+\`\`\`
+
+\`\`\`
+${JSON.stringify(makeAgentOutput("beta", 1))}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when earlier json-fenced metadata and later json-fenced plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when earlier json-fenced metadata and later plain plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts agent output wrapped in bare fences", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later schema-valid payload when stdout starts with schema-invalid agent-like JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later json-fenced schema-valid payload when stdout starts with schema-invalid agent-like JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later bare-fenced schema-valid payload when stdout starts with schema-invalid agent-like JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}
+
+\`\`\`
+${JSON.stringify(makeAgentOutput("beta", 1))}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later schema-valid payload when stdout starts with fenced schema-invalid agent-like JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\`\`\`\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later json-fenced schema-valid payload when stdout starts with fenced schema-invalid agent-like JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later bare-fenced schema-valid payload when stdout starts with fenced schema-invalid agent-like JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\`\`\`\n\n\`\`\`
+${JSON.stringify(makeAgentOutput("beta", 1))}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when earlier fenced schema-invalid agent-like JSON and later json-fenced plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when earlier fenced schema-invalid agent-like JSON and later plain plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later schema-valid payload when stdout starts with bare-fenced schema-invalid agent-like JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`
+${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}
+\`\`\`
+
+${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later json-fenced schema-valid payload when stdout starts with bare-fenced schema-invalid agent-like JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`
+${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}
+\`\`\`
+
+\`\`\`json
+${JSON.stringify(makeAgentOutput("beta", 1))}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later bare-fenced schema-valid payload when stdout starts with bare-fenced schema-invalid agent-like JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`
+${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}
+\`\`\`
+
+\`\`\`
+${JSON.stringify(makeAgentOutput("beta", 1))}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when earlier bare-fenced schema-invalid agent-like JSON and later json-fenced plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const validPayload = {
+          ...makeAgentOutput("beta", 1),
+          round: 1,
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when earlier bare-fenced schema-invalid agent-like JSON and later plain plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const validPayload = {
+          ...makeAgentOutput("beta", 1),
+          round: 1,
+        };
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when earlier bare-fenced schema-invalid agent-like JSON and later plain plus json-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const validPayload = {
+          ...makeAgentOutput("beta", 1),
+          round: 1,
+        };
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later schema-valid payload when stdout starts with malformed fenced JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later json-fenced schema-valid payload when stdout starts with malformed fenced JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later bare-fenced schema-valid payload when stdout starts with malformed fenced JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`
+${JSON.stringify(makeAgentOutput("beta", 1))}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when earlier malformed fenced JSON and later json-fenced plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when earlier malformed fenced JSON and later plain plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when earlier malformed fenced JSON and later plain plus json-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later schema-valid payload when stdout starts with malformed plain JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `{ "broken": \n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when earlier malformed plain JSON and later json-fenced plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `{ "broken": \n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when earlier malformed plain JSON and later plain plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `{ "broken": \n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when earlier malformed plain JSON and later plain plus json-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `{ "broken": \n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later json-fenced schema-valid payload when stdout starts with malformed plain JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `{ "broken": \n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later bare-fenced schema-valid payload when stdout starts with malformed plain JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `{ "broken": \n\n\`\`\`\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later schema-valid payload when stdout starts with malformed bare-fenced JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`
+{ "broken": 
+\`\`\`
+
+${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later json-fenced schema-valid payload when stdout starts with malformed bare-fenced JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`
+{ "broken": 
+\`\`\`
+
+\`\`\`json
+${JSON.stringify(makeAgentOutput("beta", 1))}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("accepts a later bare-fenced schema-valid payload when stdout starts with malformed bare-fenced JSON", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`
+{ "broken": 
+\`\`\`
+
+\`\`\`
+${JSON.stringify(makeAgentOutput("beta", 1))}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when earlier malformed bare-fenced JSON and later json-fenced plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n{ "broken": \n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when earlier malformed bare-fenced JSON and later plain plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n{ "broken": \n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when earlier malformed bare-fenced JSON and later plain plus json-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n{ "broken": \n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the first schema-valid payload when stdout contains multiple valid agent outputs", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(firstPayload)}\n\n${JSON.stringify(laterPayload)}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earlier plain schema-valid payload when a later fenced payload is also valid", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(firstPayload)}\n\n\`\`\`json\n${JSON.stringify(laterPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earlier fenced schema-valid payload when a later plain payload is also valid", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n${JSON.stringify(laterPayload)}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earlier fenced schema-valid payload when a later fenced payload is also valid", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earlier bare fenced schema-valid payload when a later bare fenced payload is also valid", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later bare fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`
+${JSON.stringify(firstPayload)}
+\`\`\`
+
+\`\`\`
+${JSON.stringify(laterPayload)}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earlier plain schema-valid payload when a later bare fenced payload is also valid", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later bare fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(firstPayload)}\n\n\`\`\`\n${JSON.stringify(laterPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earlier bare fenced schema-valid payload when a later plain payload is also valid", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`
+${JSON.stringify(firstPayload)}
+\`\`\`
+
+${JSON.stringify(laterPayload)}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earlier json-fenced schema-valid payload when a later bare fenced payload is also valid", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later bare fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earlier bare fenced schema-valid payload when a later json-fenced payload is also valid", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earlier plain schema-valid payload when later json-fenced and bare-fenced payloads are also valid", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterJsonFencedPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        const laterBareFencedPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(firstPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earlier json-fenced schema-valid payload when later plain and bare-fenced payloads are also valid", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterPlainPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterBareFencedPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earlier bare-fenced schema-valid payload when later plain and json-fenced payloads are also valid", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const firstPayload = makeAgentOutput("beta", 1);
+        const laterPlainPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterJsonFencedPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later json fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest schema-valid payload when invalid agent-like payloads appear before and after it", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          stance: "later invalid payload should be ignored",
+          reasoning: ["reason"],
+          objections: ["objection"],
+          risks: ["risk"],
+          changesFromPriorRound: [],
+          confidence: "medium",
+          openQuestions: ["question"],
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`\n${JSON.stringify(laterInvalidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when an earlier invalid payload and later json-fenced valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when an earlier invalid payload and later bare-fenced valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when an earlier invalid payload and later json-fenced plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when earlier irrelevant metadata and a later json-fenced valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when earlier irrelevant metadata and a later bare-fenced valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}
+
+${JSON.stringify(validPayload)}
+
+\`\`\`
+${JSON.stringify(laterValidPayload)}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when earlier irrelevant metadata and a later plain valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}
+
+\`\`\`json
+${JSON.stringify(validPayload)}
+\`\`\`
+
+${JSON.stringify(laterValidPayload)}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when earlier irrelevant metadata and a later bare-fenced valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}
+
+\`\`\`json
+${JSON.stringify(validPayload)}
+\`\`\`
+
+\`\`\`
+${JSON.stringify(laterValidPayload)}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when earlier irrelevant metadata and a later plain valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}
+
+\`\`\`
+${JSON.stringify(validPayload)}
+\`\`\`
+
+${JSON.stringify(laterValidPayload)}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when earlier irrelevant metadata and a later json-fenced valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}
+
+\`\`\`
+${JSON.stringify(validPayload)}
+\`\`\`
+
+\`\`\`json
+${JSON.stringify(laterValidPayload)}
+\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when earlier irrelevant metadata and later json-fenced plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when earlier irrelevant metadata and later plain plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest plain schema-valid payload when earlier bare-fenced irrelevant metadata and later json-fenced plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n${JSON.stringify({ note: "ignore bare fenced metadata" })}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when earlier bare-fenced irrelevant metadata and later plain plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n${JSON.stringify({ note: "ignore bare fenced metadata" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when earlier bare-fenced irrelevant metadata and later plain plus json-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`\n${JSON.stringify({ note: "ignore bare fenced metadata" })}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when earlier json-fenced irrelevant metadata and later plain plus json-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when earlier irrelevant metadata and later plain plus json-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when invalid agent-like payloads appear before and after it", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          stance: "later invalid payload should be ignored",
+          reasoning: ["reason"],
+          objections: ["objection"],
+          risks: ["risk"],
+          changesFromPriorRound: [],
+          confidence: "medium",
+          openQuestions: ["question"],
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterInvalidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when an earlier invalid payload and later plain valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterValidPayload)}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when an earlier invalid payload and later bare-fenced valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest json-fenced schema-valid payload when an earlier invalid payload and later plain plus bare-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterBareFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later bare-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when an earlier json-fenced schema-invalid payload and later plain plus json-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `\`\`\`json\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when an earlier invalid payload and later plain plus json-fenced valid payloads are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterPlainValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        const laterJsonFencedValidPayload = {
+          ...makeAgentOutput("beta", 3),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when invalid agent-like payloads appear before and after it", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          stance: "later invalid payload should be ignored",
+          reasoning: ["reason"],
+          objections: ["objection"],
+          risks: ["risk"],
+          changesFromPriorRound: [],
+          confidence: "medium",
+          openQuestions: ["question"],
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterInvalidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when an earlier invalid payload and later plain valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later plain recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterValidPayload)}`,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("keeps the earliest bare-fenced schema-valid payload when an earlier invalid payload and later json-fenced valid payload are also present", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      if (agent.name === "beta") {
+        const validPayload = makeAgentOutput("beta", 1);
+        const earlierInvalidPayload = {
+          agent: "beta",
+          round: 1,
+          recommendation: "missing required fields",
+        };
+        const laterValidPayload = {
+          ...makeAgentOutput("beta", 2),
+          round: 1,
+          recommendation: "later json-fenced recommendation should be ignored",
+        };
+        return {
+          ok: true,
+          exitCode: 0,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
+          stderr: "",
+          timedOut: false,
+          durationMs: 50,
+        };
+      }
+
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(beta?.output?.recommendation).toBe(
+      makeAgentOutput("beta", 1).recommendation,
+    );
+    expect(beta?.output?.round).toBe(1);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
   });
 
   it("handles timed-out agent", async () => {

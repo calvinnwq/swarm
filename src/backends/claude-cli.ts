@@ -4,17 +4,49 @@ import { AgentOutputSchema } from "../schemas/index.js";
 import type { AgentDefinition, AgentOutput } from "../schemas/index.js";
 import type { AgentResponse, BackendAdapter } from "./index.js";
 
+const PartialAgentOutputSchema = AgentOutputSchema.partial();
+const agentOutputKeys = [
+  "agent",
+  "round",
+  "stance",
+  "recommendation",
+  "reasoning",
+  "objections",
+  "risks",
+  "changesFromPriorRound",
+  "confidence",
+  "openQuestions",
+] as const;
+
+function isAgentOutputLike(candidate: unknown): boolean {
+  if (
+    !candidate ||
+    typeof candidate !== "object" ||
+    Array.isArray(candidate) ||
+    !PartialAgentOutputSchema.safeParse(candidate).success
+  ) {
+    return false;
+  }
+
+  return agentOutputKeys.some((key) => key in candidate);
+}
+
 /**
  * Extract JSON from Claude CLI output that may contain markdown fences,
  * leading prose, or trailing junk. Mirrors the reference Python
  * `parse_agent_output` behavior.
  */
 export function extractJson(raw: string): unknown {
+  return extractJsonCandidates(raw)[0];
+}
+
+function extractJsonCandidates(raw: string): unknown[] {
   const trimmed = raw.trim();
+  const candidates: Array<{ start: number; value: unknown }> = [];
 
   // 1. Try parsing the whole string as JSON first.
   try {
-    return JSON.parse(trimmed);
+    candidates.push({ start: 0, value: JSON.parse(trimmed) });
   } catch {
     // fall through
   }
@@ -24,26 +56,99 @@ export function extractJson(raw: string): unknown {
   const fenceMatch = fenceRe.exec(trimmed);
   if (fenceMatch) {
     try {
-      return JSON.parse(fenceMatch[1].trim());
+      candidates.push({
+        start: fenceMatch.index,
+        value: JSON.parse(fenceMatch[1].trim()),
+      });
     } catch {
       // fall through
     }
   }
 
-  // 3. Find the outermost { ... } pair, tolerating leading/trailing prose.
-  const firstBrace = trimmed.indexOf("{");
-  if (firstBrace !== -1) {
-    const lastBrace = trimmed.lastIndexOf("}");
-    if (lastBrace > firstBrace) {
+  // 3. Scan for a balanced JSON object, tolerating prose that may contain
+  // non-JSON braces before or after the actual payload.
+  for (
+    let start = trimmed.indexOf("{");
+    start !== -1;
+    start = trimmed.indexOf("{", start + 1)
+  ) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start; i < trimmed.length; i += 1) {
+      const char = trimmed[i];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (char === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (char === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (char === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (char === "{") {
+        depth += 1;
+        continue;
+      }
+
+      if (char !== "}") {
+        continue;
+      }
+
+      depth -= 1;
+      if (depth !== 0) {
+        continue;
+      }
+
       try {
-        return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
+        candidates.push({
+          start,
+          value: JSON.parse(trimmed.slice(start, i + 1)),
+        });
+        break;
       } catch {
-        // fall through
+        break;
       }
     }
   }
 
-  return undefined;
+  return candidates
+    .sort((left, right) => left.start - right.start)
+    .map((candidate) => candidate.value);
+}
+
+export function extractAgentOutputJson(raw: string): unknown {
+  const candidates = extractJsonCandidates(raw);
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  for (const candidate of candidates) {
+    if (AgentOutputSchema.safeParse(candidate).success) {
+      return candidate;
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (isAgentOutputLike(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidates[0];
 }
 
 /**
@@ -51,7 +156,7 @@ export function extractJson(raw: string): unknown {
  * Throws a descriptive error when extraction or validation fails.
  */
 export function parseAgentOutput(raw: string): AgentOutput {
-  const json = extractJson(raw);
+  const json = extractAgentOutputJson(raw);
   if (json === undefined) {
     throw new Error(
       `Failed to extract JSON from agent output.\n--- raw stdout ---\n${raw}\n--- end ---`,

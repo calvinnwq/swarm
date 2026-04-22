@@ -7,6 +7,7 @@ import {
   loadAgentRegistry,
   loadPresetRegistry,
   loadProjectConfig,
+  resolvePresetByName,
   runDoctor,
   runSwarm,
   SwarmCommandError,
@@ -86,8 +87,7 @@ program
         let selectionSource: AgentSelectionSource | undefined;
 
         if (cliAgents === undefined && cliPresetName !== undefined) {
-          const presetRegistry = await loadPresetRegistry();
-          const preset = presetRegistry.getPreset(cliPresetName);
+          const preset = await resolvePresetByName(cliPresetName);
           resolvedAgents = preset.agents.join(",");
           resolvedPresetName = cliPresetName;
           selectionSource = "preset";

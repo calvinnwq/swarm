@@ -26,17 +26,29 @@ export interface PresetRegistry {
   searchedRoots: string[];
 }
 
+export async function resolvePresetByName(
+  name: string,
+  options: LoadPresetRegistryOptions = {},
+): Promise<SwarmPreset> {
+  const normalizedName = normalizePresetName(name);
+  const searchedRoots = await resolvePresetRoots(options);
+
+  for (const root of searchedRoots) {
+    const preset = await loadPresetByNameFromRoot(root, normalizedName);
+    if (preset) {
+      return preset;
+    }
+  }
+
+  throw new SwarmCommandError(
+    `unknown preset "${normalizedName}" (searched: ${searchedRoots.join(", ")})`,
+  );
+}
+
 export async function loadPresetRegistry(
   options: LoadPresetRegistryOptions = {},
 ): Promise<PresetRegistry> {
-  const bundledDir = options.bundledDir
-    ? path.resolve(options.bundledDir)
-    : await resolveDefaultBundledDir();
-  const searchedRoots = [
-    path.join(path.resolve(options.cwd ?? process.cwd()), ".swarm", "presets"),
-    path.join(path.resolve(options.homeDir ?? homedir()), ".swarm", "presets"),
-    bundledDir,
-  ];
+  const searchedRoots = await resolvePresetRoots(options);
 
   const presets = new Map<string, SwarmPreset>();
 
@@ -55,7 +67,7 @@ export async function loadPresetRegistry(
       return Array.from(presets.values());
     },
     getPreset(name: string) {
-      const normalized = name.trim().toLowerCase();
+      const normalized = normalizePresetName(name);
       const preset = presets.get(normalized);
       if (preset) {
         return preset;
@@ -65,6 +77,19 @@ export async function loadPresetRegistry(
       );
     },
   };
+}
+
+async function resolvePresetRoots(
+  options: LoadPresetRegistryOptions,
+): Promise<string[]> {
+  const bundledDir = options.bundledDir
+    ? path.resolve(options.bundledDir)
+    : await resolveDefaultBundledDir();
+  return [
+    path.join(path.resolve(options.cwd ?? process.cwd()), ".swarm", "presets"),
+    path.join(path.resolve(options.homeDir ?? homedir()), ".swarm", "presets"),
+    bundledDir,
+  ];
 }
 
 async function resolveDefaultBundledDir(): Promise<string> {
@@ -80,23 +105,7 @@ async function resolveDefaultBundledDir(): Promise<string> {
 }
 
 async function loadPresetsFromRoot(root: string): Promise<SwarmPreset[]> {
-  let entries;
-  try {
-    entries = await readdir(root, { withFileTypes: true });
-  } catch (error) {
-    if (isMissingDirectory(error)) {
-      return [];
-    }
-    throw error;
-  }
-
-  const fileNames = entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
-    .filter((name) =>
-      DEFINITION_EXTENSIONS.has(path.extname(name).toLowerCase()),
-    )
-    .sort((left, right) => left.localeCompare(right));
+  const fileNames = await listPresetFileNames(root);
 
   const presets: SwarmPreset[] = [];
   const seenNames = new Map<string, string>();
@@ -115,6 +124,56 @@ async function loadPresetsFromRoot(root: string): Promise<SwarmPreset[]> {
   }
 
   return presets;
+}
+
+async function loadPresetByNameFromRoot(
+  root: string,
+  normalizedName: string,
+): Promise<SwarmPreset | undefined> {
+  const fileNames = await listPresetFileNames(root);
+  const matchingPresets: SwarmPreset[] = [];
+  const matchingPaths: string[] = [];
+
+  for (const fileName of fileNames) {
+    const filePath = path.join(root, fileName);
+    const preset = await loadPresetFileIgnoringUnrelatedErrors(
+      filePath,
+      normalizedName,
+    );
+    if (!preset || preset.name !== normalizedName) {
+      continue;
+    }
+    matchingPresets.push(preset);
+    matchingPaths.push(filePath);
+  }
+
+  if (matchingPresets.length > 1) {
+    throw new SwarmCommandError(
+      `duplicate preset "${normalizedName}" in ${root}: ${matchingPaths.join(" and ")}`,
+    );
+  }
+
+  return matchingPresets[0];
+}
+
+async function listPresetFileNames(root: string): Promise<string[]> {
+  let entries;
+  try {
+    entries = await readdir(root, { withFileTypes: true });
+  } catch (error) {
+    if (isMissingDirectory(error)) {
+      return [];
+    }
+    throw error;
+  }
+
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) =>
+      DEFINITION_EXTENSIONS.has(path.extname(name).toLowerCase()),
+    )
+    .sort((left, right) => left.localeCompare(right));
 }
 
 async function loadPresetFile(filePath: string): Promise<SwarmPreset> {
@@ -136,6 +195,27 @@ async function loadPresetFile(filePath: string): Promise<SwarmPreset> {
     );
   }
   return parsed.data;
+}
+
+async function loadPresetFileIgnoringUnrelatedErrors(
+  filePath: string,
+  normalizedName: string,
+): Promise<SwarmPreset | undefined> {
+  try {
+    return await loadPresetFile(filePath);
+  } catch (error) {
+    if (
+      error instanceof SwarmCommandError &&
+      path.parse(filePath).name.toLowerCase() !== normalizedName
+    ) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+function normalizePresetName(name: string): string {
+  return name.trim().toLowerCase();
 }
 
 function formatZodError(error: import("zod").ZodError): string {

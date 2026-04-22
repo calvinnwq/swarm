@@ -8,6 +8,8 @@ export const RunManifestSchema = z
     topic: z.string().min(1),
     rounds: z.int().min(1),
     preset: z.string().nullable().optional(),
+    goal: z.string().nullable().optional(),
+    decision: z.string().nullable().optional(),
     agents: z.array(z.string()).min(1),
     resolveMode: ResolveModeSchema,
     startedAt: z.iso.datetime(),
