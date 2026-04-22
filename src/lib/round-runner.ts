@@ -12,6 +12,7 @@ import { buildSeedBrief, buildRoundBrief } from "./brief-generator.js";
 
 const DEFAULT_CONCURRENCY = 3;
 const DEFAULT_TIMEOUT_MS = 120_000;
+const MAX_FORMAT_REPAIR_ATTEMPTS = 1;
 
 export interface AgentResult {
   agent: string;
@@ -62,6 +63,59 @@ export interface RoundRunnerOpts {
   backend: BackendAdapter;
   concurrency?: number;
   timeoutMs?: number;
+}
+
+function validateAgentOutput(
+  stdout: string,
+): { ok: true; output: AgentOutput } | { ok: false; error: string } {
+  const json = extractJson(stdout);
+  if (json === undefined) {
+    return {
+      ok: false,
+      error: "Failed to extract JSON from agent output",
+    };
+  }
+
+  const parsed = AgentOutputSchema.safeParse(json);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: `Schema validation failed: ${parsed.error.message}`,
+    };
+  }
+
+  return { ok: true, output: parsed.data };
+}
+
+function buildRepairPrompt(
+  brief: string,
+  agent: AgentDefinition,
+  validationError: string,
+  invalidStdout: string,
+): string {
+  return `${brief}
+
+Your previous response for agent "${agent.name}" could not be accepted.
+Validation error: ${validationError}
+
+Return only a single valid JSON object with exactly these required fields:
+- agent
+- round
+- stance
+- recommendation
+- reasoning
+- objections
+- risks
+- changesFromPriorRound
+- confidence
+- openQuestions
+
+Do not include markdown fences, prose, or any text before/after the JSON.
+
+Previous invalid response:
+\`\`\`
+${invalidStdout}
+\`\`\``;
 }
 
 function buildRoundPacket(
@@ -116,18 +170,28 @@ async function dispatchAgent(
   agent: AgentDefinition,
   timeoutMs: number,
 ): Promise<AgentResult> {
-  let response: AgentResponse;
-  try {
-    response = await backend.dispatch(brief, agent, { timeoutMs });
-  } catch (err) {
-    return {
-      agent: agent.name,
-      ok: false,
-      output: null,
-      raw: null,
-      error: `Dispatch error: ${err instanceof Error ? err.message : String(err)}`,
-    };
+  async function dispatch(
+    prompt: string,
+  ): Promise<AgentResponse | AgentResult> {
+    try {
+      return await backend.dispatch(prompt, agent, { timeoutMs });
+    } catch (err) {
+      return {
+        agent: agent.name,
+        ok: false,
+        output: null,
+        raw: null,
+        error: `Dispatch error: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
   }
+
+  const initial = await dispatch(brief);
+  if ("agent" in initial) {
+    return initial;
+  }
+
+  let response = initial;
 
   if (!response.ok) {
     return {
@@ -141,32 +205,53 @@ async function dispatchAgent(
     };
   }
 
-  const json = extractJson(response.stdout);
-  if (json === undefined) {
-    return {
-      agent: agent.name,
-      ok: false,
-      output: null,
-      raw: response,
-      error: `Failed to extract JSON from agent output`,
-    };
+  let validation = validateAgentOutput(response.stdout);
+  for (
+    let attempt = 0;
+    !validation.ok && attempt < MAX_FORMAT_REPAIR_ATTEMPTS;
+    attempt++
+  ) {
+    const repaired = await dispatch(
+      buildRepairPrompt(brief, agent, validation.error, response.stdout),
+    );
+    if ("agent" in repaired) {
+      return {
+        agent: agent.name,
+        ok: false,
+        output: null,
+        raw: response,
+        error: `${validation.error}; repair dispatch failed: ${repaired.error}`,
+      };
+    }
+    if (!repaired.ok) {
+      return {
+        agent: agent.name,
+        ok: false,
+        output: null,
+        raw: repaired,
+        error: repaired.timedOut
+          ? `Repair attempt timed out after ${repaired.durationMs}ms`
+          : `Repair attempt exited with code ${repaired.exitCode}: ${repaired.stderr}`,
+      };
+    }
+    response = repaired;
+    validation = validateAgentOutput(response.stdout);
   }
 
-  const parsed = AgentOutputSchema.safeParse(json);
-  if (!parsed.success) {
+  if (!validation.ok) {
     return {
       agent: agent.name,
       ok: false,
       output: null,
       raw: response,
-      error: `Schema validation failed: ${parsed.error.message}`,
+      error: `${validation.error} after ${MAX_FORMAT_REPAIR_ATTEMPTS + 1} attempt(s)`,
     };
   }
 
   return {
     agent: agent.name,
     ok: true,
-    output: parsed.data,
+    output: validation.output,
     raw: response,
     error: null,
   };

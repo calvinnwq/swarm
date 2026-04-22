@@ -362,6 +362,37 @@ describe("createRoundRunner", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("repairs malformed JSON with one retry", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "beta" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: "Not valid JSON at all",
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const beta = result.rounds[0].agentResults.find((r) => r.agent === "beta");
+    expect(beta?.ok).toBe(true);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(3);
+  });
+
   it("handles agent returning valid JSON that fails schema", async () => {
     const config = makeConfig({
       rounds: 1,
@@ -393,6 +424,42 @@ describe("createRoundRunner", () => {
     );
     expect(gamma?.ok).toBe(false);
     expect(gamma?.error).toMatch(/Schema validation failed/);
+  });
+
+  it("repairs schema-invalid JSON with one retry", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta", "gamma"],
+    });
+    const agents = ["alpha", "beta", "gamma"].map(makeAgent);
+
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        if (agent.name === "gamma" && !prompt.includes("Validation error:")) {
+          return {
+            ok: true,
+            exitCode: 0,
+            stdout: JSON.stringify({ agent: "gamma", round: 1 }),
+            stderr: "",
+            timedOut: false,
+            durationMs: 50,
+          };
+        }
+        return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+      }),
+    };
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
+    expect(gamma?.ok).toBe(true);
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(4);
   });
 
   it("handles timed-out agent", async () => {
