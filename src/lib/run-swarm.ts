@@ -54,7 +54,12 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
 
   const seedBrief = buildSeedBrief(config);
 
-  const writer = new ArtifactWriter({ baseDir, manifest, seedBrief });
+  const writer = new ArtifactWriter({
+    baseDir,
+    manifest,
+    seedBrief,
+    wrapperName: backend.wrapperName ?? `${config.backend}-cli`,
+  });
   writer.init();
 
   const { emitter, run } = createRoundRunner({

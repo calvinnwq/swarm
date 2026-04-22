@@ -22,6 +22,7 @@ describe("swarm cli backend selection", () => {
     const { status, stdout } = runCli(["run", "--help"]);
     expect(status).toBe(0);
     expect(stdout).toContain("--backend <name>");
+    expect(stdout).toContain("claude, codex");
   });
 
   it("fails with a clear invalid-backend error", () => {

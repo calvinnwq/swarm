@@ -239,6 +239,39 @@ describe("createRoundRunner", () => {
     expect(round2Brief).toContain("alpha stance for round 1");
   });
 
+  it("uses backend-specific JSON extraction instead of assuming Claude output parsing", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = {
+      wrapperName: "custom-backend",
+      dispatch: vi.fn(async (_prompt: string, agent: AgentDefinition) => ({
+        ok: true,
+        exitCode: 0,
+        stdout: `custom-prefix::${agent.name}`,
+        stderr: "",
+        timedOut: false,
+        durationMs: 100,
+      })),
+      extractOutputJson: vi.fn((raw: string) => {
+        const agent = raw.split("::")[1] ?? "unknown";
+        return makeAgentOutput(agent, 1);
+      }),
+      formatFailure: vi.fn((response: AgentResponse) => response.stderr),
+    } as unknown as BackendAdapter;
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    expect(result.rounds[0]?.agentResults.every((entry) => entry.ok)).toBe(
+      true,
+    );
+    expect(
+      (backend.extractOutputJson as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
   describe("min-2-success rule", () => {
     it("continues when 1 agent fails out of 3", async () => {
       const config = makeConfig({

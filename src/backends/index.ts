@@ -10,6 +10,9 @@ export interface AgentResponse {
 }
 
 export interface BackendAdapter {
+  readonly wrapperName?: string;
+  extractOutputJson?(raw: string): unknown;
+  formatFailure?(response: AgentResponse): string;
   dispatch(
     prompt: string,
     agent: AgentDefinition,

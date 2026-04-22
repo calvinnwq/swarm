@@ -58,7 +58,10 @@ program
     "--preset <name>",
     "named preset (resolves to agents when --agents not provided)",
   )
-  .option("--backend <name>", "runtime backend adapter (currently: claude)")
+  .option(
+    "--backend <name>",
+    "runtime backend adapter (currently: claude, codex)",
+  )
   .option(
     "--quiet",
     "force quiet (one-line-per-event) output; default auto by TTY",

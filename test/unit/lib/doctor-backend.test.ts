@@ -44,13 +44,13 @@ async function writeFileUnder(
   await writeFile(filePath, contents, "utf-8");
 }
 
-function agentYaml(name: string): string {
+function agentYaml(name: string, backend = "claude"): string {
   return [
     `name: ${name}`,
     "description: test agent",
     "persona: test persona",
     "prompt: test prompt body",
-    "backend: claude",
+    `backend: ${backend}`,
   ].join("\n");
 }
 
@@ -96,5 +96,81 @@ describe("runDoctor backend checks", () => {
     expect(check?.status).toBe("ok");
     expect(check?.message).toContain("claude");
     expect(report.ok).toBe(true);
+  });
+
+  it("reports Codex backend selection as healthy when the preset resolves to Codex agents", async () => {
+    const roots = await makeIsolatedRoots();
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager-codex.yml",
+      agentYaml("product-manager-codex", "codex"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-codex.yml",
+      agentYaml("principal-engineer-codex", "codex"),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      ["backend: codex", "preset: product-decision-codex"].join("\n"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision-codex.yml",
+      [
+        "name: product-decision-codex",
+        "agents:",
+        "  - product-manager-codex",
+        "  - principal-engineer-codex",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const check = report.checks.find(
+      (entry) => entry.name === "config backend",
+    );
+    expect(check?.status).toBe("ok");
+    expect(check?.message).toContain('backend "codex" matches preset');
+    expect(report.ok).toBe(true);
+  });
+
+  it("reports an actionable mismatch when config backend and preset agent backends disagree", async () => {
+    const roots = await makeIsolatedRoots();
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager", "claude"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer.yml",
+      agentYaml("principal-engineer", "claude"),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      ["backend: codex", "preset: product-decision"].join("\n"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const check = report.checks.find(
+      (entry) => entry.name === "config backend",
+    );
+    expect(check?.status).toBe("fail");
+    expect(check?.message).toContain("product-manager (claude)");
+    expect(report.ok).toBe(false);
   });
 });

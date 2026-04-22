@@ -72,7 +72,7 @@ Arguments:
 
 Options:
   --agents <list>    comma-separated agent names
-  --backend <name>   runtime backend adapter (currently: claude)
+  --backend <name>   runtime backend adapter (currently: claude, codex)
   --resolve <mode>   record resolution mode in manifest: off | orchestrator | agents
                      (between-round sub-pass not yet implemented)
   --goal <text>      primary goal for the swarm
@@ -87,11 +87,12 @@ Options:
 
 ### Bundled presets
 
-Swarm ships with one opinionated built-in preset:
+Swarm ships with two opinionated built-in presets:
 
-| Preset             | Agents                                  | Resolve        | Best for                                                                             |
-| ------------------ | --------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
-| `product-decision` | `product-manager`, `principal-engineer` | `orchestrator` | Framing a product decision with paired user-value and engineering-feasibility lenses |
+| Preset                    | Agents                                                | Resolve        | Best for                                                                             |
+| ------------------------- | ----------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
+| `product-decision`        | `product-manager`, `principal-engineer`               | `orchestrator` | Framing a product decision with paired user-value and engineering-feasibility lenses |
+| `product-decision-codex`  | `product-manager-codex`, `principal-engineer-codex`   | `orchestrator` | Running the same product-decision flow through Codex out of the box                  |
 
 Invoke it by name — no `--agents` required:
 
@@ -100,6 +101,14 @@ swarm run 2 "Should we adopt server components?" --preset product-decision
 ```
 
 CLI flags still win over preset defaults, so you can override `--resolve`, `--goal`, or `--decision` per run. Drop a YAML file into `.swarm/presets/<name>.yml` (project) or `~/.swarm/presets/<name>.yml` (global) to define your own; project entries take precedence over global, and global over bundled.
+
+For Codex-backed runs, use the dedicated preset and backend pair:
+
+```bash
+swarm run 2 "Should we adopt server components?" \
+  --preset product-decision-codex \
+  --backend codex
+```
 
 Custom preset files are strict YAML objects with required `name` and `agents` fields plus optional `description`, `resolve`, `goal`, and `decision` fields:
 
@@ -154,13 +163,15 @@ Agent definitions are YAML or Markdown files resolved from three roots (first wi
 | `~/.swarm/agents/*.yml` / `~/.swarm/agents/*.md` | Global (user-wide)                |
 | _(bundled)_                                      | Ships with swarm; see table below |
 
-Swarm ships with three bundled agents the golden path relies on:
+Swarm ships with five bundled agents:
 
-| Agent                | Role                                                            |
-| -------------------- | --------------------------------------------------------------- |
-| `product-manager`    | User value, scope, and decision framing                         |
-| `principal-engineer` | System design, feasibility, and operational risk                |
-| `orchestrator`       | Coordinator persona reserved for resolve modes (not active yet) |
+| Agent                      | Role                                                            |
+| -------------------------- | --------------------------------------------------------------- |
+| `product-manager`          | User value, scope, and decision framing                         |
+| `principal-engineer`       | System design, feasibility, and operational risk                |
+| `product-manager-codex`    | Codex-backed product decision framing                           |
+| `principal-engineer-codex` | Codex-backed engineering feasibility                            |
+| `orchestrator`             | Coordinator persona reserved for resolve modes (not active yet) |
 
 Custom project or global agents override bundled names.
 
@@ -175,7 +186,7 @@ persona: >
 prompt: >
   Evaluate the topic from a product strategy lens. Consider
   user impact, competitive landscape, and delivery risk.
-backend: claude # default; only supported backend currently
+backend: claude # or codex
 ```
 
 ### Markdown format
@@ -265,7 +276,7 @@ pnpm lint            # eslint
 pnpm format:check    # prettier check
 ```
 
-`pnpm smoke` is the repeatable alpha verification: it builds, runs `swarm doctor` against the built CLI, and exercises the `--preset product-decision` flow end to end with a mock backend. Use it before cutting a release or after touching bundled agents, presets, or CLI wiring.
+`pnpm smoke` is the repeatable alpha verification: it builds, runs `swarm doctor` against the built CLI, and exercises the `--preset product-decision` flow end to end with a mock backend. Use it before cutting a release or after touching bundled agents, presets, or CLI wiring. For Codex-specific coverage, run `pnpm build && vitest run --config vitest.e2e.config.ts test/e2e/codex-backend.test.ts` or the full `pnpm test:e2e`.
 
 ### Architecture
 
@@ -274,6 +285,7 @@ src/
 ├── cli.ts                 # Commander entry point
 ├── backends/
 │   ├── claude-cli.ts      # Claude CLI backend adapter
+│   ├── codex-cli.ts       # Codex CLI backend adapter
 │   └── factory.ts         # Backend adapter selection
 ├── lib/
 │   ├── backend-selection.ts # Backend/config compatibility checks
