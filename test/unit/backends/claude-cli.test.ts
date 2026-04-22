@@ -235,6 +235,130 @@ describe("ClaudeCliAdapter.dispatch", () => {
     );
   });
 
+  it("omits --system-prompt when persona and prompt trim to empty content", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch(
+      "brief",
+      makeAgent({
+        persona: "   ",
+        prompt: "\n  \t  ",
+      }),
+      { timeoutMs: 5000 },
+    );
+
+    const { args } = getCallArgs();
+    expect(args).not.toContain("--system-prompt");
+  });
+
+  it("keeps a trimmed prompt-only system prompt when persona is blank", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch(
+      "brief",
+      makeAgent({
+        persona: "  \n\t  ",
+        prompt: "\n  Focus only on implementation details.  \n",
+      }),
+      { timeoutMs: 5000 },
+    );
+
+    const { args } = getCallArgs();
+    const systemPromptValue = args[args.indexOf("--system-prompt") + 1];
+    expect(systemPromptValue).toBe("Focus only on implementation details.");
+  });
+
+  it("keeps a trimmed persona-only system prompt when prompt content is blank", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch(
+      "brief",
+      makeAgent({
+        persona: "\n  You are the escalation-only reviewer.  \t",
+        prompt: "  \n\t  ",
+      }),
+      { timeoutMs: 5000 },
+    );
+
+    const { args } = getCallArgs();
+    const systemPromptValue = args[args.indexOf("--system-prompt") + 1];
+    expect(systemPromptValue).toBe("You are the escalation-only reviewer.");
+  });
+
+  it("trims away blank file-backed prompt content and keeps the persona-only system prompt", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+
+    const blankPromptFile = fileURLToPath(
+      new URL("../fixtures/blank-agent-prompt.md", import.meta.url),
+    );
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch(
+      "brief",
+      makeAgent({
+        persona: "  You are the file-backed escalation reviewer.\n",
+        prompt: { file: blankPromptFile },
+      }),
+      { timeoutMs: 5000 },
+    );
+
+    const { args } = getCallArgs();
+    const systemPromptValue = args[args.indexOf("--system-prompt") + 1];
+    expect(systemPromptValue).toBe("You are the file-backed escalation reviewer.");
+  });
+
+  it("keeps a trimmed file-backed prompt-only system prompt when persona is blank", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+
+    const fixtureFile = fileURLToPath(
+      new URL("../fixtures/agent-prompt.md", import.meta.url),
+    );
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch(
+      "brief",
+      makeAgent({
+        persona: "  \n\t  ",
+        prompt: { file: fixtureFile },
+      }),
+      { timeoutMs: 5000 },
+    );
+
+    const { args } = getCallArgs();
+    const systemPromptValue = args[args.indexOf("--system-prompt") + 1];
+    expect(systemPromptValue).toBe("Prompt body loaded from disk for testing.");
+  });
+
+  it("omits --system-prompt when a file-backed prompt also trims to empty", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+
+    const blankPromptFile = fileURLToPath(
+      new URL("../fixtures/blank-agent-prompt.md", import.meta.url),
+    );
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch(
+      "brief",
+      makeAgent({
+        persona: " \n\t  ",
+        prompt: { file: blankPromptFile },
+      }),
+      { timeoutMs: 5000 },
+    );
+
+    const { args } = getCallArgs();
+    expect(args).not.toContain("--system-prompt");
+  });
+
   it("fails before invoking claude when a file-based prompt ref is missing", async () => {
     execaMock.mockReset();
 
@@ -256,5 +380,68 @@ describe("ClaudeCliAdapter.dispatch", () => {
       path: missingPromptFile,
     });
     expect(execaMock).not.toHaveBeenCalled();
+  });
+
+  it("returns failed subprocess metadata when claude exits non-zero", async () => {
+    execaMock.mockReset();
+    execaMock.mockResolvedValueOnce({
+      exitCode: 2,
+      stdout: "partial output",
+      stderr: "backend failed",
+      timedOut: true,
+    } as never);
+
+    const adapter = new ClaudeCliAdapter();
+    const response = await adapter.dispatch("brief", makeAgent(), {
+      timeoutMs: 5000,
+    });
+
+    expect(response.ok).toBe(false);
+    expect(response.exitCode).toBe(2);
+    expect(response.stdout).toBe("partial output");
+    expect(response.stderr).toBe("backend failed");
+    expect(response.timedOut).toBe(true);
+    expect(response.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("normalizes missing subprocess exit codes to 1", async () => {
+    execaMock.mockReset();
+    execaMock.mockResolvedValueOnce({
+      exitCode: undefined,
+      stdout: "",
+      stderr: "terminated by signal",
+      timedOut: false,
+    } as never);
+
+    const adapter = new ClaudeCliAdapter();
+    const response = await adapter.dispatch("brief", makeAgent(), {
+      timeoutMs: 5000,
+    });
+
+    expect(response.ok).toBe(false);
+    expect(response.exitCode).toBe(1);
+    expect(response.stderr).toBe("terminated by signal");
+    expect(response.timedOut).toBe(false);
+  });
+
+  it("propagates subprocess spawn failures when claude cannot be started", async () => {
+    execaMock.mockReset();
+    const spawnError = Object.assign(new Error("spawn claude ENOENT"), {
+      code: "ENOENT",
+      syscall: "spawn claude",
+    });
+    execaMock.mockRejectedValueOnce(spawnError as never);
+
+    const adapter = new ClaudeCliAdapter();
+
+    await expect(
+      adapter.dispatch("brief", makeAgent(), {
+        timeoutMs: 5000,
+      }),
+    ).rejects.toMatchObject({
+      message: "spawn claude ENOENT",
+      code: "ENOENT",
+      syscall: "spawn claude",
+    });
   });
 });
