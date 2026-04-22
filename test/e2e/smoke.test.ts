@@ -196,7 +196,11 @@ describe("smoke: README golden path", () => {
     const homeDir = join(baseDir, "home");
     mkdirSync(join(baseDir, ".swarm"), { recursive: true });
     mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
-    writeFileSync(join(baseDir, ".swarm", "config.yml"), "rounds: 9\n", "utf-8");
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "rounds: 9\n",
+      "utf-8",
+    );
     writeFileSync(
       join(homeDir, ".swarm", "agents", "broken-agent.md"),
       "name: broken-agent\ndescription: missing frontmatter fences\n",
@@ -232,7 +236,11 @@ describe("smoke: README golden path", () => {
     const homeDir = join(baseDir, "home");
     mkdirSync(join(baseDir, ".swarm"), { recursive: true });
     mkdirSync(join(homeDir, ".swarm", "presets"), { recursive: true });
-    writeFileSync(join(baseDir, ".swarm", "config.yml"), "rounds: 9\n", "utf-8");
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "rounds: 9\n",
+      "utf-8",
+    );
     writeFileSync(
       join(homeDir, ".swarm", "presets", "broken-preset.yml"),
       "name: broken-preset\nagents: [solo]\n",
@@ -268,7 +276,11 @@ describe("smoke: README golden path", () => {
     mkdirSync(join(baseDir, ".swarm"), { recursive: true });
     mkdirSync(join(homeDir, ".swarm", "agents"), { recursive: true });
     mkdirSync(join(homeDir, ".swarm", "presets"), { recursive: true });
-    writeFileSync(join(baseDir, ".swarm", "config.yml"), "rounds: 9\n", "utf-8");
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      "rounds: 9\n",
+      "utf-8",
+    );
     writeFileSync(
       join(homeDir, ".swarm", "agents", "broken-agent.md"),
       "name: broken-agent\ndescription: missing frontmatter fences\n",
@@ -450,9 +462,7 @@ describe("smoke: README golden path", () => {
     mkdirSync(join(baseDir, ".swarm"), { recursive: true });
     writeFileSync(
       join(baseDir, ".swarm", "config.yml"),
-      ["agents:", "  - product-manager", "  - principal-engineer"].join(
-        "\n",
-      ),
+      ["agents:", "  - product-manager", "  - principal-engineer"].join("\n"),
       "utf-8",
     );
 
@@ -952,8 +962,12 @@ describe("smoke: README golden path", () => {
     expect(result.stdout).toContain(
       'preset "project-decision" resolves (2 agent(s))',
     );
-    expect(result.stdout).not.toContain("unknown agent(s) referenced in config");
-    expect(result.stdout).not.toContain("references unknown agent(s): ghost-agent");
+    expect(result.stdout).not.toContain(
+      "unknown agent(s) referenced in config",
+    );
+    expect(result.stdout).not.toContain(
+      "references unknown agent(s): ghost-agent",
+    );
     expect(result.stdout).not.toContain("config agents");
     expect(result.stderr).toBe("");
   });
@@ -1021,9 +1035,7 @@ describe("smoke: README golden path", () => {
     mkdirSync(join(homeDir, ".swarm", "presets"), { recursive: true });
     writeFileSync(
       join(baseDir, ".swarm", "config.yml"),
-      ["agents:", "  - product-manager", "  - principal-engineer"].join(
-        "\n",
-      ),
+      ["agents:", "  - product-manager", "  - principal-engineer"].join("\n"),
       "utf-8",
     );
     writeFileSync(
@@ -1130,9 +1142,7 @@ describe("smoke: README golden path", () => {
     mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
     writeFileSync(
       join(baseDir, ".swarm", "config.yml"),
-      ["agents:", "  - product-manager", "  - principal-engineer"].join(
-        "\n",
-      ),
+      ["agents:", "  - product-manager", "  - principal-engineer"].join("\n"),
       "utf-8",
     );
     writeFileSync(
@@ -1256,9 +1266,7 @@ describe("smoke: README golden path", () => {
     mkdirSync(join(baseDir, ".swarm", "presets"), { recursive: true });
     writeFileSync(
       join(baseDir, ".swarm", "config.yml"),
-      ["agents:", "  - product-manager", "  - principal-engineer"].join(
-        "\n",
-      ),
+      ["agents:", "  - product-manager", "  - principal-engineer"].join("\n"),
       "utf-8",
     );
     writeFileSync(
@@ -1302,9 +1310,7 @@ describe("smoke: README golden path", () => {
     mkdirSync(join(homeDir, ".swarm", "presets"), { recursive: true });
     writeFileSync(
       join(baseDir, ".swarm", "config.yml"),
-      ["agents:", "  - product-manager", "  - principal-engineer"].join(
-        "\n",
-      ),
+      ["agents:", "  - product-manager", "  - principal-engineer"].join("\n"),
       "utf-8",
     );
     writeFileSync(
@@ -2021,7 +2027,9 @@ describe("smoke: README golden path", () => {
       join(runDir, "round-01", "agents", "principal-engineer.md"),
       "utf-8",
     );
-    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
 
     expect(manifest.preset).toBeNull();
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
@@ -2079,7 +2087,9 @@ describe("smoke: README golden path", () => {
       join(runDir, "round-01", "agents", "principal-engineer.md"),
       "utf-8",
     );
-    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
 
     expect(manifest.preset).toBeNull();
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
@@ -2141,7 +2151,9 @@ describe("smoke: README golden path", () => {
       join(runDir, "round-01", "agents", "principal-engineer.md"),
       "utf-8",
     );
-    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
 
     expect(manifest.preset).toBeNull();
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
@@ -2201,7 +2213,9 @@ describe("smoke: README golden path", () => {
       join(runDir, "round-01", "agents", "principal-engineer.md"),
       "utf-8",
     );
-    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
 
     expect(manifest.preset).toBeNull();
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
@@ -2278,7 +2292,9 @@ describe("smoke: README golden path", () => {
       join(runDir, "round-01", "agents", "principal-engineer.md"),
       "utf-8",
     );
-    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
 
     expect(manifest.preset).toBeNull();
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
@@ -2356,7 +2372,9 @@ describe("smoke: README golden path", () => {
       join(runDir, "round-01", "agents", "principal-engineer.md"),
       "utf-8",
     );
-    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
 
     expect(manifest.preset).toBeNull();
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
@@ -2434,7 +2452,9 @@ describe("smoke: README golden path", () => {
       join(runDir, "round-01", "agents", "principal-engineer.md"),
       "utf-8",
     );
-    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
 
     expect(manifest.preset).toBeNull();
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
@@ -2851,11 +2871,9 @@ describe("smoke: README golden path", () => {
     mkdirSync(join(baseDir, ".swarm"), { recursive: true });
     writeFileSync(
       join(baseDir, ".swarm", "config.yml"),
-      [
-        "preset: product-decision",
-        "docs:",
-        "  - docs/from-config.md",
-      ].join("\n"),
+      ["preset: product-decision", "docs:", "  - docs/from-config.md"].join(
+        "\n",
+      ),
       "utf-8",
     );
 
@@ -3178,7 +3196,9 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("Preset: none");
     expect(seedBrief).toContain("Resolution mode: agents");
     expect(seedBrief).toContain("Goal: Choose a phased rollout plan");
-    expect(seedBrief).toContain("Decision target: Ship now / Pilot first / Hold");
+    expect(seedBrief).toContain(
+      "Decision target: Ship now / Pilot first / Hold",
+    );
     expect(seedBrief).toContain("Carry-forward docs: docs/from-config.md");
     expect(seedBrief).not.toContain("Goal: Decide on migration strategy");
     expect(seedBrief).not.toContain("Decision target: Adopt / Defer / Reject");
@@ -3371,7 +3391,9 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("Preset: product-decision");
     expect(seedBrief).toContain("Resolution mode: agents");
     expect(seedBrief).toContain("Goal: Choose a phased rollout plan");
-    expect(seedBrief).toContain("Decision target: Ship now / Pilot first / Hold");
+    expect(seedBrief).toContain(
+      "Decision target: Ship now / Pilot first / Hold",
+    );
     expect(seedBrief).toContain(
       "Carry-forward docs: docs/from-cli-a.md, docs/from-cli-b.md",
     );
@@ -3446,7 +3468,9 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("Preset: product-decision");
     expect(seedBrief).toContain("Resolution mode: agents");
     expect(seedBrief).toContain("Goal: Choose a phased rollout plan");
-    expect(seedBrief).toContain("Decision target: Ship now / Pilot first / Hold");
+    expect(seedBrief).toContain(
+      "Decision target: Ship now / Pilot first / Hold",
+    );
     expect(seedBrief).toContain("Carry-forward docs: docs/from-config.md");
     expect(seedBrief).not.toContain("Goal: Decide on migration strategy");
     expect(seedBrief).not.toContain("Decision target: Adopt / Defer / Reject");
@@ -3798,7 +3822,9 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("Preset: none");
     expect(seedBrief).toContain("Resolution mode: agents");
     expect(seedBrief).toContain("Goal: Choose a phased rollout plan");
-    expect(seedBrief).toContain("Decision target: Ship now / Pilot first / Hold");
+    expect(seedBrief).toContain(
+      "Decision target: Ship now / Pilot first / Hold",
+    );
     expect(seedBrief).toContain("Carry-forward docs: docs/architecture.md");
     expect(seedBrief).not.toContain("Preset: product-decision");
     expect(seedBrief).not.toContain("Preset: project-decision");
@@ -3888,7 +3914,9 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("Preset: none");
     expect(seedBrief).toContain("Resolution mode: agents");
     expect(seedBrief).toContain("Goal: Choose a phased rollout plan");
-    expect(seedBrief).toContain("Decision target: Ship now / Pilot first / Hold");
+    expect(seedBrief).toContain(
+      "Decision target: Ship now / Pilot first / Hold",
+    );
     expect(seedBrief).toContain(
       "Carry-forward docs: docs/from-cli-a.md, docs/from-cli-b.md",
     );
@@ -3969,7 +3997,9 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("Preset: none");
     expect(seedBrief).toContain("Resolution mode: agents");
     expect(seedBrief).toContain("Goal: Choose a phased rollout plan");
-    expect(seedBrief).toContain("Decision target: Ship now / Pilot first / Hold");
+    expect(seedBrief).toContain(
+      "Decision target: Ship now / Pilot first / Hold",
+    );
     expect(seedBrief).toContain(
       "Carry-forward docs: docs/from-cli-a.md, docs/from-cli-b.md",
     );
@@ -4228,11 +4258,9 @@ describe("smoke: README golden path", () => {
     mkdirSync(join(baseDir, ".swarm"), { recursive: true });
     writeFileSync(
       join(baseDir, ".swarm", "config.yml"),
-      [
-        "preset: product-decision",
-        "docs:",
-        "  - docs/from-config.md",
-      ].join("\n"),
+      ["preset: product-decision", "docs:", "  - docs/from-config.md"].join(
+        "\n",
+      ),
       "utf-8",
     );
 
@@ -4342,7 +4370,9 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("Preset: none");
     expect(seedBrief).toContain("Resolution mode: agents");
     expect(seedBrief).toContain("Goal: Choose a phased rollout plan");
-    expect(seedBrief).toContain("Decision target: Ship now / Pilot first / Hold");
+    expect(seedBrief).toContain(
+      "Decision target: Ship now / Pilot first / Hold",
+    );
     expect(seedBrief).toContain("Carry-forward docs: docs/from-config.md");
     expect(seedBrief).not.toContain("Preset: product-decision");
     expect(seedBrief).not.toContain("Goal: Decide on migration strategy");
@@ -4413,7 +4443,9 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("Preset: none");
     expect(seedBrief).toContain("Resolution mode: agents");
     expect(seedBrief).toContain("Goal: Choose a phased rollout plan");
-    expect(seedBrief).toContain("Decision target: Ship now / Pilot first / Hold");
+    expect(seedBrief).toContain(
+      "Decision target: Ship now / Pilot first / Hold",
+    );
     expect(seedBrief).toContain(
       "Carry-forward docs: docs/from-cli-a.md, docs/from-cli-b.md",
     );
@@ -4850,7 +4882,9 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("Preset: product-decision");
     expect(seedBrief).toContain("Resolution mode: orchestrator");
     expect(seedBrief).toContain("Goal: Choose a phased rollout plan");
-    expect(seedBrief).toContain("Decision target: Ship now / Pilot first / Hold");
+    expect(seedBrief).toContain(
+      "Decision target: Ship now / Pilot first / Hold",
+    );
     expect(seedBrief).toContain("Carry-forward docs: docs/from-config.md");
     expect(seedBrief).not.toContain("Preset: project-decision");
     expect(seedBrief).not.toContain(
@@ -4937,7 +4971,9 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("Preset: product-decision");
     expect(seedBrief).toContain("Resolution mode: orchestrator");
     expect(seedBrief).toContain("Goal: Choose a phased rollout plan");
-    expect(seedBrief).toContain("Decision target: Ship now / Pilot first / Hold");
+    expect(seedBrief).toContain(
+      "Decision target: Ship now / Pilot first / Hold",
+    );
     expect(seedBrief).toContain(
       "Carry-forward docs: docs/from-cli-a.md, docs/from-cli-b.md",
     );
@@ -5058,7 +5094,9 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("Preset: product-decision");
     expect(seedBrief).toContain("Resolution mode: agents");
     expect(seedBrief).toContain("Goal: Choose a phased rollout plan");
-    expect(seedBrief).toContain("Decision target: Ship now / Pilot first / Hold");
+    expect(seedBrief).toContain(
+      "Decision target: Ship now / Pilot first / Hold",
+    );
     expect(seedBrief).toContain("Carry-forward docs: docs/from-config.md");
     expect(seedBrief).not.toContain("Goal: Decide on migration strategy");
     expect(seedBrief).not.toContain("Decision target: Adopt / Defer / Reject");

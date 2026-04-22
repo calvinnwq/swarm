@@ -170,7 +170,9 @@ async function listPresetFileNames(root: string): Promise<string[]> {
   return entries
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
-    .filter((name) => DEFINITION_EXTENSIONS.has(path.extname(name).toLowerCase()))
+    .filter((name) =>
+      DEFINITION_EXTENSIONS.has(path.extname(name).toLowerCase()),
+    )
     .sort((left, right) => left.localeCompare(right));
 }
 

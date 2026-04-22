@@ -56,7 +56,10 @@ function extractJsonCandidates(raw: string): unknown[] {
   const fenceMatch = fenceRe.exec(trimmed);
   if (fenceMatch) {
     try {
-      candidates.push({ start: fenceMatch.index, value: JSON.parse(fenceMatch[1].trim()) });
+      candidates.push({
+        start: fenceMatch.index,
+        value: JSON.parse(fenceMatch[1].trim()),
+      });
     } catch {
       // fall through
     }
@@ -64,7 +67,11 @@ function extractJsonCandidates(raw: string): unknown[] {
 
   // 3. Scan for a balanced JSON object, tolerating prose that may contain
   // non-JSON braces before or after the actual payload.
-  for (let start = trimmed.indexOf("{"); start !== -1; start = trimmed.indexOf("{", start + 1)) {
+  for (
+    let start = trimmed.indexOf("{");
+    start !== -1;
+    start = trimmed.indexOf("{", start + 1)
+  ) {
     let depth = 0;
     let inString = false;
     let escaped = false;
@@ -107,7 +114,10 @@ function extractJsonCandidates(raw: string): unknown[] {
       }
 
       try {
-        candidates.push({ start, value: JSON.parse(trimmed.slice(start, i + 1)) });
+        candidates.push({
+          start,
+          value: JSON.parse(trimmed.slice(start, i + 1)),
+        });
         break;
       } catch {
         break;

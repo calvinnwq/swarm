@@ -167,7 +167,11 @@ describe("loadPresetRegistry", () => {
 
   it("rejects malformed bundled preset YAML with a parse error", async () => {
     const { cwd, homeDir, bundledDir } = await makeIsolatedRoots();
-    await writePresetFile(bundledDir, "bad.yml", "name: bad\nagents: [unterminated");
+    await writePresetFile(
+      bundledDir,
+      "bad.yml",
+      "name: bad\nagents: [unterminated",
+    );
 
     await expect(
       loadPresetRegistry({ cwd, homeDir, bundledDir }),
@@ -928,10 +932,7 @@ describe("resolvePresetByName", () => {
       bundledDir,
     });
 
-    expect(preset.agents).toEqual([
-      "from-project-yaml",
-      "principal-engineer",
-    ]);
+    expect(preset.agents).toEqual(["from-project-yaml", "principal-engineer"]);
     expect(preset.resolve).toBe("agents");
   });
 
@@ -981,10 +982,7 @@ describe("resolvePresetByName", () => {
       bundledDir,
     });
 
-    expect(preset.agents).toEqual([
-      "from-home-yaml",
-      "principal-engineer",
-    ]);
+    expect(preset.agents).toEqual(["from-home-yaml", "principal-engineer"]);
     expect(preset.resolve).toBe("agents");
   });
 
@@ -1034,10 +1032,7 @@ describe("resolvePresetByName", () => {
       bundledDir,
     });
 
-    expect(preset.agents).toEqual([
-      "from-bundled-yaml",
-      "principal-engineer",
-    ]);
+    expect(preset.agents).toEqual(["from-bundled-yaml", "principal-engineer"]);
     expect(preset.resolve).toBe("orchestrator");
   });
 
@@ -1573,7 +1568,11 @@ describe("resolvePresetByName", () => {
     const root = path.join(cwd, ".swarm", "presets");
 
     await writePresetFile(root, "dup.yml", "name: dup\nagents: [from-yml, pm]");
-    await writePresetFile(root, "dup.yaml", "name: dup\nagents: [from-yaml, pm]");
+    await writePresetFile(
+      root,
+      "dup.yaml",
+      "name: dup\nagents: [from-yaml, pm]",
+    );
 
     await expect(
       resolvePresetByName("dup", { cwd, homeDir, bundledDir }),
@@ -1584,7 +1583,11 @@ describe("resolvePresetByName", () => {
     const { cwd, homeDir, bundledDir } = await makeIsolatedRoots();
     const root = path.join(homeDir, ".swarm", "presets");
 
-    await writePresetFile(root, "dup.yml", "name: dup\nagents: [from-home-yml, pm]");
+    await writePresetFile(
+      root,
+      "dup.yml",
+      "name: dup\nagents: [from-home-yml, pm]",
+    );
     await writePresetFile(
       root,
       "dup.yaml",

@@ -110,7 +110,10 @@ describe("runSwarm", () => {
   it("writes the seed brief as the persisted round-1 brief", async () => {
     const { runSwarm } = await import("../../../src/lib/run-swarm.js");
     runMock.mockImplementationOnce(async () => {
-      emitterMock.emit("round:start", { round: 1, agents: ["product-manager"] });
+      emitterMock.emit("round:start", {
+        round: 1,
+        agents: ["product-manager"],
+      });
       emitterMock.emit("round:done", {
         round: 1,
         packet: { round: 1, outputs: [] },
@@ -152,9 +155,9 @@ describe("runSwarm", () => {
 
     const backend = {} as BackendAdapter;
 
-    await expect(runSwarm({ config, agents, backend, ui: "silent" })).resolves.toBe(
-      0,
-    );
+    await expect(
+      runSwarm({ config, agents, backend, ui: "silent" }),
+    ).resolves.toBe(0);
 
     expect(writeRoundMock).toHaveBeenCalledWith(
       expect.objectContaining({ round: 1 }),

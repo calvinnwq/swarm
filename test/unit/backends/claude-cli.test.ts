@@ -2693,7 +2693,9 @@ describe("ClaudeCliAdapter.dispatch", () => {
 
     const { args } = getCallArgs();
     const systemPromptValue = args[args.indexOf("--system-prompt") + 1];
-    expect(systemPromptValue).toBe("You are the file-backed escalation reviewer.");
+    expect(systemPromptValue).toBe(
+      "You are the file-backed escalation reviewer.",
+    );
   });
 
   it("keeps a trimmed file-backed prompt-only system prompt when persona is blank", async () => {

@@ -475,11 +475,13 @@ describe("createRoundRunner", () => {
           return {
             ok: true,
             exitCode: 0,
-            stdout: `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify({
-              agent: "gamma",
-              round: 1,
-              recommendation: "missing required fields",
-            })}`,
+            stdout: `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(
+              {
+                agent: "gamma",
+                round: 1,
+                recommendation: "missing required fields",
+              },
+            )}`,
             stderr: "",
             timedOut: false,
             durationMs: 50,
@@ -504,7 +506,8 @@ describe("createRoundRunner", () => {
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -561,7 +564,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -618,7 +622,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -671,7 +676,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -728,7 +734,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -785,7 +792,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -860,7 +868,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -933,7 +942,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -1008,7 +1018,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -1083,7 +1094,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -1156,7 +1168,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -1231,7 +1244,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -1306,7 +1320,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -1379,7 +1394,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -1425,7 +1441,7 @@ ${JSON.stringify({
   changesFromPriorRound: [],
   confidence: "medium",
   openQuestions: ["question 2"],
- })}`,
+})}`,
             stderr: "",
             timedOut: false,
             durationMs: 50,
@@ -1439,7 +1455,9 @@ ${JSON.stringify({
     const result = await run();
 
     expect(result.ok).toBe(true);
-    const gamma = result.rounds[0].agentResults.find((r) => r.agent === "gamma");
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
     expect(gamma?.ok).toBe(true);
 
     const gammaRepairCall = (
@@ -1448,7 +1466,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -1524,7 +1543,9 @@ ${JSON.stringify({
     const result = await run();
 
     expect(result.ok).toBe(true);
-    const gamma = result.rounds[0].agentResults.find((r) => r.agent === "gamma");
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
     expect(gamma?.ok).toBe(true);
 
     const gammaRepairCall = (
@@ -1533,7 +1554,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -1609,7 +1631,9 @@ ${JSON.stringify({
     const result = await run();
 
     expect(result.ok).toBe(true);
-    const gamma = result.rounds[0].agentResults.find((r) => r.agent === "gamma");
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
     expect(gamma?.ok).toBe(true);
 
     const gammaRepairCall = (
@@ -1618,7 +1642,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -1694,7 +1719,9 @@ ${JSON.stringify({
     const result = await run();
 
     expect(result.ok).toBe(true);
-    const gamma = result.rounds[0].agentResults.find((r) => r.agent === "gamma");
+    const gamma = result.rounds[0].agentResults.find(
+      (r) => r.agent === "gamma",
+    );
     expect(gamma?.ok).toBe(true);
 
     const gammaRepairCall = (
@@ -1703,7 +1730,8 @@ ${JSON.stringify({
       >
     ).find(
       ([prompt, dispatchedAgent]) =>
-        dispatchedAgent.name === "gamma" && prompt.includes("Validation error:"),
+        dispatchedAgent.name === "gamma" &&
+        prompt.includes("Validation error:"),
     );
 
     expect(gammaRepairCall).toBeDefined();
@@ -1756,8 +1784,7 @@ ${JSON.stringify({
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stdout: `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -1790,8 +1817,7 @@ ${JSON.stringify({
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stdout: `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -1824,8 +1850,7 @@ ${JSON.stringify({
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -1858,8 +1883,7 @@ ${JSON.stringify({
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -1892,8 +1916,7 @@ ${JSON.stringify({
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}
+          stdout: `${JSON.stringify({ note: "ignore me" })}
 
 \`\`\`
 ${JSON.stringify(makeAgentOutput("beta", 1))}
@@ -1930,8 +1953,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`
+          stdout: `\`\`\`
 ${JSON.stringify({ note: "ignore bare fenced metadata" })}
 \`\`\`
 
@@ -1968,8 +1990,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`
+          stdout: `\`\`\`
 ${JSON.stringify({ note: "ignore bare fenced metadata" })}
 \`\`\`
 
@@ -2008,8 +2029,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`
+          stdout: `\`\`\`
 ${JSON.stringify({ note: "ignore bare fenced metadata" })}
 \`\`\`
 
@@ -2048,8 +2068,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json
+          stdout: `\`\`\`json
 ${JSON.stringify({ note: "ignore fenced metadata" })}
 \`\`\`
 
@@ -2089,20 +2108,17 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         const laterJsonFencedValidPayload = {
           ...makeAgentOutput("beta", 2),
           round: 1,
-          recommendation:
-            "later json-fenced recommendation should be ignored",
+          recommendation: "later json-fenced recommendation should be ignored",
         };
         const laterBareFencedValidPayload = {
           ...makeAgentOutput("beta", 3),
           round: 1,
-          recommendation:
-            "later bare-fenced recommendation should be ignored",
+          recommendation: "later bare-fenced recommendation should be ignored",
         };
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2146,8 +2162,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2247,8 +2262,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stdout: `${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2281,8 +2295,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}
+          stdout: `${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}
 
 \`\`\`
 ${JSON.stringify(makeAgentOutput("beta", 1))}
@@ -2319,8 +2332,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\`\`\`\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stdout: `\`\`\`json\n${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\`\`\`\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2353,8 +2365,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stdout: `\`\`\`json\n${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2387,8 +2398,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\`\`\`\n\n\`\`\`
+          stdout: `\`\`\`json\n${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}\n\`\`\`\n\n\`\`\`
 ${JSON.stringify(makeAgentOutput("beta", 1))}
 \`\`\``,
           stderr: "",
@@ -2439,8 +2449,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2490,8 +2499,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2525,8 +2533,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`
+          stdout: `\`\`\`
 ${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}
 \`\`\`
 
@@ -2563,8 +2570,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`
+          stdout: `\`\`\`
 ${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}
 \`\`\`
 
@@ -2603,8 +2609,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`
+          stdout: `\`\`\`
 ${JSON.stringify({ agent: "beta", round: 1, recommendation: "missing required fields" })}
 \`\`\`
 
@@ -2662,8 +2667,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2716,8 +2720,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2770,8 +2773,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2805,8 +2807,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n{ "broken": \n\`\`\`\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n${JSON.stringify(makeAgentOutput("beta", 1))}`,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2839,8 +2840,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2873,8 +2873,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`
 ${JSON.stringify(makeAgentOutput("beta", 1))}
 \`\`\``,
           stderr: "",
@@ -2920,8 +2919,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n{ "broken": \n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -2965,8 +2963,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3010,8 +3007,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n{ "broken": \n\`\`\`\n\n\`\`\`\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3089,8 +3085,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `{ "broken": \n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `{ "broken": \n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3135,8 +3130,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `{ "broken": \n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `{ "broken": \n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3176,14 +3170,12 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         const laterJsonFencedValidPayload = {
           ...makeAgentOutput("beta", 3),
           round: 1,
-          recommendation:
-            "later json-fenced recommendation should be ignored",
+          recommendation: "later json-fenced recommendation should be ignored",
         };
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `{ "broken": \n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stdout: `{ "broken": \n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3217,8 +3209,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `{ "broken": \n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stdout: `{ "broken": \n\n\`\`\`json\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3251,8 +3242,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `{ "broken": \n\n\`\`\`\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
+          stdout: `{ "broken": \n\n\`\`\`\n${JSON.stringify(makeAgentOutput("beta", 1))}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3285,8 +3275,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`
+          stdout: `\`\`\`
 { "broken": 
 \`\`\`
 
@@ -3323,8 +3312,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`
+          stdout: `\`\`\`
 { "broken": 
 \`\`\`
 
@@ -3363,8 +3351,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`
+          stdout: `\`\`\`
 { "broken": 
 \`\`\`
 
@@ -3414,8 +3401,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`\n{ "broken": \n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`\n{ "broken": \n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3460,8 +3446,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`\n{ "broken": \n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`\n{ "broken": \n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3506,8 +3491,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`\n{ "broken": \n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`\n{ "broken": \n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3587,8 +3571,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(firstPayload)}\n\n\`\`\`json\n${JSON.stringify(laterPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(firstPayload)}\n\n\`\`\`json\n${JSON.stringify(laterPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3628,8 +3611,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n${JSON.stringify(laterPayload)}`,
+          stdout: `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n${JSON.stringify(laterPayload)}`,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3669,8 +3651,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3710,8 +3691,7 @@ ${JSON.stringify(makeAgentOutput("beta", 1))}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`
+          stdout: `\`\`\`
 ${JSON.stringify(firstPayload)}
 \`\`\`
 
@@ -3757,8 +3737,7 @@ ${JSON.stringify(laterPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(firstPayload)}\n\n\`\`\`\n${JSON.stringify(laterPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(firstPayload)}\n\n\`\`\`\n${JSON.stringify(laterPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3798,8 +3777,7 @@ ${JSON.stringify(laterPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`
+          stdout: `\`\`\`
 ${JSON.stringify(firstPayload)}
 \`\`\`
 
@@ -3843,8 +3821,7 @@ ${JSON.stringify(laterPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3884,8 +3861,7 @@ ${JSON.stringify(laterPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterPayload)}\n\`\`\``,
+          stdout: `\`\`\`\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3930,8 +3906,7 @@ ${JSON.stringify(laterPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(firstPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(firstPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -3976,8 +3951,7 @@ ${JSON.stringify(laterPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4022,8 +3996,7 @@ ${JSON.stringify(laterPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedPayload)}\n\`\`\``,
+          stdout: `\`\`\`\n${JSON.stringify(firstPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4074,8 +4047,7 @@ ${JSON.stringify(laterPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`\n${JSON.stringify(laterInvalidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`\n${JSON.stringify(laterInvalidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4120,8 +4092,7 @@ ${JSON.stringify(laterPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4166,8 +4137,7 @@ ${JSON.stringify(laterPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4217,8 +4187,7 @@ ${JSON.stringify(laterPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4258,8 +4227,7 @@ ${JSON.stringify(laterPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4299,8 +4267,7 @@ ${JSON.stringify(laterPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}
+          stdout: `${JSON.stringify({ note: "ignore me" })}
 
 ${JSON.stringify(validPayload)}
 
@@ -4346,8 +4313,7 @@ ${JSON.stringify(laterValidPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}
+          stdout: `${JSON.stringify({ note: "ignore me" })}
 
 \`\`\`json
 ${JSON.stringify(validPayload)}
@@ -4393,8 +4359,7 @@ ${JSON.stringify(laterValidPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}
+          stdout: `${JSON.stringify({ note: "ignore me" })}
 
 \`\`\`json
 ${JSON.stringify(validPayload)}
@@ -4442,8 +4407,7 @@ ${JSON.stringify(laterValidPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}
+          stdout: `${JSON.stringify({ note: "ignore me" })}
 
 \`\`\`
 ${JSON.stringify(validPayload)}
@@ -4489,8 +4453,7 @@ ${JSON.stringify(laterValidPayload)}`,
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}
+          stdout: `${JSON.stringify({ note: "ignore me" })}
 
 \`\`\`
 ${JSON.stringify(validPayload)}
@@ -4533,20 +4496,17 @@ ${JSON.stringify(laterValidPayload)}
         const laterJsonFencedValidPayload = {
           ...makeAgentOutput("beta", 2),
           round: 1,
-          recommendation:
-            "later json-fenced recommendation should be ignored",
+          recommendation: "later json-fenced recommendation should be ignored",
         };
         const laterBareFencedValidPayload = {
           ...makeAgentOutput("beta", 3),
           round: 1,
-          recommendation:
-            "later bare-fenced recommendation should be ignored",
+          recommendation: "later bare-fenced recommendation should be ignored",
         };
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4586,14 +4546,12 @@ ${JSON.stringify(laterValidPayload)}
         const laterBareFencedValidPayload = {
           ...makeAgentOutput("beta", 3),
           round: 1,
-          recommendation:
-            "later bare-fenced recommendation should be ignored",
+          recommendation: "later bare-fenced recommendation should be ignored",
         };
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4628,20 +4586,17 @@ ${JSON.stringify(laterValidPayload)}
         const laterJsonFencedValidPayload = {
           ...makeAgentOutput("beta", 2),
           round: 1,
-          recommendation:
-            "later json-fenced recommendation should be ignored",
+          recommendation: "later json-fenced recommendation should be ignored",
         };
         const laterBareFencedValidPayload = {
           ...makeAgentOutput("beta", 3),
           round: 1,
-          recommendation:
-            "later bare-fenced recommendation should be ignored",
+          recommendation: "later bare-fenced recommendation should be ignored",
         };
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`\n${JSON.stringify({ note: "ignore bare fenced metadata" })}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`\n${JSON.stringify({ note: "ignore bare fenced metadata" })}\n\`\`\`\n\n${JSON.stringify(validPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4681,14 +4636,12 @@ ${JSON.stringify(laterValidPayload)}
         const laterBareFencedValidPayload = {
           ...makeAgentOutput("beta", 3),
           round: 1,
-          recommendation:
-            "later bare-fenced recommendation should be ignored",
+          recommendation: "later bare-fenced recommendation should be ignored",
         };
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`\n${JSON.stringify({ note: "ignore bare fenced metadata" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`\n${JSON.stringify({ note: "ignore bare fenced metadata" })}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4728,14 +4681,12 @@ ${JSON.stringify(laterValidPayload)}
         const laterJsonFencedValidPayload = {
           ...makeAgentOutput("beta", 3),
           round: 1,
-          recommendation:
-            "later json-fenced recommendation should be ignored",
+          recommendation: "later json-fenced recommendation should be ignored",
         };
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`\n${JSON.stringify({ note: "ignore bare fenced metadata" })}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`\n${JSON.stringify({ note: "ignore bare fenced metadata" })}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4775,14 +4726,12 @@ ${JSON.stringify(laterValidPayload)}
         const laterJsonFencedValidPayload = {
           ...makeAgentOutput("beta", 3),
           round: 1,
-          recommendation:
-            "later json-fenced recommendation should be ignored",
+          recommendation: "later json-fenced recommendation should be ignored",
         };
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n${JSON.stringify({ note: "ignore fenced metadata" })}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4822,14 +4771,12 @@ ${JSON.stringify(laterValidPayload)}
         const laterJsonFencedValidPayload = {
           ...makeAgentOutput("beta", 3),
           round: 1,
-          recommendation:
-            "later json-fenced recommendation should be ignored",
+          recommendation: "later json-fenced recommendation should be ignored",
         };
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify({ note: "ignore me" })}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify({ note: "ignore me" })}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4880,8 +4827,7 @@ ${JSON.stringify(laterValidPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterInvalidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterInvalidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4926,8 +4872,7 @@ ${JSON.stringify(laterValidPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterValidPayload)}`,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterValidPayload)}`,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -4972,8 +4917,7 @@ ${JSON.stringify(laterValidPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -5023,8 +4967,7 @@ ${JSON.stringify(laterValidPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`json\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`\n${JSON.stringify(laterBareFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -5074,8 +5017,7 @@ ${JSON.stringify(laterValidPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `\`\`\`json\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stdout: `\`\`\`json\n${JSON.stringify(earlierInvalidPayload)}\n\`\`\`\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -5125,8 +5067,7 @@ ${JSON.stringify(laterValidPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterPlainValidPayload)}\n\n\`\`\`json\n${JSON.stringify(laterJsonFencedValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -5177,8 +5118,7 @@ ${JSON.stringify(laterValidPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterInvalidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterInvalidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -5223,8 +5163,7 @@ ${JSON.stringify(laterValidPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterValidPayload)}`,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n${JSON.stringify(laterValidPayload)}`,
           stderr: "",
           timedOut: false,
           durationMs: 50,
@@ -5269,8 +5208,7 @@ ${JSON.stringify(laterValidPayload)}
         return {
           ok: true,
           exitCode: 0,
-          stdout:
-            `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
+          stdout: `${JSON.stringify(earlierInvalidPayload)}\n\n\`\`\`\n${JSON.stringify(validPayload)}\n\`\`\`\n\n\`\`\`json\n${JSON.stringify(laterValidPayload)}\n\`\`\``,
           stderr: "",
           timedOut: false,
           durationMs: 50,
