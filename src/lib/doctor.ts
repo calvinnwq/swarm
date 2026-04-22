@@ -3,6 +3,7 @@ import {
   type AgentRegistry,
   type LoadAgentRegistryOptions,
 } from "./agent-registry.js";
+import { collectAgentBackendMismatches } from "./backend-selection.js";
 import {
   loadPresetRegistry,
   type LoadPresetRegistryOptions,
@@ -14,6 +15,7 @@ import {
   type LoadedProjectConfig,
   type LoadProjectConfigOptions,
 } from "./load-project-config.js";
+import type { AgentDefinition } from "../schemas/index.js";
 import { SwarmCommandError } from "./parse-command.js";
 
 export type DoctorCheckStatus = "ok" | "warn" | "fail";
@@ -80,6 +82,17 @@ export async function runDoctor(
         agentRegistry,
       ),
     );
+  }
+
+  if (loadedConfig && agentRegistry) {
+    const configBackendCheck = checkConfigBackend(
+      loadedConfig.config,
+      agentRegistry,
+      presetRegistry,
+    );
+    if (configBackendCheck) {
+      checks.push(configBackendCheck);
+    }
   }
 
   const ok = checks.every((c) => c.status !== "fail");
@@ -248,6 +261,102 @@ function checkConfigPreset(
     status: "ok",
     message: `preset "${preset.name}" resolves (${preset.agents.length} agent(s))`,
   };
+}
+
+function checkConfigBackend(
+  config: LoadedProjectConfig["config"],
+  agentRegistry: AgentRegistry,
+  presetRegistry: PresetRegistry | null,
+): DoctorCheck | null {
+  const backend = config.backend ?? "claude";
+
+  if (config.agents) {
+    const agents = resolveAgents(config.agents, agentRegistry);
+    if (!agents) {
+      return null;
+    }
+    return buildConfigBackendCheck(backend, agents, {
+      okMessage: `backend "${backend}" matches all ${agents.length} config agent(s)`,
+      mismatchPrefix: `backend "${backend}" does not match config agent backend(s)`,
+    });
+  }
+
+  if (config.preset) {
+    if (!presetRegistry) {
+      return null;
+    }
+
+    let preset;
+    try {
+      preset = presetRegistry.getPreset(config.preset);
+    } catch {
+      return null;
+    }
+
+    const agents = resolveAgents(preset.agents, agentRegistry);
+    if (!agents) {
+      return null;
+    }
+
+    return buildConfigBackendCheck(backend, agents, {
+      okMessage: `backend "${backend}" matches preset "${preset.name}" (${agents.length} agent(s))`,
+      mismatchPrefix: `backend "${backend}" does not match preset "${preset.name}" agent backend(s)`,
+    });
+  }
+
+  if (config.backend) {
+    return {
+      name: "config backend",
+      status: "ok",
+      message: `backend "${backend}" is supported`,
+    };
+  }
+
+  return null;
+}
+
+function buildConfigBackendCheck(
+  backend: LoadedProjectConfig["config"]["backend"] | "claude",
+  agents: AgentDefinition[],
+  messages: { okMessage: string; mismatchPrefix: string },
+): DoctorCheck {
+  const mismatches = collectAgentBackendMismatches(backend, agents);
+  if (mismatches.length > 0) {
+    return {
+      name: "config backend",
+      status: "fail",
+      message: `${messages.mismatchPrefix}: ${formatBackendMismatches(mismatches)}`,
+    };
+  }
+
+  return {
+    name: "config backend",
+    status: "ok",
+    message: messages.okMessage,
+  };
+}
+
+function resolveAgents(
+  names: string[],
+  registry: AgentRegistry,
+): AgentDefinition[] | null {
+  const agents: AgentDefinition[] = [];
+  for (const name of names) {
+    try {
+      agents.push(registry.getAgent(name));
+    } catch {
+      return null;
+    }
+  }
+  return agents;
+}
+
+function formatBackendMismatches(
+  mismatches: ReturnType<typeof collectAgentBackendMismatches>,
+): string {
+  return mismatches
+    .map((mismatch) => `${mismatch.agentName} (${mismatch.agentBackend})`)
+    .join(", ");
 }
 
 function errorMessage(error: unknown): string {

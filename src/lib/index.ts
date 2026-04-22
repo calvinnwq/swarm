@@ -1,4 +1,5 @@
 export * from "./agent-registry.js";
+export * from "./backend-selection.js";
 export * from "./artifact-writer.js";
 export * from "./brief-generator.js";
 export * from "./config.js";

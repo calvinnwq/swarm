@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { BackendIdSchema, type BackendId } from "./backend-id.js";
 
-export const AgentBackendSchema = z.enum(["claude"]);
-export type AgentBackend = z.infer<typeof AgentBackendSchema>;
+export const AgentBackendSchema = BackendIdSchema;
+export type AgentBackend = BackendId;
 
 const PromptRefSchema = z.union([
   z.string().min(1),

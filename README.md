@@ -131,6 +131,7 @@ Optional. Set project defaults so teammates don't have to remember the flags.
 preset: product-decision
 # or instead of preset, pin an explicit agent list:
 # agents: [product-manager, principal-engineer]
+backend: claude
 goal: Decide on migration strategy
 decision: Adopt / Defer / Reject
 resolve: off # off | orchestrator | agents (stub; see note above)
@@ -140,7 +141,7 @@ docs:
 
 Precedence: **CLI flags > config values > preset defaults**. The file is optional — when missing, CLI flags alone fully describe the run. Validation errors (unknown keys, wrong types) are reported by `swarm doctor` and at run start.
 
-Supported fields: `preset`, `agents` (2–5 names), `resolve`, `goal`, `decision`, `docs`. The `rounds` key is reserved but not yet applied — pass `<rounds>` on the CLI.
+Supported fields: `preset`, `agents` (2–5 names), `backend`, `resolve`, `goal`, `decision`, `docs`. The `rounds` key is reserved but not yet applied — pass `<rounds>` on the CLI.
 
 ## Agent configuration
 
