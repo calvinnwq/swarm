@@ -234,4 +234,27 @@ describe("ClaudeCliAdapter.dispatch", () => {
       "Prompt body loaded from disk for testing.",
     );
   });
+
+  it("fails before invoking claude when a file-based prompt ref is missing", async () => {
+    execaMock.mockReset();
+
+    const adapter = new ClaudeCliAdapter();
+    const missingPromptFile = fileURLToPath(
+      new URL("../fixtures/does-not-exist.md", import.meta.url),
+    );
+
+    await expect(
+      adapter.dispatch(
+        "brief",
+        makeAgent({
+          prompt: { file: missingPromptFile },
+        }),
+        { timeoutMs: 5000 },
+      ),
+    ).rejects.toMatchObject({
+      code: "ENOENT",
+      path: missingPromptFile,
+    });
+    expect(execaMock).not.toHaveBeenCalled();
+  });
 });
