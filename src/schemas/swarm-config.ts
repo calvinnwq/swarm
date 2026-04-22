@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BackendIdSchema } from "./backend-id.js";
 import { ResolveModeSchema } from "./run-manifest.js";
 
 const trimmedString = z.string().trim().min(1);
@@ -8,6 +9,7 @@ export const SwarmProjectConfigSchema = z
     rounds: z.int().min(1).max(3).optional(),
     preset: trimmedString.optional(),
     agents: z.array(trimmedString).min(2).max(5).optional(),
+    backend: BackendIdSchema.optional(),
     resolve: ResolveModeSchema.optional(),
     goal: trimmedString.optional(),
     decision: trimmedString.optional(),

@@ -55,7 +55,7 @@ Options:
 
 Commands:
   run [options] <rounds> <topic...>  Run a swarm
-  doctor                             Diagnose swarm setup: config, agents, and presets
+  doctor                             Diagnose swarm setup: config, agents, presets, and backend selection
   help [command]                     display help for command
 ```
 
@@ -72,6 +72,7 @@ Arguments:
 
 Options:
   --agents <list>    comma-separated agent names
+  --backend <name>   runtime backend adapter (currently: claude)
   --resolve <mode>   record resolution mode in manifest: off | orchestrator | agents
                      (between-round sub-pass not yet implemented)
   --goal <text>      primary goal for the swarm
@@ -117,7 +118,7 @@ Preset names must use lowercase letters, numbers, `-`, or `_`, and `agents` must
 
 ### `swarm doctor`
 
-Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, and that any agents or preset referenced in the project config actually resolve. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
+Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, that any agents or preset referenced in the project config actually resolve, and that any configured backend is supported and matches the resolved config agents or preset agents. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
 
 ```bash
 swarm doctor
@@ -131,6 +132,7 @@ Optional. Set project defaults so teammates don't have to remember the flags.
 preset: product-decision
 # or instead of preset, pin an explicit agent list:
 # agents: [product-manager, principal-engineer]
+backend: claude
 goal: Decide on migration strategy
 decision: Adopt / Defer / Reject
 resolve: off # off | orchestrator | agents (stub; see note above)
@@ -140,7 +142,7 @@ docs:
 
 Precedence: **CLI flags > config values > preset defaults**. The file is optional — when missing, CLI flags alone fully describe the run. Validation errors (unknown keys, wrong types) are reported by `swarm doctor` and at run start.
 
-Supported fields: `preset`, `agents` (2–5 names), `resolve`, `goal`, `decision`, `docs`. The `rounds` key is reserved but not yet applied — pass `<rounds>` on the CLI.
+Supported fields: `preset`, `agents` (2–5 names), `backend`, `resolve`, `goal`, `decision`, `docs`. The `rounds` key is reserved but not yet applied — pass `<rounds>` on the CLI.
 
 ## Agent configuration
 
@@ -219,7 +221,7 @@ Each run produces a self-contained directory under `.swarm/runs/`:
 
 ```
 .swarm/runs/20260419-121439-should-we-adopt-server-components/
-├── manifest.json          # Run metadata (topic, goal, decision, rounds, agents, timestamps)
+├── manifest.json          # Run metadata (topic, goal, decision, rounds, backend, agents, timestamps)
 ├── seed-brief.md          # Initial brief sent to all agents in round 1
 ├── round-01/
 │   ├── brief.md           # Round brief (same as seed-brief for round 1)
@@ -271,8 +273,10 @@ pnpm format:check    # prettier check
 src/
 ├── cli.ts                 # Commander entry point
 ├── backends/
-│   └── claude-cli.ts      # Claude CLI backend adapter
+│   ├── claude-cli.ts      # Claude CLI backend adapter
+│   └── factory.ts         # Backend adapter selection
 ├── lib/
+│   ├── backend-selection.ts # Backend/config compatibility checks
 │   ├── brief-generator.ts # Seed + round brief generation
 │   ├── round-runner.ts    # Concurrent agent dispatch with events
 │   ├── synthesis.ts       # Deterministic synthesis engine
@@ -281,6 +285,7 @@ src/
 │   ├── parse-command.ts   # CLI argument parsing/validation
 │   └── config.ts          # SwarmRunConfig types
 ├── schemas/               # Zod schemas for all data contracts
+│   └── backend-id.ts      # Shared backend identifier schema
 └── ui/                    # Terminal rendering (live + quiet)
 ```
 

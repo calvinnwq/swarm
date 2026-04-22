@@ -13,6 +13,7 @@ function configWith(overrides: Partial<SwarmRunConfig> = {}): SwarmRunConfig {
   return {
     topic: "sample topic",
     rounds: 2,
+    backend: "claude",
     preset: null,
     agents: ["alpha", "beta"],
     selectionSource: "explicit-agents",

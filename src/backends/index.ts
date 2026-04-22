@@ -16,3 +16,5 @@ export interface BackendAdapter {
     opts: { timeoutMs: number },
   ): Promise<AgentResponse>;
 }
+
+export { createBackendAdapter } from "./factory.js";

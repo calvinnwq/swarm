@@ -1,3 +1,4 @@
+import { BackendIdSchema, type BackendId } from "../schemas/backend-id.js";
 import { ResolveModeSchema, type ResolveMode } from "../schemas/index.js";
 import type { AgentSelectionSource, SwarmRunConfig } from "./config.js";
 
@@ -61,6 +62,15 @@ export function parseResolveMode(raw: string): ResolveMode {
   throw new SwarmCommandError(`invalid --resolve mode: "${raw}"`);
 }
 
+export function parseBackendId(raw: string): BackendId {
+  const normalized = raw.trim().toLowerCase();
+  const parsed = BackendIdSchema.safeParse(normalized);
+  if (parsed.success) {
+    return parsed.data;
+  }
+  throw new SwarmCommandError(`invalid --backend: "${raw}"`);
+}
+
 export function dedupeKeepOrder<T>(items: Iterable<T>): T[] {
   const seen = new Set<T>();
   const out: T[] = [];
@@ -77,6 +87,7 @@ export interface BuildConfigInput {
   rounds: string | number;
   topic: string[] | string;
   agents?: string;
+  backend?: string;
   resolve?: string;
   goal?: string;
   decision?: string;
@@ -88,6 +99,8 @@ export interface BuildConfigInput {
 
 export function buildConfig(input: BuildConfigInput): SwarmRunConfig {
   const rounds = parseRounds(input.rounds);
+  const backend =
+    input.backend === undefined ? "claude" : parseBackendId(input.backend);
 
   const topic = (
     Array.isArray(input.topic) ? input.topic.join(" ") : input.topic
@@ -131,6 +144,7 @@ export function buildConfig(input: BuildConfigInput): SwarmRunConfig {
   return {
     topic,
     rounds,
+    backend,
     preset,
     agents,
     selectionSource,

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { Command, InvalidArgumentError } from "commander";
 import {
+  assertAgentBackendsMatch,
   buildConfig,
   formatDoctorReport,
   loadAgentRegistry,
@@ -13,7 +14,7 @@ import {
   SwarmCommandError,
   type AgentSelectionSource,
 } from "./lib/index.js";
-import { ClaudeCliAdapter } from "./backends/claude-cli.js";
+import { createBackendAdapter } from "./backends/index.js";
 
 const packageVersion = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
@@ -57,6 +58,7 @@ program
     "--preset <name>",
     "named preset (resolves to agents when --agents not provided)",
   )
+  .option("--backend <name>", "runtime backend adapter (currently: claude)")
   .option(
     "--quiet",
     "force quiet (one-line-per-event) output; default auto by TTY",
@@ -75,8 +77,11 @@ program
         const configAgents = projectConfig.agents?.join(",");
         const cliPresetName = options.preset as string | undefined;
         const configPresetName = projectConfig.preset;
+        const cliBackend = options.backend as string | undefined;
+        const configBackend = projectConfig.backend;
 
         let resolvedAgents: string | undefined = cliAgents;
+        const resolvedBackend = cliBackend ?? configBackend;
         let resolvedResolve =
           (options.resolve as string | undefined) ?? projectConfig.resolve;
         let resolvedGoal =
@@ -114,6 +119,7 @@ program
           rounds,
           topic,
           agents: resolvedAgents,
+          backend: resolvedBackend,
           resolve: resolvedResolve,
           goal: resolvedGoal,
           decision: resolvedDecision,
@@ -127,7 +133,8 @@ program
         });
         const registry = await loadAgentRegistry();
         const agents = config.agents.map((name) => registry.getAgent(name));
-        const backend = new ClaudeCliAdapter();
+        assertAgentBackendsMatch(config.backend, agents);
+        const backend = createBackendAdapter(config.backend);
         const ui = options.quiet === true ? "quiet" : undefined;
         const exitCode = await runSwarm({ config, agents, backend, ui });
         process.exit(exitCode);

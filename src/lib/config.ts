@@ -1,3 +1,4 @@
+import type { BackendId } from "../schemas/backend-id.js";
 import type { ResolveMode } from "../schemas/index.js";
 
 export type AgentSelectionSource =
@@ -8,6 +9,7 @@ export type AgentSelectionSource =
 export interface SwarmRunConfig {
   topic: string;
   rounds: number;
+  backend: BackendId;
   preset: string | null;
   agents: string[];
   selectionSource: AgentSelectionSource;

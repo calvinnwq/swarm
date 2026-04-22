@@ -4,6 +4,7 @@ import { RunManifestSchema } from "../../../src/schemas/index.js";
 const valid = {
   topic: "sample topic",
   rounds: 2,
+  backend: "claude" as const,
   preset: null,
   agents: ["alpha", "beta"],
   resolveMode: "orchestrator" as const,
