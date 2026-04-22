@@ -37,10 +37,7 @@ const AGENT_OUTPUT_JSON_SCHEMA = {
   },
 } as const;
 
-const MIN_CODEX_TIMEOUT_MS = 300_000;
-
 let schemaPathPromise: Promise<string> | null = null;
-let codexWorkdirPromise: Promise<string> | null = null;
 
 async function ensureOutputSchemaPath(): Promise<string> {
   schemaPathPromise ??= (async () => {
@@ -58,8 +55,7 @@ async function ensureOutputSchemaPath(): Promise<string> {
 }
 
 async function ensureCodexWorkdir(): Promise<string> {
-  codexWorkdirPromise ??= mkdtemp(join(tmpdir(), "swarm-codex-workdir-"));
-  return await codexWorkdirPromise;
+  return await mkdtemp(join(tmpdir(), "swarm-codex-workdir-"));
 }
 
 export function composeCodexPrompt(
@@ -147,8 +143,6 @@ export class CodexCliAdapter implements BackendAdapter {
         "--ignore-user-config",
         "--ignore-rules",
         "--skip-git-repo-check",
-        "-m",
-        "gpt-5.4-mini",
         "-C",
         workdir,
         "-c",
@@ -162,7 +156,7 @@ export class CodexCliAdapter implements BackendAdapter {
         prompt,
       ],
       {
-        timeout: Math.max(opts.timeoutMs, MIN_CODEX_TIMEOUT_MS),
+        timeout: opts.timeoutMs,
         reject: false,
         // Codex treats an open stdin pipe as more prompt input and can wait
         // indefinitely for EOF even when the full prompt is already in argv.

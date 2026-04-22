@@ -93,8 +93,6 @@ describe("CodexCliAdapter", () => {
         "--ignore-user-config",
         "--ignore-rules",
         "--skip-git-repo-check",
-        "-m",
-        "gpt-5.4-mini",
         "-C",
         "-c",
         'reasoning_effort="none"',
@@ -126,8 +124,40 @@ describe("CodexCliAdapter", () => {
     expect(options).toMatchObject({
       reject: false,
       stdin: "ignore",
-      timeout: 300_000,
+      timeout: 5_000,
     });
+    expect(args).not.toContain("-m");
+  });
+
+  it("creates an isolated workdir for each dispatch", async () => {
+    vi.mocked(execa)
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout:
+          '{"agent":"product-manager-codex","round":1,"stance":"Adopt","recommendation":"Use Codex","reasoning":[],"objections":[],"risks":[],"changesFromPriorRound":[],"confidence":"high","openQuestions":[]}',
+        stderr: "",
+        timedOut: false,
+      } as Awaited<ReturnType<typeof execa>>)
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stdout:
+          '{"agent":"product-manager-codex","round":1,"stance":"Adopt","recommendation":"Use Codex","reasoning":[],"objections":[],"risks":[],"changesFromPriorRound":[],"confidence":"high","openQuestions":[]}',
+        stderr: "",
+        timedOut: false,
+      } as Awaited<ReturnType<typeof execa>>);
+
+    const adapter = new CodexCliAdapter();
+    await adapter.dispatch("Topic: First run", agent, { timeoutMs: 5_000 });
+    await adapter.dispatch("Topic: Second run", agent, { timeoutMs: 5_000 });
+
+    const firstArgs = vi.mocked(execa).mock.calls[0]?.[1] as string[];
+    const secondArgs = vi.mocked(execa).mock.calls[1]?.[1] as string[];
+    const firstWorkdir = firstArgs[firstArgs.indexOf("-C") + 1];
+    const secondWorkdir = secondArgs[secondArgs.indexOf("-C") + 1];
+
+    expect(firstWorkdir).toBeTruthy();
+    expect(secondWorkdir).toBeTruthy();
+    expect(firstWorkdir).not.toBe(secondWorkdir);
   });
 
   it("formats failure output using normalized stderr", () => {
