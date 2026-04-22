@@ -219,7 +219,7 @@ Each run produces a self-contained directory under `.swarm/runs/`:
 
 ```
 .swarm/runs/20260419-121439-should-we-adopt-server-components/
-├── manifest.json          # Run metadata (topic, rounds, agents, timestamps)
+├── manifest.json          # Run metadata (topic, goal, decision, rounds, agents, timestamps)
 ├── seed-brief.md          # Initial brief sent to all agents in round 1
 ├── round-01/
 │   ├── brief.md           # Round brief (same as seed-brief for round 1)
