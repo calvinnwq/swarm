@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -26,12 +26,22 @@ async function makeIsolatedRoots(): Promise<{
   homeDir: string;
   bundledAgentsDir: string;
   bundledPresetsDir: string;
+  binDir: string;
+  env: NodeJS.ProcessEnv;
 }> {
   const cwd = await makeTempDir("swarm-doctor-cwd-");
   const homeDir = await makeTempDir("swarm-doctor-home-");
   const bundledAgentsDir = await makeTempDir("swarm-doctor-agents-");
   const bundledPresetsDir = await makeTempDir("swarm-doctor-presets-");
-  return { cwd, homeDir, bundledAgentsDir, bundledPresetsDir };
+  const binDir = await makeTempDir("swarm-doctor-bin-");
+  return {
+    cwd,
+    homeDir,
+    bundledAgentsDir,
+    bundledPresetsDir,
+    binDir,
+    env: { PATH: binDir },
+  };
 }
 
 async function writeFileUnder(
@@ -42,6 +52,25 @@ async function writeFileUnder(
   const filePath = path.join(root, relative);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, contents, "utf-8");
+}
+
+async function installLoggedInClaudeStub(binDir: string): Promise<void> {
+  const filePath = path.join(binDir, "claude");
+  await writeFile(
+    filePath,
+    [
+      `#!${process.execPath}`,
+      'if (process.argv[2] === "auth" && process.argv[3] === "status") {',
+      '  process.stdout.write(JSON.stringify({ loggedIn: true }) + "\\n");',
+      "  process.exit(0);",
+      "}",
+      'process.stderr.write("unexpected claude invocation\\n");',
+      "process.exit(1);",
+      "",
+    ].join("\n"),
+    "utf-8",
+  );
+  await chmod(filePath, 0o755);
 }
 
 function agentYaml(name: string): string {
@@ -56,6 +85,7 @@ function agentYaml(name: string): string {
 describe("runDoctor", () => {
   it("reports OK when there is no project config and registries load cleanly", async () => {
     const roots = await makeIsolatedRoots();
+    await installLoggedInClaudeStub(roots.binDir);
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager.yml",
@@ -89,10 +119,14 @@ describe("runDoctor", () => {
     const config = report.checks.find((c) => c.name === "project config");
     expect(config?.status).toBe("ok");
     expect(config?.message).toContain("no .swarm/config.yml");
+    expect(
+      report.checks.find((c) => c.name === "backend capability")?.status,
+    ).toBe("ok");
   });
 
   it("reports FAIL when both registries are empty", async () => {
     const roots = await makeIsolatedRoots();
+    await installLoggedInClaudeStub(roots.binDir);
     const report = await runDoctor(roots);
     expect(report.ok).toBe(false);
     expect(report.checks.find((c) => c.name === "agent registry")?.status).toBe(
@@ -101,10 +135,14 @@ describe("runDoctor", () => {
     expect(
       report.checks.find((c) => c.name === "preset registry")?.status,
     ).toBe("fail");
+    expect(
+      report.checks.find((c) => c.name === "backend capability")?.status,
+    ).toBe("ok");
   });
 
   it("reports FAIL when config references an unknown agent", async () => {
     const roots = await makeIsolatedRoots();
+    await installLoggedInClaudeStub(roots.binDir);
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager.yml",
@@ -130,12 +168,16 @@ describe("runDoctor", () => {
 
   it("reports FAIL when config references an unknown preset", async () => {
     const roots = await makeIsolatedRoots();
+    await installLoggedInClaudeStub(roots.binDir);
     await writeFileUnder(roots.cwd, ".swarm/config.yml", "preset: nope\n");
     const report = await runDoctor(roots);
     expect(report.ok).toBe(false);
     const check = report.checks.find((c) => c.name === "config preset");
     expect(check?.status).toBe("fail");
     expect(check?.message).toContain("unknown preset");
+    expect(
+      report.checks.find((c) => c.name === "backend capability")?.status,
+    ).toBe("ok");
   });
 
   it("reports FAIL with an actionable message when config YAML is invalid", async () => {
@@ -147,10 +189,14 @@ describe("runDoctor", () => {
     expect(check?.status).toBe("fail");
     expect(check?.message).toContain("invalid .swarm/config.yml");
     expect(check?.message).toContain("rounds");
+    expect(
+      report.checks.find((c) => c.name === "backend capability"),
+    ).toBeUndefined();
   });
 
   it("reports OK when config preset resolves and its agents exist", async () => {
     const roots = await makeIsolatedRoots();
+    await installLoggedInClaudeStub(roots.binDir);
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager.yml",
@@ -183,10 +229,14 @@ describe("runDoctor", () => {
     const check = report.checks.find((c) => c.name === "config preset");
     expect(check?.status).toBe("ok");
     expect(check?.message).toContain("product-decision");
+    expect(
+      report.checks.find((c) => c.name === "backend capability")?.status,
+    ).toBe("ok");
   });
 
   it("skips preset validation when explicit config agents are present", async () => {
     const roots = await makeIsolatedRoots();
+    await installLoggedInClaudeStub(roots.binDir);
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager.yml",
@@ -227,6 +277,9 @@ describe("runDoctor", () => {
     expect(
       report.checks.find((c) => c.name === "config preset"),
     ).toBeUndefined();
+    expect(
+      report.checks.find((c) => c.name === "backend capability")?.status,
+    ).toBe("ok");
   });
 });
 

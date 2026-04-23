@@ -3,6 +3,7 @@ import {
   type AgentRegistry,
   type LoadAgentRegistryOptions,
 } from "./agent-registry.js";
+import { checkBackendCapability } from "./backend-capability.js";
 import { collectAgentBackendMismatches } from "./backend-selection.js";
 import {
   loadPresetRegistry,
@@ -38,6 +39,7 @@ export interface RunDoctorOptions {
   homeDir?: string;
   bundledAgentsDir?: string;
   bundledPresetsDir?: string;
+  env?: NodeJS.ProcessEnv;
 }
 
 export async function runDoctor(
@@ -96,18 +98,28 @@ export async function runDoctor(
     }
   }
 
+  const effectiveBackend = resolveDoctorBackend(projectConfigCheck);
+  if (effectiveBackend) {
+    checks.push(
+      await checkBackendCapability(effectiveBackend, { env: options.env }),
+    );
+  }
+
   const ok = checks.every((c) => c.status !== "fail");
   return { ok, checks };
 }
 
-async function checkProjectConfig(
-  options: LoadProjectConfigOptions,
-): Promise<{ check: DoctorCheck; loaded: LoadedProjectConfig | null }> {
+async function checkProjectConfig(options: LoadProjectConfigOptions): Promise<{
+  check: DoctorCheck;
+  loaded: LoadedProjectConfig | null;
+  state: "missing" | "loaded" | "invalid";
+}> {
   try {
     const loaded = await loadProjectConfig(options);
     if (!loaded) {
       return {
         loaded: null,
+        state: "missing",
         check: {
           name: "project config",
           status: "ok",
@@ -117,6 +129,7 @@ async function checkProjectConfig(
     }
     return {
       loaded,
+      state: "loaded",
       check: {
         name: "project config",
         status: "ok",
@@ -127,6 +140,7 @@ async function checkProjectConfig(
   } catch (error) {
     return {
       loaded: null,
+      state: "invalid",
       check: {
         name: "project config",
         status: "fail",
@@ -314,6 +328,17 @@ function checkConfigBackend(
   }
 
   return null;
+}
+
+function resolveDoctorBackend(projectConfig: {
+  loaded: LoadedProjectConfig | null;
+  state: "missing" | "loaded" | "invalid";
+}): BackendId | null {
+  if (projectConfig.state === "invalid") {
+    return null;
+  }
+
+  return projectConfig.loaded?.config.backend ?? "claude";
 }
 
 function buildConfigBackendCheck(

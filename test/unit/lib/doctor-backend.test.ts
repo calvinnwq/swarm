@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -26,12 +26,22 @@ async function makeIsolatedRoots(): Promise<{
   homeDir: string;
   bundledAgentsDir: string;
   bundledPresetsDir: string;
+  binDir: string;
+  env: NodeJS.ProcessEnv;
 }> {
   const cwd = await makeTempDir("swarm-doctor-backend-cwd-");
   const homeDir = await makeTempDir("swarm-doctor-backend-home-");
   const bundledAgentsDir = await makeTempDir("swarm-doctor-backend-agents-");
   const bundledPresetsDir = await makeTempDir("swarm-doctor-backend-presets-");
-  return { cwd, homeDir, bundledAgentsDir, bundledPresetsDir };
+  const binDir = await makeTempDir("swarm-doctor-backend-bin-");
+  return {
+    cwd,
+    homeDir,
+    bundledAgentsDir,
+    bundledPresetsDir,
+    binDir,
+    env: { PATH: binDir },
+  };
 }
 
 async function writeFileUnder(
@@ -42,6 +52,50 @@ async function writeFileUnder(
   const filePath = path.join(root, relative);
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, contents, "utf-8");
+}
+
+async function writeExecutable(
+  root: string,
+  name: string,
+  lines: string[],
+): Promise<void> {
+  const filePath = path.join(root, name);
+  await writeFile(
+    filePath,
+    [`#!${process.execPath}`, ...lines, ""].join("\n"),
+    "utf-8",
+  );
+  await chmod(filePath, 0o755);
+}
+
+async function installClaudeAuthStub(
+  binDir: string,
+  options: { loggedIn: boolean } = { loggedIn: true },
+): Promise<void> {
+  await writeExecutable(binDir, "claude", [
+    'if (process.argv[2] === "auth" && process.argv[3] === "status") {',
+    `  process.stdout.write(JSON.stringify({ loggedIn: ${options.loggedIn} }) + "\\n");`,
+    "  process.exit(0);",
+    "}",
+    'process.stderr.write("unexpected claude invocation\\n");',
+    "process.exit(1);",
+  ]);
+}
+
+async function installCodexLoginStub(
+  binDir: string,
+  options: { output?: string; exitCode?: number } = {},
+): Promise<void> {
+  const output = JSON.stringify(options.output ?? "Logged in using ChatGPT\n");
+  const exitCode = options.exitCode ?? 0;
+  await writeExecutable(binDir, "codex", [
+    'if (process.argv[2] === "login" && process.argv[3] === "status") {',
+    `  process.stdout.write(${output});`,
+    `  process.exit(${exitCode});`,
+    "}",
+    'process.stderr.write("unexpected codex invocation\\n");',
+    "process.exit(1);",
+  ]);
 }
 
 function agentYaml(name: string, backend = "claude"): string {
@@ -57,6 +111,7 @@ function agentYaml(name: string, backend = "claude"): string {
 describe("runDoctor backend checks", () => {
   it("reports backend selection as healthy when config backend matches resolved agents", async () => {
     const roots = await makeIsolatedRoots();
+    await installClaudeAuthStub(roots.binDir);
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager.yml",
@@ -93,13 +148,19 @@ describe("runDoctor backend checks", () => {
     const check = report.checks.find(
       (entry) => entry.name === "config backend",
     );
+    const capability = report.checks.find(
+      (entry) => entry.name === "backend capability",
+    );
     expect(check?.status).toBe("ok");
     expect(check?.message).toContain("claude");
+    expect(capability?.status).toBe("ok");
+    expect(capability?.message).toContain("installed and authenticated");
     expect(report.ok).toBe(true);
   });
 
   it("reports Codex backend selection as healthy when the preset resolves to Codex agents", async () => {
     const roots = await makeIsolatedRoots();
+    await installCodexLoginStub(roots.binDir);
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager-codex.yml",
@@ -131,8 +192,13 @@ describe("runDoctor backend checks", () => {
     const check = report.checks.find(
       (entry) => entry.name === "config backend",
     );
+    const capability = report.checks.find(
+      (entry) => entry.name === "backend capability",
+    );
     expect(check?.status).toBe("ok");
     expect(check?.message).toContain('backend "codex" matches preset');
+    expect(capability?.status).toBe("ok");
+    expect(capability?.message).toContain('backend "codex"');
     expect(report.ok).toBe(true);
   });
 
@@ -169,8 +235,124 @@ describe("runDoctor backend checks", () => {
     const check = report.checks.find(
       (entry) => entry.name === "config backend",
     );
+    const capability = report.checks.find(
+      (entry) => entry.name === "backend capability",
+    );
     expect(check?.status).toBe("fail");
     expect(check?.message).toContain("product-manager (claude)");
+    expect(capability?.status).toBe("fail");
+    expect(capability?.message).toContain("install the Codex CLI");
+    expect(report.ok).toBe(false);
+  });
+
+  it("checks the default claude backend capability when there is no config", async () => {
+    const roots = await makeIsolatedRoots();
+    await installClaudeAuthStub(roots.binDir);
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer.yml",
+      agentYaml("principal-engineer"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const capability = report.checks.find(
+      (entry) => entry.name === "backend capability",
+    );
+    expect(capability?.status).toBe("ok");
+    expect(capability?.message).toContain('backend "claude"');
+    expect(report.ok).toBe(true);
+  });
+
+  it("fails with PATH guidance when the effective backend binary is missing", async () => {
+    const roots = await makeIsolatedRoots();
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer.yml",
+      agentYaml("principal-engineer"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const capability = report.checks.find(
+      (entry) => entry.name === "backend capability",
+    );
+    expect(capability?.status).toBe("fail");
+    expect(capability?.message).toContain("available on PATH");
+    expect(report.ok).toBe(false);
+  });
+
+  it("fails with login guidance when the backend CLI is present but logged out", async () => {
+    const roots = await makeIsolatedRoots();
+    await installClaudeAuthStub(roots.binDir, { loggedIn: false });
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer.yml",
+      agentYaml("principal-engineer"),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "backend: claude",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+      ].join("\n"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const capability = report.checks.find(
+      (entry) => entry.name === "backend capability",
+    );
+    expect(capability?.status).toBe("fail");
+    expect(capability?.message).toContain("claude auth login");
     expect(report.ok).toBe(false);
   });
 });

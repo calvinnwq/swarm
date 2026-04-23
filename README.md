@@ -55,7 +55,7 @@ Options:
 
 Commands:
   run [options] <rounds> <topic...>  Run a swarm
-  doctor                             Diagnose swarm setup: config, agents, presets, and backend selection
+  doctor                             Diagnose swarm setup: config, agents, presets, backend selection, and backend capability
   help [command]                     display help for command
 ```
 
@@ -129,7 +129,7 @@ Preset names must use lowercase letters, numbers, `-`, or `_`, and `agents` must
 
 ### `swarm doctor`
 
-Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, that any agents or preset referenced in the project config actually resolve, and that any configured backend is supported and matches the resolved config agents or preset agents. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
+Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, that any agents or preset referenced in the project config actually resolve, that any configured backend is supported and matches the resolved config agents or preset agents, and that the effective backend CLI is installed and authenticated. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
 
 ```bash
 swarm doctor
