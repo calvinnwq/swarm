@@ -1,6 +1,8 @@
 import { execa } from "execa";
 import type { BackendId } from "../schemas/backend-id.js";
 
+const PROBE_TIMEOUT_MS = 5_000;
+
 export interface BackendCapabilityCheck {
   name: "backend capability";
   status: "ok" | "fail";
@@ -135,6 +137,7 @@ async function runProbe(
     const result = await execa(command, args, {
       env,
       reject: false,
+      timeout: PROBE_TIMEOUT_MS,
     });
 
     if ("code" in result && result.code === "ENOENT") {
@@ -163,6 +166,16 @@ async function runProbe(
       };
     }
 
+    if (isTimedOutError(error)) {
+      return {
+        check: {
+          name: "backend capability",
+          status: "fail",
+          message: `backend "${command}" is not responding: timed out after ${PROBE_TIMEOUT_MS}ms`,
+        },
+      };
+    }
+
     throw error;
   }
 }
@@ -173,6 +186,15 @@ function isMissingBinaryError(error: unknown): boolean {
     error !== null &&
     "code" in error &&
     error.code === "ENOENT"
+  );
+}
+
+function isTimedOutError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "timedOut" in error &&
+    error.timedOut === true
   );
 }
 
