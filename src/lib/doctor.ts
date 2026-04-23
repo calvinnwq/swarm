@@ -334,11 +334,11 @@ function resolveDoctorBackend(projectConfig: {
   loaded: LoadedProjectConfig | null;
   state: "missing" | "loaded" | "invalid";
 }): BackendId | null {
-  if (projectConfig.state === "invalid") {
+  if (projectConfig.state !== "loaded") {
     return null;
   }
 
-  return projectConfig.loaded?.config.backend ?? "claude";
+  return projectConfig.loaded.config.backend ?? "claude";
 }
 
 function buildConfigBackendCheck(

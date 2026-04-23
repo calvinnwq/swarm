@@ -119,13 +119,26 @@ async function checkCodexCapability(
     };
   }
 
+  let schemaPath: string;
+  try {
+    schemaPath = await ensureCodexDoctorSchemaPath();
+  } catch (error) {
+    return {
+      name: "backend capability",
+      status: "fail",
+      message:
+        'backend "codex" is not runnable: failed to prepare `codex exec` probe',
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+
   const execResult = await runProbe(
     "codex",
-    [...CODEX_EXEC_PROBE_ARGS, await ensureCodexDoctorSchemaPath(), "-", "--help"],
+    [...CODEX_EXEC_PROBE_ARGS, schemaPath, "-", "--help"],
     env,
     {
-    missingBinaryMessage:
-      'backend "codex" is not runnable: install the Codex CLI and ensure `codex` is available on PATH',
+      missingBinaryMessage:
+        'backend "codex" is not runnable: install the Codex CLI and ensure `codex` is available on PATH',
     },
   );
   if ("check" in execResult) {

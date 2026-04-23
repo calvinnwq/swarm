@@ -132,10 +132,7 @@ describe("smoke: README golden path", () => {
     expect(result.stdout).toContain("no .swarm/config.yml (CLI flags only)");
     expect(result.stdout).toContain("[OK] agent registry");
     expect(result.stdout).toContain("[OK] preset registry");
-    expect(result.stdout).toContain("[OK] backend capability");
-    expect(result.stdout).toContain(
-      'backend "claude" is installed and authenticated',
-    );
+    expect(result.stdout).not.toContain("backend capability");
     expect(result.stdout).not.toContain("config agents");
     expect(result.stdout).not.toContain("config preset");
     expect(result.stderr).toBe("");

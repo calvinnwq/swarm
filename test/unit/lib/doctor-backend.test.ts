@@ -296,9 +296,8 @@ describe("runDoctor backend checks", () => {
     expect(report.ok).toBe(false);
   });
 
-  it("checks the default claude backend capability when there is no config", async () => {
+  it("skips backend capability checks when there is no config", async () => {
     const roots = await makeIsolatedRoots();
-    await installClaudeAuthStub(roots.binDir);
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager.yml",
@@ -325,12 +324,11 @@ describe("runDoctor backend checks", () => {
     const capability = report.checks.find(
       (entry) => entry.name === "backend capability",
     );
-    expect(capability?.status).toBe("ok");
-    expect(capability?.message).toContain('backend "claude"');
+    expect(capability).toBeUndefined();
     expect(report.ok).toBe(true);
   });
 
-  it("fails with PATH guidance when the effective backend binary is missing", async () => {
+  it("does not fail backend capability when no config backend is available", async () => {
     const roots = await makeIsolatedRoots();
     await writeFileUnder(
       roots.bundledAgentsDir,
@@ -358,9 +356,8 @@ describe("runDoctor backend checks", () => {
     const capability = report.checks.find(
       (entry) => entry.name === "backend capability",
     );
-    expect(capability?.status).toBe("fail");
-    expect(capability?.message).toContain("available on PATH");
-    expect(report.ok).toBe(false);
+    expect(capability).toBeUndefined();
+    expect(report.ok).toBe(true);
   });
 
   it("fails with login guidance when the backend CLI is present but logged out", async () => {

@@ -120,8 +120,8 @@ describe("runDoctor", () => {
     expect(config?.status).toBe("ok");
     expect(config?.message).toContain("no .swarm/config.yml");
     expect(
-      report.checks.find((c) => c.name === "backend capability")?.status,
-    ).toBe("ok");
+      report.checks.find((c) => c.name === "backend capability"),
+    ).toBeUndefined();
   });
 
   it("reports FAIL when both registries are empty", async () => {
@@ -136,8 +136,8 @@ describe("runDoctor", () => {
       report.checks.find((c) => c.name === "preset registry")?.status,
     ).toBe("fail");
     expect(
-      report.checks.find((c) => c.name === "backend capability")?.status,
-    ).toBe("ok");
+      report.checks.find((c) => c.name === "backend capability"),
+    ).toBeUndefined();
   });
 
   it("reports FAIL when config references an unknown agent", async () => {

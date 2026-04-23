@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("execa", () => ({
   execa: vi.fn(),
 }));
-
 import { execa } from "execa";
 import { checkBackendCapability } from "../../../src/lib/backend-capability.js";
 
@@ -136,5 +135,41 @@ describe("checkBackendCapability", () => {
       message: 'backend "codex" is not authenticated: run `codex login` and retry',
       detail: "credentials not found",
     });
+  });
+
+  it("fails gracefully when preparing the codex probe schema fails", async () => {
+    vi.resetModules();
+    vi.doMock("execa", () => ({
+      execa: vi.fn().mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: "Authenticated via API key\n",
+        stderr: "",
+      }),
+    }));
+    vi.doMock("node:fs/promises", async () => {
+      const actual = await vi.importActual<typeof import("node:fs/promises")>(
+        "node:fs/promises",
+      );
+      return {
+        ...actual,
+        writeFile: vi.fn().mockRejectedValueOnce(new Error("disk full")),
+      };
+    });
+
+    const { checkBackendCapability: checkWithSchemaFailure } = await import(
+      "../../../src/lib/backend-capability.js"
+    );
+    const result = await checkWithSchemaFailure("codex");
+
+    expect(result).toEqual({
+      name: "backend capability",
+      status: "fail",
+      message:
+        'backend "codex" is not runnable: failed to prepare `codex exec` probe',
+      detail: "disk full",
+    });
+
+    vi.doUnmock("node:fs/promises");
+    vi.doUnmock("execa");
   });
 });
