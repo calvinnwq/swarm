@@ -9,6 +9,8 @@ import { buildRunDirName } from "./artifact-writer.js";
 import { buildSeedBrief, buildRoundBrief } from "./brief-generator.js";
 import { buildOrchestratorSynthesis } from "./synthesis.js";
 import { attachLiveRenderer, attachQuietLogger } from "../ui/index.js";
+import { OutputRouter } from "./output-router.js";
+import type { OutputTarget } from "./output-router.js";
 
 export type SwarmUiMode = "live" | "quiet" | "silent";
 
@@ -25,6 +27,12 @@ export interface RunSwarmOpts {
    * "silent" disables UI attachment (artifacts still written).
    */
   ui?: SwarmUiMode;
+  /**
+   * Additional output targets routed alongside the default disk writer.
+   * Each target receives the same lifecycle events: init, writeRound,
+   * writeSynthesis, and finalize.
+   */
+  additionalTargets?: OutputTarget[];
 }
 
 /**
@@ -60,7 +68,8 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     seedBrief,
     wrapperName: backend.wrapperName ?? `${config.backend}-cli`,
   });
-  writer.init();
+  const router = new OutputRouter([writer, ...(opts.additionalTargets ?? [])]);
+  await router.init();
 
   const { emitter, run } = createRoundRunner({
     config,
@@ -102,7 +111,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     }) => {
       const brief = roundBriefs.get(round) ?? "";
       const roundResult: RoundResult = { round, agentResults, packet };
-      writer.writeRound(roundResult, brief);
+      void router.writeRound(roundResult, brief);
       priorPacket = packet;
     },
   );
@@ -112,11 +121,11 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
 
     if (result.ok) {
       const synthesis = buildOrchestratorSynthesis(manifest, result.rounds);
-      writer.writeSynthesis(synthesis);
+      await router.writeSynthesis(synthesis);
     }
 
     const finishedAt = new Date().toISOString();
-    writer.finalize(finishedAt);
+    await router.finalize(finishedAt);
 
     return result.ok ? 0 : 1;
   } finally {

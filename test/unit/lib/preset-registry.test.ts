@@ -471,6 +471,21 @@ describe("loadPresetRegistry", () => {
     expect(preset.goal).toMatch(/decision-ready/i);
   });
 
+  it("loads the bundled triad preset from the default bundled directory", async () => {
+    const cwd = await makeTempDir("swarm-preset-cwd-");
+    const homeDir = await makeTempDir("swarm-preset-home-");
+
+    const registry = await loadPresetRegistry({ cwd, homeDir });
+    const preset = registry.getPreset("triad");
+    expect(preset.agents).toEqual([
+      "product-manager",
+      "principal-engineer",
+      "product-designer",
+    ]);
+    expect(preset.resolve).toBe("orchestrator");
+    expect(preset.goal).toMatch(/decision-ready/i);
+  });
+
   it("rejects preset names with uppercase letters", async () => {
     const { cwd, homeDir, bundledDir } = await makeIsolatedRoots();
     await writePresetFile(
