@@ -1,0 +1,12 @@
+name: triad
+description: >
+  Three-perspective swarm for product decisions — a product manager frames user
+  value and scope, a principal engineer grounds it in feasibility, and a product
+  designer brings user experience and interaction clarity.
+agents:
+  - product-manager
+  - principal-engineer
+  - product-designer
+resolve: orchestrator
+goal: Reach a decision-ready recommendation grounded in user value, engineering feasibility, and user experience.
+decision: Proceed / Defer / Reject
