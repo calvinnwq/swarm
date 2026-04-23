@@ -25,7 +25,7 @@ function installCodexStub(binDir: string): void {
 const fs = require("node:fs");
 const path = require("node:path");
 
-const prompt = process.argv[process.argv.length - 1] ?? "";
+const prompt = fs.readFileSync(0, "utf8");
 const statePath = path.join(path.dirname(process.argv[1]), ".codex-state.json");
 
 let counters = {};

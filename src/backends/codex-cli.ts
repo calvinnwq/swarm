@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
@@ -134,41 +134,44 @@ export class CodexCliAdapter implements BackendAdapter {
     const prompt = composeCodexPrompt(agent.persona, promptBody, brief);
 
     const start = performance.now();
-    const result = await execa(
-      "codex",
-      [
-        "exec",
-        "--ephemeral",
-        "--ignore-user-config",
-        "--ignore-rules",
-        "--skip-git-repo-check",
-        "-C",
-        workdir,
-        "-c",
-        'reasoning_effort="none"',
-        "--sandbox",
-        "read-only",
-        "--color",
-        "never",
-        "--output-schema",
-        schemaPath,
-        "-",
-      ],
-      {
-        input: prompt,
-        timeout: opts.timeoutMs,
-        reject: false,
-      },
-    );
-    const durationMs = Math.round(performance.now() - start);
+    try {
+      const result = await execa(
+        "codex",
+        [
+          "exec",
+          "--ephemeral",
+          "--ignore-rules",
+          "--skip-git-repo-check",
+          "-C",
+          workdir,
+          "-c",
+          'reasoning_effort="none"',
+          "--sandbox",
+          "read-only",
+          "--color",
+          "never",
+          "--output-schema",
+          schemaPath,
+          "-",
+        ],
+        {
+          input: prompt,
+          timeout: opts.timeoutMs,
+          reject: false,
+        },
+      );
+      const durationMs = Math.round(performance.now() - start);
 
-    return {
-      ok: result.exitCode === 0,
-      exitCode: result.exitCode ?? 1,
-      stdout: result.stdout,
-      stderr: result.stderr,
-      timedOut: result.timedOut,
-      durationMs,
-    };
+      return {
+        ok: result.exitCode === 0,
+        exitCode: result.exitCode ?? 1,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        timedOut: result.timedOut,
+        durationMs,
+      };
+    } finally {
+      await rm(workdir, { recursive: true, force: true });
+    }
   }
 }
