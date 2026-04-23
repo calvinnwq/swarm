@@ -110,6 +110,8 @@ swarm run 2 "Should we adopt server components?" \
   --backend codex
 ```
 
+This requires the `codex` CLI to be installed, available on `PATH`, and already authenticated because the Codex backend shells out to `codex exec` at runtime.
+
 Custom preset files are strict YAML objects with required `name` and `agents` fields plus optional `description`, `resolve`, `goal`, and `decision` fields:
 
 ```yaml
@@ -200,7 +202,7 @@ description: Deep technical architecture perspective
 persona: >
   You are a principal engineer focused on system design,
   scalability, and long-term maintainability.
-backend: claude
+backend: claude # or codex
 ---
 
 Evaluate the topic from a technical architecture lens. Consider
