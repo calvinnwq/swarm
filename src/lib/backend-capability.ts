@@ -1,13 +1,27 @@
+import { writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { execa } from "execa";
 import type { BackendId } from "../schemas/backend-id.js";
 
 const PROBE_TIMEOUT_MS = 5_000;
-const CODEX_REQUIRED_EXEC_FLAGS = [
+const CODEX_EXEC_PROBE_ARGS = [
+  "exec",
   "--ephemeral",
   "--ignore-rules",
   "--skip-git-repo-check",
+  "-C",
+  ".",
+  "-c",
+  'reasoning_effort="none"',
+  "--sandbox",
+  "read-only",
+  "--color",
+  "never",
   "--output-schema",
-];
+] as const;
+
+let codexDoctorSchemaPathPromise: Promise<string> | null = null;
 
 export interface BackendCapabilityCheck {
   name: "backend capability";
@@ -37,15 +51,6 @@ async function checkClaudeCapability(
   });
   if ("check" in result) {
     return result.check;
-  }
-
-  if (isMissingBinaryResult(result)) {
-    return {
-      name: "backend capability",
-      status: "fail",
-      message:
-        'backend "claude" is not runnable: install Claude Code and ensure `claude` is available on PATH',
-    };
   }
 
   if (result.exitCode !== 0) {
@@ -104,15 +109,6 @@ async function checkCodexCapability(
     return loginResult.check;
   }
 
-  if (isMissingBinaryResult(loginResult)) {
-    return {
-      name: "backend capability",
-      status: "fail",
-      message:
-        'backend "codex" is not runnable: install the Codex CLI and ensure `codex` is available on PATH',
-    };
-  }
-
   if (loginResult.exitCode !== 0) {
     return {
       name: "backend capability",
@@ -123,40 +119,26 @@ async function checkCodexCapability(
     };
   }
 
-  const execResult = await runProbe("codex", ["exec", "--help"], env, {
+  const execResult = await runProbe(
+    "codex",
+    [...CODEX_EXEC_PROBE_ARGS, await ensureCodexDoctorSchemaPath(), "-", "--help"],
+    env,
+    {
     missingBinaryMessage:
       'backend "codex" is not runnable: install the Codex CLI and ensure `codex` is available on PATH',
-  });
+    },
+  );
   if ("check" in execResult) {
     return execResult.check;
   }
 
-  if (isMissingBinaryResult(execResult)) {
-    return {
-      name: "backend capability",
-      status: "fail",
-      message:
-        'backend "codex" is not runnable: install the Codex CLI and ensure `codex` is available on PATH',
-    };
-  }
-
-  const missingFlags = CODEX_REQUIRED_EXEC_FLAGS.filter(
-    (flag) => !execResult.stdout.includes(flag) && !execResult.stderr.includes(flag),
-  );
-  if (execResult.exitCode !== 0 || missingFlags.length > 0) {
-    const detail = formatProbeDetail(execResult.stdout, execResult.stderr);
+  if (execResult.exitCode !== 0) {
     return {
       name: "backend capability",
       status: "fail",
       message:
         'backend "codex" is not runnable: installed CLI is missing required `codex exec` support',
-      detail:
-        missingFlags.length > 0
-          ? formatProbeDetail(
-              `missing exec flags: ${missingFlags.join(", ")}`,
-              detail ?? "",
-            )
-          : detail,
+      detail: formatProbeDetail(execResult.stdout, execResult.stderr),
     };
   }
 
@@ -233,6 +215,21 @@ async function runProbe(
   }
 }
 
+async function ensureCodexDoctorSchemaPath(): Promise<string> {
+  if (!codexDoctorSchemaPathPromise) {
+    codexDoctorSchemaPathPromise = (async () => {
+      const filePath = join(tmpdir(), "swarm-codex-doctor-output.schema.json");
+      await writeFile(filePath, '{"type":"object"}\n', "utf-8");
+      return filePath;
+    })().catch((error) => {
+      codexDoctorSchemaPathPromise = null;
+      throw error;
+    });
+  }
+
+  return await codexDoctorSchemaPathPromise;
+}
+
 function isMissingBinaryError(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -257,20 +254,6 @@ function isTimedOutResult(result: unknown): result is { timedOut: true } {
     result !== null &&
     "timedOut" in result &&
     result.timedOut === true
-  );
-}
-
-function isMissingBinaryResult(result: {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-}): boolean {
-  const text = `${result.stdout}\n${result.stderr}`;
-  return (
-    result.exitCode === 127 ||
-    /\bENOENT\b/.test(text) ||
-    /command not found/i.test(text) ||
-    /\bnot found\b/i.test(text)
   );
 }
 

@@ -57,9 +57,9 @@ describe("checkBackendCapability", () => {
         stderr: "",
       } as never)
       .mockResolvedValueOnce({
-        exitCode: 0,
-        stdout: "Usage: codex exec [options]\n  --ephemeral\n",
-        stderr: "",
+        exitCode: 64,
+        stdout: "",
+        stderr: "unknown option: --sandbox\n",
       } as never);
 
     const result = await checkBackendCapability("codex");
@@ -70,13 +70,28 @@ describe("checkBackendCapability", () => {
       message:
         'backend "codex" is not runnable: installed CLI is missing required `codex exec` support',
     });
-    expect(result.detail).toContain(
-      "missing exec flags: --ignore-rules, --skip-git-repo-check, --output-schema",
-    );
+    expect(result.detail).toContain("unknown option: --sandbox");
     expect(vi.mocked(execa)).toHaveBeenNthCalledWith(
       2,
       "codex",
-      ["exec", "--help"],
+      [
+        "exec",
+        "--ephemeral",
+        "--ignore-rules",
+        "--skip-git-repo-check",
+        "-C",
+        ".",
+        "-c",
+        'reasoning_effort="none"',
+        "--sandbox",
+        "read-only",
+        "--color",
+        "never",
+        "--output-schema",
+        expect.stringContaining("swarm-codex-doctor-output.schema.json"),
+        "-",
+        "--help",
+      ],
       expect.objectContaining({
         reject: false,
         timeout: 5_000,
@@ -93,8 +108,7 @@ describe("checkBackendCapability", () => {
       } as never)
       .mockResolvedValueOnce({
         exitCode: 0,
-        stdout:
-          "Usage: codex exec [options]\n--ephemeral\n--ignore-rules\n--skip-git-repo-check\n--output-schema\n",
+        stdout: "Usage: codex exec [options]\n",
         stderr: "",
       } as never);
 
@@ -104,6 +118,23 @@ describe("checkBackendCapability", () => {
       name: "backend capability",
       status: "ok",
       message: 'backend "codex" is installed and authenticated',
+    });
+  });
+
+  it("does not misreport codex auth errors as a missing binary", async () => {
+    vi.mocked(execa).mockResolvedValueOnce({
+      exitCode: 1,
+      stdout: "",
+      stderr: "credentials not found\n",
+    } as never);
+
+    const result = await checkBackendCapability("codex");
+
+    expect(result).toEqual({
+      name: "backend capability",
+      status: "fail",
+      message: 'backend "codex" is not authenticated: run `codex login` and retry',
+      detail: "credentials not found",
     });
   });
 });

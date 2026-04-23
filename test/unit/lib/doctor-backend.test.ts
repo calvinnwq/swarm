@@ -84,29 +84,22 @@ async function installClaudeAuthStub(
 
 async function installCodexLoginStub(
   binDir: string,
-  options: { output?: string; exitCode?: number; execHelpOutput?: string } = {},
+  options: { output?: string; exitCode?: number; execExitCode?: number; execStdout?: string; execStderr?: string } = {},
 ): Promise<void> {
   const output = JSON.stringify(options.output ?? "Authenticated via API key\n");
   const exitCode = options.exitCode ?? 0;
-  const execHelpOutput = JSON.stringify(
-    options.execHelpOutput ??
-      [
-        "Usage: codex exec [options]",
-        "--ephemeral",
-        "--ignore-rules",
-        "--skip-git-repo-check",
-        "--output-schema",
-        "",
-      ].join("\n"),
-  );
+  const execExitCode = options.execExitCode ?? 0;
+  const execStdout = JSON.stringify(options.execStdout ?? "Usage: codex exec [options]\n");
+  const execStderr = JSON.stringify(options.execStderr ?? "");
   await writeExecutable(binDir, "codex", [
     'if (process.argv[2] === "login" && process.argv[3] === "status") {',
     `  process.stdout.write(${output});`,
     `  process.exit(${exitCode});`,
     "}",
-    'if (process.argv[2] === "exec" && process.argv[3] === "--help") {',
-    `  process.stdout.write(${execHelpOutput});`,
-    "  process.exit(0);",
+    'if (process.argv[2] === "exec" && process.argv.includes("--help")) {',
+    `  process.stdout.write(${execStdout});`,
+    `  process.stderr.write(${execStderr});`,
+    `  process.exit(${execExitCode});`,
     "}",
     'process.stderr.write("unexpected codex invocation\\n");',
     "process.exit(1);",
@@ -220,9 +213,8 @@ describe("runDoctor backend checks", () => {
   it("fails when Codex is logged in but lacks exec runtime support", async () => {
     const roots = await makeIsolatedRoots();
     await installCodexLoginStub(roots.binDir, {
-      execHelpOutput: ["Usage: codex exec [options]", "--ephemeral", ""].join(
-        "\n",
-      ),
+      execExitCode: 64,
+      execStderr: "unknown option: --sandbox\n",
     });
     await writeFileUnder(
       roots.bundledAgentsDir,
@@ -257,7 +249,7 @@ describe("runDoctor backend checks", () => {
     );
     expect(capability?.status).toBe("fail");
     expect(capability?.message).toContain("missing required `codex exec` support");
-    expect(capability?.detail).toContain("--ignore-rules");
+    expect(capability?.detail).toContain("unknown option: --sandbox");
     expect(report.ok).toBe(false);
   });
 
