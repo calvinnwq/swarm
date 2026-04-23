@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { AgentOutput, RunManifest } from "../schemas/index.js";
 import type { AgentResult, RoundResult } from "./round-runner.js";
 import type { SynthesisResult } from "./synthesis.js";
+import type { OutputTarget } from "./output-router.js";
 
 /**
  * Derive a filesystem-safe slug from a topic string.
@@ -179,7 +180,7 @@ export interface ArtifactWriterOpts {
  * Writes incrementally: each round is flushed as soon as it completes,
  * so a crashed run still has partial artifacts.
  */
-export class ArtifactWriter {
+export class ArtifactWriter implements OutputTarget {
   readonly runDir: string;
 
   constructor(private opts: ArtifactWriterOpts) {
