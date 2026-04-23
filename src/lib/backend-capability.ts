@@ -2,6 +2,12 @@ import { execa } from "execa";
 import type { BackendId } from "../schemas/backend-id.js";
 
 const PROBE_TIMEOUT_MS = 5_000;
+const CODEX_REQUIRED_EXEC_FLAGS = [
+  "--ephemeral",
+  "--ignore-rules",
+  "--skip-git-repo-check",
+  "--output-schema",
+];
 
 export interface BackendCapabilityCheck {
   name: "backend capability";
@@ -90,15 +96,15 @@ async function checkClaudeCapability(
 async function checkCodexCapability(
   env: NodeJS.ProcessEnv | undefined,
 ): Promise<BackendCapabilityCheck> {
-  const result = await runProbe("codex", ["login", "status"], env, {
+  const loginResult = await runProbe("codex", ["login", "status"], env, {
     missingBinaryMessage:
       'backend "codex" is not runnable: install the Codex CLI and ensure `codex` is available on PATH',
   });
-  if ("check" in result) {
-    return result.check;
+  if ("check" in loginResult) {
+    return loginResult.check;
   }
 
-  if (isMissingBinaryResult(result)) {
+  if (isMissingBinaryResult(loginResult)) {
     return {
       name: "backend capability",
       status: "fail",
@@ -107,13 +113,53 @@ async function checkCodexCapability(
     };
   }
 
-  if (result.exitCode !== 0 || !/^Logged in\b/m.test(result.stdout)) {
+  if (
+    loginResult.exitCode !== 0 ||
+    !/^Logged in\b/m.test(loginResult.stdout)
+  ) {
     return {
       name: "backend capability",
       status: "fail",
       message:
         'backend "codex" is not authenticated: run `codex login` and retry',
-      detail: formatProbeDetail(result.stdout, result.stderr),
+      detail: formatProbeDetail(loginResult.stdout, loginResult.stderr),
+    };
+  }
+
+  const execResult = await runProbe("codex", ["exec", "--help"], env, {
+    missingBinaryMessage:
+      'backend "codex" is not runnable: install the Codex CLI and ensure `codex` is available on PATH',
+  });
+  if ("check" in execResult) {
+    return execResult.check;
+  }
+
+  if (isMissingBinaryResult(execResult)) {
+    return {
+      name: "backend capability",
+      status: "fail",
+      message:
+        'backend "codex" is not runnable: install the Codex CLI and ensure `codex` is available on PATH',
+    };
+  }
+
+  const missingFlags = CODEX_REQUIRED_EXEC_FLAGS.filter(
+    (flag) => !execResult.stdout.includes(flag) && !execResult.stderr.includes(flag),
+  );
+  if (execResult.exitCode !== 0 || missingFlags.length > 0) {
+    const detail = formatProbeDetail(execResult.stdout, execResult.stderr);
+    return {
+      name: "backend capability",
+      status: "fail",
+      message:
+        'backend "codex" is not runnable: installed CLI is missing required `codex exec` support',
+      detail:
+        missingFlags.length > 0
+          ? formatProbeDetail(
+              `missing exec flags: ${missingFlags.join(", ")}`,
+              detail ?? "",
+            )
+          : detail,
     };
   }
 

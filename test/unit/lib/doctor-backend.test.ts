@@ -84,14 +84,29 @@ async function installClaudeAuthStub(
 
 async function installCodexLoginStub(
   binDir: string,
-  options: { output?: string; exitCode?: number } = {},
+  options: { output?: string; exitCode?: number; execHelpOutput?: string } = {},
 ): Promise<void> {
   const output = JSON.stringify(options.output ?? "Logged in using ChatGPT\n");
   const exitCode = options.exitCode ?? 0;
+  const execHelpOutput = JSON.stringify(
+    options.execHelpOutput ??
+      [
+        "Usage: codex exec [options]",
+        "--ephemeral",
+        "--ignore-rules",
+        "--skip-git-repo-check",
+        "--output-schema",
+        "",
+      ].join("\n"),
+  );
   await writeExecutable(binDir, "codex", [
     'if (process.argv[2] === "login" && process.argv[3] === "status") {',
     `  process.stdout.write(${output});`,
     `  process.exit(${exitCode});`,
+    "}",
+    'if (process.argv[2] === "exec" && process.argv[3] === "--help") {',
+    `  process.stdout.write(${execHelpOutput});`,
+    "  process.exit(0);",
     "}",
     'process.stderr.write("unexpected codex invocation\\n");',
     "process.exit(1);",
@@ -200,6 +215,50 @@ describe("runDoctor backend checks", () => {
     expect(capability?.status).toBe("ok");
     expect(capability?.message).toContain('backend "codex"');
     expect(report.ok).toBe(true);
+  });
+
+  it("fails when Codex is logged in but lacks exec runtime support", async () => {
+    const roots = await makeIsolatedRoots();
+    await installCodexLoginStub(roots.binDir, {
+      execHelpOutput: ["Usage: codex exec [options]", "--ephemeral", ""].join(
+        "\n",
+      ),
+    });
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager-codex.yml",
+      agentYaml("product-manager-codex", "codex"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-codex.yml",
+      agentYaml("principal-engineer-codex", "codex"),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      ["backend: codex", "preset: product-decision-codex"].join("\n"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision-codex.yml",
+      [
+        "name: product-decision-codex",
+        "agents:",
+        "  - product-manager-codex",
+        "  - principal-engineer-codex",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const capability = report.checks.find(
+      (entry) => entry.name === "backend capability",
+    );
+    expect(capability?.status).toBe("fail");
+    expect(capability?.message).toContain("missing required `codex exec` support");
+    expect(capability?.detail).toContain("--ignore-rules");
+    expect(report.ok).toBe(false);
   });
 
   it("reports an actionable mismatch when config backend and preset agent backends disagree", async () => {
