@@ -39,16 +39,21 @@ const AGENT_OUTPUT_JSON_SCHEMA = {
 let schemaPathPromise: Promise<string> | null = null;
 
 async function ensureOutputSchemaPath(): Promise<string> {
-  schemaPathPromise ??= (async () => {
-    const dir = await mkdtemp(join(tmpdir(), "swarm-codex-schema-"));
-    const filePath = join(dir, "agent-output.schema.json");
-    await writeFile(
-      filePath,
-      JSON.stringify(AGENT_OUTPUT_JSON_SCHEMA, null, 2) + "\n",
-      "utf-8",
-    );
-    return filePath;
-  })();
+  if (!schemaPathPromise) {
+    schemaPathPromise = (async () => {
+      const filePath = join(tmpdir(), "swarm-codex-agent-output.schema.json");
+      await writeFile(
+        filePath,
+        JSON.stringify(AGENT_OUTPUT_JSON_SCHEMA, null, 2) + "\n",
+        "utf-8",
+      );
+
+      return filePath;
+    })().catch((error) => {
+      schemaPathPromise = null;
+      throw error;
+    });
+  }
 
   return await schemaPathPromise;
 }

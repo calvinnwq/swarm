@@ -90,7 +90,6 @@ describe("CodexCliAdapter", () => {
       expect.arrayContaining([
         "exec",
         "--ephemeral",
-        "--ignore-user-config",
         "--ignore-rules",
         "--skip-git-repo-check",
         "-C",
@@ -110,7 +109,7 @@ describe("CodexCliAdapter", () => {
     const codexWorkdir = (args as string[])[cwdFlag + 1];
     expect(cwdFlag).toBeGreaterThan(-1);
     expect(codexWorkdir).toBeTruthy();
-    expect(existsSync(codexWorkdir)).toBe(true);
+    expect(existsSync(codexWorkdir)).toBe(false);
     expect(outputSchemaFlag).toBeGreaterThan(-1);
     expect(outputSchemaPath).toBeTruthy();
     expect(existsSync(outputSchemaPath)).toBe(true);
