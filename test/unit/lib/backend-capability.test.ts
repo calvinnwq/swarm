@@ -132,7 +132,8 @@ describe("checkBackendCapability", () => {
     expect(result).toEqual({
       name: "backend capability",
       status: "fail",
-      message: 'backend "codex" is not authenticated: run `codex login` and retry',
+      message:
+        'backend "codex" is not authenticated: run `codex login` and retry',
       detail: "credentials not found",
     });
   });
@@ -147,18 +148,18 @@ describe("checkBackendCapability", () => {
       }),
     }));
     vi.doMock("node:fs/promises", async () => {
-      const actual = await vi.importActual<typeof import("node:fs/promises")>(
-        "node:fs/promises",
-      );
+      const actual =
+        await vi.importActual<typeof import("node:fs/promises")>(
+          "node:fs/promises",
+        );
       return {
         ...actual,
         writeFile: vi.fn().mockRejectedValueOnce(new Error("disk full")),
       };
     });
 
-    const { checkBackendCapability: checkWithSchemaFailure } = await import(
-      "../../../src/lib/backend-capability.js"
-    );
+    const { checkBackendCapability: checkWithSchemaFailure } =
+      await import("../../../src/lib/backend-capability.js");
     const result = await checkWithSchemaFailure("codex");
 
     expect(result).toEqual({

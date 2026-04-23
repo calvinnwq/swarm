@@ -84,12 +84,22 @@ async function installClaudeAuthStub(
 
 async function installCodexLoginStub(
   binDir: string,
-  options: { output?: string; exitCode?: number; execExitCode?: number; execStdout?: string; execStderr?: string } = {},
+  options: {
+    output?: string;
+    exitCode?: number;
+    execExitCode?: number;
+    execStdout?: string;
+    execStderr?: string;
+  } = {},
 ): Promise<void> {
-  const output = JSON.stringify(options.output ?? "Authenticated via API key\n");
+  const output = JSON.stringify(
+    options.output ?? "Authenticated via API key\n",
+  );
   const exitCode = options.exitCode ?? 0;
   const execExitCode = options.execExitCode ?? 0;
-  const execStdout = JSON.stringify(options.execStdout ?? "Usage: codex exec [options]\n");
+  const execStdout = JSON.stringify(
+    options.execStdout ?? "Usage: codex exec [options]\n",
+  );
   const execStderr = JSON.stringify(options.execStderr ?? "");
   await writeExecutable(binDir, "codex", [
     'if (process.argv[2] === "login" && process.argv[3] === "status") {',
@@ -248,7 +258,9 @@ describe("runDoctor backend checks", () => {
       (entry) => entry.name === "backend capability",
     );
     expect(capability?.status).toBe("fail");
-    expect(capability?.message).toContain("missing required `codex exec` support");
+    expect(capability?.message).toContain(
+      "missing required `codex exec` support",
+    );
     expect(capability?.detail).toContain("unknown option: --sandbox");
     expect(report.ok).toBe(false);
   });
