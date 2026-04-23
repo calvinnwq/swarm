@@ -53,7 +53,7 @@ describe("checkBackendCapability", () => {
     vi.mocked(execa)
       .mockResolvedValueOnce({
         exitCode: 0,
-        stdout: "Logged in using ChatGPT\n",
+        stdout: "Authenticated via API key\n",
         stderr: "",
       } as never)
       .mockResolvedValueOnce({
@@ -88,7 +88,7 @@ describe("checkBackendCapability", () => {
     vi.mocked(execa)
       .mockResolvedValueOnce({
         exitCode: 0,
-        stdout: "Logged in using ChatGPT\n",
+        stdout: "Authenticated via API key\n",
         stderr: "",
       } as never)
       .mockResolvedValueOnce({

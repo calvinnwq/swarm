@@ -86,7 +86,7 @@ async function installCodexLoginStub(
   binDir: string,
   options: { output?: string; exitCode?: number; execHelpOutput?: string } = {},
 ): Promise<void> {
-  const output = JSON.stringify(options.output ?? "Logged in using ChatGPT\n");
+  const output = JSON.stringify(options.output ?? "Authenticated via API key\n");
   const exitCode = options.exitCode ?? 0;
   const execHelpOutput = JSON.stringify(
     options.execHelpOutput ??

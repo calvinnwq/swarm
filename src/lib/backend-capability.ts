@@ -113,10 +113,7 @@ async function checkCodexCapability(
     };
   }
 
-  if (
-    loginResult.exitCode !== 0 ||
-    !/^Logged in\b/m.test(loginResult.stdout)
-  ) {
+  if (loginResult.exitCode !== 0) {
     return {
       name: "backend capability",
       status: "fail",
