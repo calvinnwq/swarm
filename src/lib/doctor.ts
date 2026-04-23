@@ -338,7 +338,7 @@ function resolveDoctorBackend(projectConfig: {
     return null;
   }
 
-  return projectConfig.loaded.config.backend ?? "claude";
+  return projectConfig.loaded?.config.backend ?? "claude";
 }
 
 function buildConfigBackendCheck(
