@@ -190,7 +190,11 @@ describe("buildRunDirName", () => {
 describe("renderAgentMarkdown", () => {
   it("renders successful agent output with all sections", () => {
     const result = makeAgentResult("product-manager", 1);
-    const md = renderAgentMarkdown(result, 1);
+    const md = (renderAgentMarkdown as (...args: unknown[]) => string)(
+      result,
+      1,
+      "codex-cli",
+    );
 
     expect(md).toContain("Agent: product-manager");
     expect(md).toContain("Round: 1");
@@ -198,7 +202,7 @@ describe("renderAgentMarkdown", () => {
     expect(md).toContain("Exit code: 0");
     expect(md).toContain("Timed out: false");
     expect(md).toContain("Duration seconds: 5.0");
-    expect(md).toContain("Wrapper: claude-cli");
+    expect(md).toContain("Wrapper: codex-cli");
     expect(md).toContain("## Stance\n\napprove");
     expect(md).toContain(
       "## Recommendation\n\nproduct-manager recommends adoption",
@@ -281,6 +285,7 @@ describe("ArtifactWriter", () => {
         baseDir: testDir,
         manifest,
         seedBrief: "seed",
+        wrapperName: "codex-cli",
       });
       writer.init();
 
@@ -302,6 +307,7 @@ describe("ArtifactWriter", () => {
 
       const pmMd = readFileSync(join(agentsDir, "product-manager.md"), "utf-8");
       expect(pmMd).toContain("Agent: product-manager");
+      expect(pmMd).toContain("Wrapper: codex-cli");
       expect(pmMd).toContain("## Stance");
     });
 

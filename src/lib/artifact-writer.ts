@@ -45,6 +45,7 @@ export function buildRunDirName(startedAt: Date, topic: string): string {
 export function renderAgentMarkdown(
   result: AgentResult,
   round: number,
+  wrapperName = "claude-cli",
 ): string {
   const lines: string[] = [];
 
@@ -61,7 +62,7 @@ export function renderAgentMarkdown(
   lines.push(`Exit code: ${exitCode}`);
   lines.push(`Timed out: ${timedOut}`);
   lines.push(`Duration seconds: ${durationSeconds}`);
-  lines.push(`Wrapper: claude-cli`);
+  lines.push(`Wrapper: ${wrapperName}`);
   lines.push("");
 
   if (!result.ok || !result.output) {
@@ -168,6 +169,8 @@ export interface ArtifactWriterOpts {
   manifest: RunManifest;
   /** Seed brief markdown */
   seedBrief: string;
+  /** Human-readable backend wrapper label for per-agent artifacts */
+  wrapperName?: string;
 }
 
 /**
@@ -211,7 +214,11 @@ export class ArtifactWriter {
 
     // Per-agent markdown
     for (const result of roundResult.agentResults) {
-      const md = renderAgentMarkdown(result, roundResult.round);
+      const md = renderAgentMarkdown(
+        result,
+        roundResult.round,
+        this.opts.wrapperName ?? "claude-cli",
+      );
       writeFileSync(join(agentsDir, `${result.agent}.md`), md);
     }
   }

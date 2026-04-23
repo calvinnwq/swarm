@@ -22,6 +22,18 @@ describe("AgentDefinitionSchema", () => {
     expect(parsed.prompt).toEqual({ file: "prompts/beta.md" });
   });
 
+  it("accepts codex as a supported backend", () => {
+    const parsed = AgentDefinitionSchema.parse({
+      name: "gamma",
+      description: "A sample codex agent",
+      persona: "You are a sample Codex agent.",
+      prompt: "Respond with the swarm JSON contract.",
+      backend: "codex",
+    });
+
+    expect(parsed.backend).toBe("codex");
+  });
+
   it("rejects an invalid agent name", () => {
     const result = AgentDefinitionSchema.safeParse({
       name: "Bad Name!",

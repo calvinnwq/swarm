@@ -1,0 +1,9 @@
+name: product-decision-codex
+description: >
+  Opinionated two-agent swarm for product decisions on the Codex backend.
+agents:
+  - product-manager-codex
+  - principal-engineer-codex
+resolve: orchestrator
+goal: Reach a decision-ready recommendation grounded in user value and engineering feasibility.
+decision: Proceed / Defer / Reject

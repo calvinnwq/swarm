@@ -52,6 +52,26 @@ describe("backend config support", () => {
     });
   });
 
+  it("loads codex backend from project config", async () => {
+    const cwd = await makeTempCwd();
+    await writeConfig(
+      cwd,
+      [
+        "backend: codex",
+        "agents:",
+        "  - product-manager-codex",
+        "  - principal-engineer-codex",
+      ].join("\n"),
+    );
+
+    const loaded = await loadProjectConfig({ cwd });
+
+    expect(loaded?.config).toMatchObject({
+      backend: "codex",
+      agents: ["product-manager-codex", "principal-engineer-codex"],
+    });
+  });
+
   it("rejects unknown backend in project config", async () => {
     const cwd = await makeTempCwd();
     await writeConfig(cwd, "backend: openai\n");
@@ -79,6 +99,17 @@ describe("backend config support", () => {
     });
 
     expect(config.backend).toBe("claude");
+  });
+
+  it("normalizes and preserves an explicit codex backend choice", () => {
+    const config = buildConfig({
+      rounds: 1,
+      topic: ["sample"],
+      agents: "alpha,beta",
+      backend: " Codex ",
+    });
+
+    expect(config.backend).toBe("codex");
   });
 
   it("rejects invalid backend flags", () => {

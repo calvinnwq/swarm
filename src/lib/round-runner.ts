@@ -6,7 +6,7 @@ import type {
 } from "../schemas/index.js";
 import { AgentOutputSchema } from "../schemas/index.js";
 import type { AgentResponse, BackendAdapter } from "../backends/index.js";
-import { extractAgentOutputJson } from "../backends/claude-cli.js";
+import { extractAgentOutputJson } from "../backends/json-output.js";
 import type { SwarmRunConfig } from "./config.js";
 import { buildSeedBrief, buildRoundBrief } from "./brief-generator.js";
 
@@ -66,9 +66,11 @@ export interface RoundRunnerOpts {
 }
 
 function validateAgentOutput(
+  backend: BackendAdapter,
   stdout: string,
 ): { ok: true; output: AgentOutput } | { ok: false; error: string } {
-  const json = extractAgentOutputJson(stdout);
+  const json =
+    backend.extractOutputJson?.(stdout) ?? extractAgentOutputJson(stdout);
   if (json === undefined) {
     return {
       ok: false,
@@ -85,6 +87,21 @@ function validateAgentOutput(
   }
 
   return { ok: true, output: parsed.data };
+}
+
+function formatBackendFailure(
+  backend: BackendAdapter,
+  response: AgentResponse,
+): string {
+  if (backend.formatFailure) {
+    return backend.formatFailure(response);
+  }
+
+  if (response.timedOut) {
+    return `Agent timed out after ${response.durationMs}ms`;
+  }
+
+  return `Agent exited with code ${response.exitCode}: ${response.stderr}`;
 }
 
 function buildRepairPrompt(
@@ -199,13 +216,11 @@ async function dispatchAgent(
       ok: false,
       output: null,
       raw: response,
-      error: response.timedOut
-        ? `Agent timed out after ${response.durationMs}ms`
-        : `Agent exited with code ${response.exitCode}: ${response.stderr}`,
+      error: formatBackendFailure(backend, response),
     };
   }
 
-  let validation = validateAgentOutput(response.stdout);
+  let validation = validateAgentOutput(backend, response.stdout);
   for (
     let attempt = 0;
     !validation.ok && attempt < MAX_FORMAT_REPAIR_ATTEMPTS;
@@ -229,13 +244,11 @@ async function dispatchAgent(
         ok: false,
         output: null,
         raw: repaired,
-        error: repaired.timedOut
-          ? `Repair attempt timed out after ${repaired.durationMs}ms`
-          : `Repair attempt exited with code ${repaired.exitCode}: ${repaired.stderr}`,
+        error: formatBackendFailure(backend, repaired),
       };
     }
     response = repaired;
-    validation = validateAgentOutput(response.stdout);
+    validation = validateAgentOutput(backend, response.stdout);
   }
 
   if (!validation.ok) {
