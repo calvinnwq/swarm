@@ -31,4 +31,21 @@ describe("checkBackendCapability", () => {
       }),
     );
   });
+
+  it("fails with a timeout message when execa resolves a timed out probe", async () => {
+    vi.mocked(execa).mockResolvedValueOnce({
+      timedOut: true,
+      exitCode: 1,
+      stdout: "",
+      stderr: "",
+    } as never);
+
+    const result = await checkBackendCapability("codex");
+
+    expect(result).toEqual({
+      name: "backend capability",
+      status: "fail",
+      message: 'backend "codex" is not responding: timed out after 5000ms',
+    });
+  });
 });

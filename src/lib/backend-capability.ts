@@ -140,6 +140,16 @@ async function runProbe(
       timeout: PROBE_TIMEOUT_MS,
     });
 
+    if (isTimedOutResult(result)) {
+      return {
+        check: {
+          name: "backend capability",
+          status: "fail",
+          message: `backend "${command}" is not responding: timed out after ${PROBE_TIMEOUT_MS}ms`,
+        },
+      };
+    }
+
     if ("code" in result && result.code === "ENOENT") {
       return {
         check: {
@@ -195,6 +205,15 @@ function isTimedOutError(error: unknown): boolean {
     error !== null &&
     "timedOut" in error &&
     error.timedOut === true
+  );
+}
+
+function isTimedOutResult(result: unknown): result is { timedOut: true } {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "timedOut" in result &&
+    result.timedOut === true
   );
 }
 
