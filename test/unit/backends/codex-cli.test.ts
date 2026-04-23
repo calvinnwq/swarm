@@ -114,19 +114,27 @@ describe("CodexCliAdapter", () => {
     expect(outputSchemaFlag).toBeGreaterThan(-1);
     expect(outputSchemaPath).toBeTruthy();
     expect(existsSync(outputSchemaPath)).toBe(true);
-    expect((args as string[]).at(-1)).toContain(
+    expect((args as string[]).at(-1)).toBe("-");
+    expect((options as { input: string }).input).toContain(
       "Topic: Should we adopt Codex?",
     );
-    expect((args as string[]).at(-1)).toContain(agent.persona);
-    expect((args as string[]).at(-1)).toContain(
+    expect((options as { input: string }).input).toContain(agent.persona);
+    expect((options as { input: string }).input).toContain(
       "Return only the swarm JSON contract.",
     );
     expect(options).toMatchObject({
+      input: expect.any(String),
       reject: false,
-      stdin: "ignore",
       timeout: 5_000,
     });
     expect(args).not.toContain("-m");
+
+    const schema = JSON.parse(
+      await import("node:fs/promises").then(({ readFile }) =>
+        readFile(outputSchemaPath, "utf8"),
+      ),
+    ) as { additionalProperties?: boolean };
+    expect(schema.additionalProperties).toBeUndefined();
   });
 
   it("creates an isolated workdir for each dispatch", async () => {
