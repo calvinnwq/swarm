@@ -153,7 +153,9 @@ program
 
 program
   .command("doctor")
-  .description("Diagnose swarm setup: config, agents, and presets")
+  .description(
+    "Diagnose swarm setup: config, agents, presets, and backend capability",
+  )
   .action(async () => {
     try {
       const report = await runDoctor();

@@ -25,6 +25,11 @@ function installCodexStub(binDir: string): void {
 const fs = require("node:fs");
 const path = require("node:path");
 
+if (process.argv[2] === "login" && process.argv[3] === "status") {
+  process.stdout.write("Logged in using ChatGPT\\n");
+  process.exit(0);
+}
+
 const prompt = fs.readFileSync(0, "utf8");
 const statePath = path.join(path.dirname(process.argv[1]), ".codex-state.json");
 
@@ -68,14 +73,18 @@ process.stdout.write(
 describe("e2e: codex backend", () => {
   let baseDir: string;
   let binDir: string;
+  let originalPath: string | undefined;
 
   beforeEach(() => {
     baseDir = join(tmpdir(), `swarm-codex-${randomUUID()}`);
     binDir = join(baseDir, "bin");
     installCodexStub(binDir);
+    originalPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${originalPath ?? ""}`;
   });
 
   afterEach(() => {
+    process.env.PATH = originalPath;
     if (existsSync(baseDir)) {
       rmSync(baseDir, { recursive: true, force: true });
     }
@@ -137,5 +146,31 @@ describe("e2e: codex backend", () => {
     );
     expect(synthesis.topic).toBe("Should we adopt Codex");
     expect(synthesis.sharedRisks).toContain("shared codex risk");
+  });
+
+  it("reports ready for a configured Codex backend when the CLI is installed and authenticated", () => {
+    mkdirSync(join(baseDir, ".swarm"), { recursive: true });
+    writeFileSync(
+      join(baseDir, ".swarm", "config.yml"),
+      ["backend: codex", "preset: product-decision-codex"].join("\n"),
+      "utf-8",
+    );
+
+    const result = spawnSync("node", [cliPath, "doctor"], {
+      cwd: baseDir,
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("swarm doctor: ready");
+    expect(result.stdout).toContain("[OK] config backend");
+    expect(result.stdout).toContain(
+      'backend "codex" matches preset "product-decision-codex" (2 agent(s))',
+    );
+    expect(result.stdout).toContain("[OK] backend capability");
+    expect(result.stdout).toContain(
+      'backend "codex" is installed and authenticated',
+    );
+    expect(result.stderr).toBe("");
   });
 });

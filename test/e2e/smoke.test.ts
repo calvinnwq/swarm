@@ -38,6 +38,16 @@ function installClaudeStub(binDir: string): void {
 const fs = require("node:fs");
 const path = require("node:path");
 
+if (process.argv[2] === "auth" && process.argv[3] === "status") {
+  process.stdout.write(
+    JSON.stringify({
+      loggedIn: true,
+      authMethod: "test-stub",
+    }) + "\\n",
+  );
+  process.exit(0);
+}
+
 const systemPromptFlag = process.argv.indexOf("--system-prompt");
 const systemPrompt = systemPromptFlag >= 0 ? (process.argv[systemPromptFlag + 1] ?? "") : "";
 const brief = fs.readFileSync(0, "utf8");
@@ -93,14 +103,18 @@ process.stdout.write(
 describe("smoke: README golden path", () => {
   let baseDir: string;
   let binDir: string;
+  let originalPath: string | undefined;
 
   beforeEach(() => {
     baseDir = join(tmpdir(), `swarm-smoke-${randomUUID()}`);
     binDir = join(baseDir, "bin");
     installClaudeStub(binDir);
+    originalPath = process.env.PATH;
+    process.env.PATH = `${binDir}:${originalPath ?? ""}`;
   });
 
   afterEach(() => {
+    process.env.PATH = originalPath;
     if (existsSync(baseDir)) {
       rmSync(baseDir, { recursive: true, force: true });
     }
@@ -118,6 +132,7 @@ describe("smoke: README golden path", () => {
     expect(result.stdout).toContain("no .swarm/config.yml (CLI flags only)");
     expect(result.stdout).toContain("[OK] agent registry");
     expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).not.toContain("backend capability");
     expect(result.stdout).not.toContain("config agents");
     expect(result.stdout).not.toContain("config preset");
     expect(result.stderr).toBe("");
@@ -144,6 +159,7 @@ describe("smoke: README golden path", () => {
     );
     expect(result.stdout).toContain("[OK] agent registry");
     expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).toContain("[OK] backend capability");
     expect(result.stderr).toBe("");
   });
 
@@ -166,6 +182,7 @@ describe("smoke: README golden path", () => {
     expect(result.stdout).toContain('unknown preset "missing-preset"');
     expect(result.stdout).toContain("[OK] agent registry");
     expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).toContain("[OK] backend capability");
     expect(result.stderr).toBe("");
   });
 
@@ -189,6 +206,7 @@ describe("smoke: README golden path", () => {
     expect(result.stdout).toContain("rounds");
     expect(result.stdout).toContain("[OK] agent registry");
     expect(result.stdout).toContain("[OK] preset registry");
+    expect(result.stdout).not.toContain("backend capability");
     expect(result.stderr).toBe("");
   });
 
