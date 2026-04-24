@@ -9,6 +9,11 @@ import type { AgentResponse, BackendAdapter } from "../backends/index.js";
 import { extractAgentOutputJson } from "../backends/json-output.js";
 import type { SwarmRunConfig } from "./config.js";
 import { buildSeedBrief, buildRoundBrief } from "./brief-generator.js";
+import {
+  selectAgentsForRound,
+  type SchedulerPolicy,
+  type SchedulerDecision,
+} from "./scheduler.js";
 
 const DEFAULT_CONCURRENCY = 3;
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -35,7 +40,7 @@ export interface RunResult {
 }
 
 export interface RoundRunnerEvents {
-  "round:start": { round: number; agents: string[] };
+  "round:start": { round: number; agents: string[]; schedulerDecision: SchedulerDecision };
   "agent:start": { round: number; agent: string };
   "agent:ok": {
     round: number;
@@ -63,6 +68,7 @@ export interface RoundRunnerOpts {
   backend: BackendAdapter;
   concurrency?: number;
   timeoutMs?: number;
+  schedulerPolicy?: SchedulerPolicy;
   betweenRounds?: (args: {
     round: number;
     packet: RoundPacket;
@@ -311,6 +317,7 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
     concurrency = Number(process.env["SWARM_CONCURRENCY"]) ||
       DEFAULT_CONCURRENCY,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    schedulerPolicy = "all",
   } = opts;
 
   const emitter = new EventEmitter();
@@ -322,8 +329,21 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
     let orchestratorDirective: string | undefined = undefined;
 
     for (let round = 1; round <= config.rounds; round++) {
-      const agentNames = agents.map((a) => a.name);
-      emitter.emit("round:start", { round, agents: agentNames });
+      const schedulerDecision = selectAgentsForRound(
+        agents,
+        round,
+        priorPacket,
+        schedulerPolicy,
+      );
+      const selectedAgentNames = new Set(schedulerDecision.selected);
+      const roundAgents = agents.filter((a) =>
+        selectedAgentNames.has(a.name),
+      );
+      emitter.emit("round:start", {
+        round,
+        agents: schedulerDecision.selected,
+        schedulerDecision,
+      });
 
       const brief = buildRoundBrief({
         config,
@@ -333,7 +353,7 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
         orchestratorDirective,
       });
 
-      const tasks = agents.map((agent) => () => {
+      const tasks = roundAgents.map((agent) => () => {
         emitter.emit("agent:start", { round, agent: agent.name });
         return dispatchAgent(backend, brief, agent, timeoutMs);
       });

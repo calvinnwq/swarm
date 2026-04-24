@@ -114,6 +114,12 @@ describe("runSwarm", () => {
       emitterMock.emit("round:start", {
         round: 1,
         agents: ["product-manager"],
+        schedulerDecision: {
+          round: 1,
+          policy: "all",
+          selected: ["product-manager"],
+          reason: "all agents wake on round 1",
+        },
       });
       emitterMock.emit("round:done", {
         round: 1,

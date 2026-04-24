@@ -11,6 +11,7 @@ import type { BackendAdapter } from "../backends/index.js";
 import type { SwarmRunConfig } from "./config.js";
 import { createRoundRunner } from "./round-runner.js";
 import type { RoundResult } from "./round-runner.js";
+import type { SchedulerDecision } from "./scheduler.js";
 import { ArtifactWriter } from "./artifact-writer.js";
 import { buildRunDirName } from "./artifact-writer.js";
 import {
@@ -18,6 +19,7 @@ import {
   buildRoundBrief,
   buildOrchestratorPassDirective,
 } from "./brief-generator.js";
+import type { SchedulerPolicy } from "./scheduler.js";
 import { buildOrchestratorSynthesis } from "./synthesis.js";
 import { attachLiveRenderer, attachQuietLogger } from "../ui/index.js";
 import { OutputRouter } from "./output-router.js";
@@ -47,6 +49,12 @@ export interface RunSwarmOpts {
    * writeSynthesis, and finalize.
    */
   additionalTargets?: OutputTarget[];
+  /**
+   * Wake-selection policy for each round. Defaults to "all" (every agent
+   * runs every round). Use "addressed-only" to restrict later rounds to
+   * agents that successfully responded in the prior round.
+   */
+  schedulerPolicy?: SchedulerPolicy;
 }
 
 /**
@@ -143,6 +151,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     agents,
     backend,
     betweenRounds,
+    schedulerPolicy: opts.schedulerPolicy,
   });
 
   const uiMode: SwarmUiMode =
@@ -156,7 +165,15 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
 
   emitter.on(
     "round:start",
-    ({ round, agents: agentNames }: { round: number; agents: string[] }) => {
+    ({
+      round,
+      agents: agentNames,
+      schedulerDecision,
+    }: {
+      round: number;
+      agents: string[];
+      schedulerDecision: SchedulerDecision;
+    }) => {
       const brief =
         round === 1
           ? seedBrief
@@ -168,6 +185,16 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
               orchestratorDirective,
             });
       roundBriefs.set(round, brief);
+      ledger.appendEvent(
+        makeEvent("scheduler:decision", {
+          roundNumber: round,
+          metadata: {
+            policy: schedulerDecision.policy,
+            selected: schedulerDecision.selected,
+            reason: schedulerDecision.reason,
+          },
+        }),
+      );
       ledger.appendEvent(makeEvent("round:started", { roundNumber: round }));
       for (const agentName of agentNames) {
         inbox.stage({

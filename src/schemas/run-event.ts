@@ -7,6 +7,7 @@ export const RunEventKindSchema = z.enum([
   "run:failed",
   "round:started",
   "round:completed",
+  "scheduler:decision",
   "orchestrator:pass",
   "agent:started",
   "agent:completed",
