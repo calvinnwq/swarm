@@ -19,7 +19,9 @@ function makeLedger(): LedgerWriter {
   } as unknown as LedgerWriter;
 }
 
-function makeEnvelope(overrides: Partial<MessageEnvelope> = {}): MessageEnvelope {
+function makeEnvelope(
+  overrides: Partial<MessageEnvelope> = {},
+): MessageEnvelope {
   return {
     messageId: "msg-001",
     senderId: "orchestrator",
@@ -142,7 +144,9 @@ describe("InboxManager", () => {
       inbox.stage(makeEnvelope());
       inbox.commit("agent-alpha");
       expect(inbox.getCommitted("agent-alpha")).toHaveLength(1);
-      expect(inbox.getCommitted("agent-alpha")[0].deliveryStatus).toBe("committed");
+      expect(inbox.getCommitted("agent-alpha")[0].deliveryStatus).toBe(
+        "committed",
+      );
     });
 
     it("commits multiple staged messages in order", () => {
@@ -155,8 +159,12 @@ describe("InboxManager", () => {
     });
 
     it("only commits messages for the specified recipient", () => {
-      inbox.stage(makeEnvelope({ messageId: "msg-a", recipients: ["agent-alpha"] }));
-      inbox.stage(makeEnvelope({ messageId: "msg-b", recipients: ["agent-beta"] }));
+      inbox.stage(
+        makeEnvelope({ messageId: "msg-a", recipients: ["agent-alpha"] }),
+      );
+      inbox.stage(
+        makeEnvelope({ messageId: "msg-b", recipients: ["agent-beta"] }),
+      );
       inbox.commit("agent-alpha");
       expect(inbox.getStaged("agent-beta")).toHaveLength(1);
       expect(inbox.getCommitted("agent-beta")).toHaveLength(0);
@@ -248,14 +256,38 @@ describe("InboxManager", () => {
 
     it("full two-round lifecycle leaves correct state", () => {
       // Round 1
-      inbox.stage(makeEnvelope({ messageId: "r1-alpha", roundNumber: 1, recipients: ["agent-alpha"] }));
-      inbox.stage(makeEnvelope({ messageId: "r1-beta", roundNumber: 1, recipients: ["agent-beta"] }));
+      inbox.stage(
+        makeEnvelope({
+          messageId: "r1-alpha",
+          roundNumber: 1,
+          recipients: ["agent-alpha"],
+        }),
+      );
+      inbox.stage(
+        makeEnvelope({
+          messageId: "r1-beta",
+          roundNumber: 1,
+          recipients: ["agent-beta"],
+        }),
+      );
       inbox.commit("agent-alpha");
       inbox.commit("agent-beta");
 
       // Round 2
-      inbox.stage(makeEnvelope({ messageId: "r2-alpha", roundNumber: 2, recipients: ["agent-alpha"] }));
-      inbox.stage(makeEnvelope({ messageId: "r2-beta", roundNumber: 2, recipients: ["agent-beta"] }));
+      inbox.stage(
+        makeEnvelope({
+          messageId: "r2-alpha",
+          roundNumber: 2,
+          recipients: ["agent-alpha"],
+        }),
+      );
+      inbox.stage(
+        makeEnvelope({
+          messageId: "r2-beta",
+          roundNumber: 2,
+          recipients: ["agent-beta"],
+        }),
+      );
       inbox.commit("agent-alpha");
 
       expect(inbox.getCommitted("agent-alpha")).toHaveLength(2);
@@ -275,7 +307,10 @@ describe("InboxManager", () => {
     });
 
     it("rebuilds staged state from a list of staged messages", () => {
-      const msg = makeEnvelope({ messageId: "msg-r1", deliveryStatus: "staged" });
+      const msg = makeEnvelope({
+        messageId: "msg-r1",
+        deliveryStatus: "staged",
+      });
       inbox.rehydrate([msg]);
       expect(inbox.getStaged("agent-alpha")).toHaveLength(1);
       expect(inbox.getStaged("agent-alpha")[0].messageId).toBe("msg-r1");
@@ -292,7 +327,10 @@ describe("InboxManager", () => {
     });
 
     it("uses the last delivery status when a message appears staged then committed", () => {
-      const staged = makeEnvelope({ messageId: "msg-r1", deliveryStatus: "staged" });
+      const staged = makeEnvelope({
+        messageId: "msg-r1",
+        deliveryStatus: "staged",
+      });
       const committed = makeEnvelope({
         messageId: "msg-r1",
         deliveryStatus: "committed",
@@ -303,8 +341,14 @@ describe("InboxManager", () => {
     });
 
     it("treats separate messages as independent even with the same recipient", () => {
-      const msg1 = makeEnvelope({ messageId: "msg-r1", deliveryStatus: "committed" });
-      const msg2 = makeEnvelope({ messageId: "msg-r2", deliveryStatus: "staged" });
+      const msg1 = makeEnvelope({
+        messageId: "msg-r1",
+        deliveryStatus: "committed",
+      });
+      const msg2 = makeEnvelope({
+        messageId: "msg-r2",
+        deliveryStatus: "staged",
+      });
       inbox.rehydrate([msg1, msg2]);
       expect(inbox.getCommitted("agent-alpha")).toHaveLength(1);
       expect(inbox.getStaged("agent-alpha")).toHaveLength(1);
@@ -338,7 +382,10 @@ describe("InboxManager", () => {
     });
 
     it("results in stagedRecipients() returning only recipients with staged messages", () => {
-      const msg1 = makeEnvelope({ messageId: "m1", deliveryStatus: "committed" });
+      const msg1 = makeEnvelope({
+        messageId: "m1",
+        deliveryStatus: "committed",
+      });
       const msg2 = makeEnvelope({
         messageId: "m2",
         recipients: ["agent-beta"],

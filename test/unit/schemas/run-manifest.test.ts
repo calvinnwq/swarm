@@ -35,13 +35,21 @@ describe("RunManifestSchema", () => {
   });
 
   it("accepts done and failed statuses", () => {
-    expect(RunManifestSchema.parse({ ...valid, status: "done" }).status).toBe("done");
-    expect(RunManifestSchema.parse({ ...valid, status: "failed" }).status).toBe("failed");
-    expect(RunManifestSchema.parse({ ...valid, status: "pending" }).status).toBe("pending");
+    expect(RunManifestSchema.parse({ ...valid, status: "done" }).status).toBe(
+      "done",
+    );
+    expect(RunManifestSchema.parse({ ...valid, status: "failed" }).status).toBe(
+      "failed",
+    );
+    expect(
+      RunManifestSchema.parse({ ...valid, status: "pending" }).status,
+    ).toBe("pending");
   });
 
   it("rejects an unknown status", () => {
-    expect(RunManifestSchema.safeParse({ ...valid, status: "crashed" }).success).toBe(false);
+    expect(
+      RunManifestSchema.safeParse({ ...valid, status: "crashed" }).success,
+    ).toBe(false);
   });
 
   it("rejects an unknown resolveMode", () => {

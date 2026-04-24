@@ -5,6 +5,7 @@ export const RunCheckpointSchema = z.object({
   runId: z.string().min(1),
   lastCompletedRound: z.int().min(1),
   priorPacket: RoundPacketSchema,
+  completedRoundPackets: z.array(RoundPacketSchema).optional(),
   orchestratorDirective: z.string().optional(),
   checkpointedAt: z.iso.datetime(),
   startedAt: z.iso.datetime(),

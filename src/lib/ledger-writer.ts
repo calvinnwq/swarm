@@ -1,11 +1,14 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MessageEnvelopeSchema, type MessageEnvelope } from "../schemas/message.js";
+import {
+  MessageEnvelopeSchema,
+  type MessageEnvelope,
+} from "../schemas/message.js";
 import { RunEventSchema, type RunEvent } from "../schemas/run-event.js";
+import type { RunStatus } from "../schemas/run-manifest.js";
 import type { OutputTarget } from "./output-router.js";
 import type { RoundResult } from "./round-runner.js";
 import type { SynthesisResult } from "./synthesis.js";
-import type { RunStatus } from "../schemas/run-manifest.js";
 
 const MESSAGES_FILE = "messages.jsonl";
 const EVENTS_FILE = "events.jsonl";
@@ -81,10 +84,7 @@ export class LedgerWriter implements OutputTarget {
     const events = this.readEvents();
     let last = 0;
     for (const event of events) {
-      if (
-        event.kind === "round:completed" &&
-        (event.roundNumber ?? 0) > last
-      ) {
+      if (event.kind === "round:completed" && (event.roundNumber ?? 0) > last) {
         last = event.roundNumber ?? 0;
       }
     }
@@ -93,12 +93,22 @@ export class LedgerWriter implements OutputTarget {
 
   // OutputTarget lifecycle hooks: no-ops because the orchestration layer
   // drives event emission by calling appendEvent directly.
-  writeRound(_roundResult: RoundResult, _brief: string): void {}
-  writeSynthesis(_synthesis: SynthesisResult): void {}
+  writeRound(roundResult: RoundResult, brief: string): void {
+    void roundResult;
+    void brief;
+  }
+
+  writeSynthesis(synthesis: SynthesisResult): void {
+    void synthesis;
+  }
+
   finalize(
-    _finishedAt: string,
-    _status: Extract<RunStatus, "done" | "failed">,
-  ): void {}
+    finishedAt: string,
+    status: Extract<RunStatus, "done" | "failed">,
+  ): void {
+    void finishedAt;
+    void status;
+  }
 }
 
 type ZodLike<T> = { parse: (v: unknown) => T };

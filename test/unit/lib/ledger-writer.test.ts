@@ -6,7 +6,9 @@ import { LedgerWriter } from "../../../src/lib/ledger-writer.js";
 import type { MessageEnvelope } from "../../../src/schemas/message.js";
 import type { RunEvent } from "../../../src/schemas/run-event.js";
 
-function makeMessage(overrides: Partial<MessageEnvelope> = {}): MessageEnvelope {
+function makeMessage(
+  overrides: Partial<MessageEnvelope> = {},
+): MessageEnvelope {
   return {
     messageId: "msg-001",
     senderId: "orchestrator",
@@ -155,10 +157,26 @@ describe("LedgerWriter", () => {
       const ledger = new LedgerWriter(runDir);
       ledger.init();
 
-      ledger.appendEvent(makeEvent({ eventId: "evt-001", kind: "run:started" }));
-      ledger.appendEvent(makeEvent({ eventId: "evt-002", kind: "round:started", roundNumber: 1 }));
-      ledger.appendEvent(makeEvent({ eventId: "evt-003", kind: "round:completed", roundNumber: 1 }));
-      ledger.appendEvent(makeEvent({ eventId: "evt-004", kind: "run:completed" }));
+      ledger.appendEvent(
+        makeEvent({ eventId: "evt-001", kind: "run:started" }),
+      );
+      ledger.appendEvent(
+        makeEvent({
+          eventId: "evt-002",
+          kind: "round:started",
+          roundNumber: 1,
+        }),
+      );
+      ledger.appendEvent(
+        makeEvent({
+          eventId: "evt-003",
+          kind: "round:completed",
+          roundNumber: 1,
+        }),
+      );
+      ledger.appendEvent(
+        makeEvent({ eventId: "evt-004", kind: "run:completed" }),
+      );
 
       const lines = readFileSync(ledger.eventsPath, "utf-8")
         .split("\n")
@@ -174,7 +192,11 @@ describe("LedgerWriter", () => {
       const ledger = new LedgerWriter(runDir);
       ledger.init();
       ledger.appendEvent(
-        makeEvent({ kind: "agent:completed", roundNumber: 2, agentName: "alpha" }),
+        makeEvent({
+          kind: "agent:completed",
+          roundNumber: 2,
+          agentName: "alpha",
+        }),
       );
 
       const raw = readFileSync(ledger.eventsPath, "utf-8").trim();
@@ -186,8 +208,11 @@ describe("LedgerWriter", () => {
     it("throws ZodError for invalid event (unknown kind)", () => {
       const ledger = new LedgerWriter(runDir);
       ledger.init();
-      // @ts-expect-error intentionally invalid kind
-      expect(() => ledger.appendEvent({ ...makeEvent(), kind: "bad:kind" })).toThrow();
+      const invalidEvent = {
+        ...makeEvent(),
+        kind: "bad:kind",
+      } as unknown as RunEvent;
+      expect(() => ledger.appendEvent(invalidEvent)).toThrow();
     });
 
     it("does not write anything when validation fails", () => {
@@ -234,7 +259,11 @@ describe("LedgerWriter", () => {
       const ledger = new LedgerWriter(runDir);
       ledger.init();
       ledger.appendMessage(
-        makeMessage({ messageId: "msg-A", parentId: "msg-root", causationId: "msg-root" }),
+        makeMessage({
+          messageId: "msg-A",
+          parentId: "msg-root",
+          causationId: "msg-root",
+        }),
       );
 
       const [msg] = ledger.readMessages();
@@ -259,8 +288,12 @@ describe("LedgerWriter", () => {
       const ledger = new LedgerWriter(runDir);
       ledger.init();
       ledger.appendEvent(makeEvent({ eventId: "e1", kind: "run:started" }));
-      ledger.appendEvent(makeEvent({ eventId: "e2", kind: "round:started", roundNumber: 1 }));
-      ledger.appendEvent(makeEvent({ eventId: "e3", kind: "round:completed", roundNumber: 1 }));
+      ledger.appendEvent(
+        makeEvent({ eventId: "e2", kind: "round:started", roundNumber: 1 }),
+      );
+      ledger.appendEvent(
+        makeEvent({ eventId: "e3", kind: "round:completed", roundNumber: 1 }),
+      );
       ledger.appendEvent(makeEvent({ eventId: "e4", kind: "run:completed" }));
 
       const events = ledger.readEvents();
@@ -316,16 +349,24 @@ describe("LedgerWriter", () => {
     it("returns the round number when one round:completed event exists", () => {
       const ledger = new LedgerWriter(runDir);
       ledger.init();
-      ledger.appendEvent(makeEvent({ kind: "round:completed", roundNumber: 1 }));
+      ledger.appendEvent(
+        makeEvent({ kind: "round:completed", roundNumber: 1 }),
+      );
       expect(ledger.getLastCompletedRound()).toBe(1);
     });
 
     it("returns the highest round number when multiple rounds are completed", () => {
       const ledger = new LedgerWriter(runDir);
       ledger.init();
-      ledger.appendEvent(makeEvent({ kind: "round:completed", roundNumber: 1 }));
-      ledger.appendEvent(makeEvent({ kind: "round:completed", roundNumber: 2 }));
-      ledger.appendEvent(makeEvent({ kind: "round:completed", roundNumber: 3 }));
+      ledger.appendEvent(
+        makeEvent({ kind: "round:completed", roundNumber: 1 }),
+      );
+      ledger.appendEvent(
+        makeEvent({ kind: "round:completed", roundNumber: 2 }),
+      );
+      ledger.appendEvent(
+        makeEvent({ kind: "round:completed", roundNumber: 3 }),
+      );
       expect(ledger.getLastCompletedRound()).toBe(3);
     });
 
@@ -333,7 +374,9 @@ describe("LedgerWriter", () => {
       const ledger = new LedgerWriter(runDir);
       ledger.init();
       ledger.appendEvent(makeEvent({ kind: "round:started", roundNumber: 1 }));
-      ledger.appendEvent(makeEvent({ kind: "round:completed", roundNumber: 1 }));
+      ledger.appendEvent(
+        makeEvent({ kind: "round:completed", roundNumber: 1 }),
+      );
       ledger.appendEvent(makeEvent({ kind: "round:started", roundNumber: 2 }));
       // round 2 started but not completed
       expect(ledger.getLastCompletedRound()).toBe(1);

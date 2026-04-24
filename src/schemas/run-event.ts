@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RunStatusSchema, type RunStatus } from "./run-manifest.js";
+import type { RunStatus } from "./run-manifest.js";
 
 export const RunEventKindSchema = z.enum([
   "run:started",

@@ -16,7 +16,10 @@ import type {
   RoundPacket,
   RunEvent,
 } from "../../src/schemas/index.js";
-import type { BackendAdapter, AgentResponse } from "../../src/backends/index.js";
+import type {
+  BackendAdapter,
+  AgentResponse,
+} from "../../src/backends/index.js";
 import type { SwarmRunConfig } from "../../src/lib/config.js";
 import { runSwarm, resumeSwarm } from "../../src/lib/run-swarm.js";
 import { buildRunDirName } from "../../src/lib/artifact-writer.js";
@@ -148,10 +151,7 @@ function buildTwoRoundBackend(): MockBackendAdapter {
     makeAgentOutput("alpha", 1),
     makeAgentOutput("alpha", 2),
   ]);
-  outputs.set("beta", [
-    makeAgentOutput("beta", 1),
-    makeAgentOutput("beta", 2),
-  ]);
+  outputs.set("beta", [makeAgentOutput("beta", 1), makeAgentOutput("beta", 2)]);
   return new MockBackendAdapter(outputs);
 }
 
@@ -178,7 +178,14 @@ describe("e2e: durable outer-loop orchestration", () => {
 
   it("writes checkpoint.json after every round with correct metadata", async () => {
     const backend = buildTwoRoundBackend();
-    await runSwarm({ config, agents, backend, baseDir, startedAt, ui: "silent" });
+    await runSwarm({
+      config,
+      agents,
+      backend,
+      baseDir,
+      startedAt,
+      ui: "silent",
+    });
 
     const runDir = deriveRunDir();
     expect(existsSync(join(runDir, "checkpoint.json"))).toBe(true);
@@ -197,7 +204,14 @@ describe("e2e: durable outer-loop orchestration", () => {
 
   it("emits a complete, ordered lifecycle event sequence in events.jsonl", async () => {
     const backend = buildTwoRoundBackend();
-    await runSwarm({ config, agents, backend, baseDir, startedAt, ui: "silent" });
+    await runSwarm({
+      config,
+      agents,
+      backend,
+      baseDir,
+      startedAt,
+      ui: "silent",
+    });
 
     const runDir = deriveRunDir();
     const raw = readFileSync(join(runDir, "events.jsonl"), "utf-8");
@@ -271,7 +285,10 @@ describe("e2e: durable outer-loop orchestration", () => {
       ui: "silent",
     });
 
-    const runDir = join(baseDir, buildRunDirName(startedAt, singleRoundConfig.topic));
+    const runDir = join(
+      baseDir,
+      buildRunDirName(startedAt, singleRoundConfig.topic),
+    );
     const raw = readFileSync(join(runDir, "messages.jsonl"), "utf-8");
     const messages: MessageEnvelope[] = raw
       .trim()

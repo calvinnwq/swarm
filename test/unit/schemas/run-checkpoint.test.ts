@@ -40,7 +40,10 @@ describe("RunCheckpointSchema", () => {
   });
 
   it("accepts lastCompletedRound > 1", () => {
-    const parsed = RunCheckpointSchema.parse({ ...valid, lastCompletedRound: 5 });
+    const parsed = RunCheckpointSchema.parse({
+      ...valid,
+      lastCompletedRound: 5,
+    });
     expect(parsed.lastCompletedRound).toBe(5);
   });
 

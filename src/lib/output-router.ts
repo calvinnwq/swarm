@@ -11,7 +11,10 @@ export interface OutputTarget {
   init(): void | Promise<void>;
   writeRound(roundResult: RoundResult, brief: string): void | Promise<void>;
   writeSynthesis(synthesis: SynthesisResult): void | Promise<void>;
-  finalize(finishedAt: string, status: Extract<RunStatus, "done" | "failed">): void | Promise<void>;
+  finalize(
+    finishedAt: string,
+    status: Extract<RunStatus, "done" | "failed">,
+  ): void | Promise<void>;
 }
 
 /**
@@ -33,7 +36,10 @@ export class OutputRouter {
     for (const t of this.targets) await t.writeSynthesis(synthesis);
   }
 
-  async finalize(finishedAt: string, status: Extract<RunStatus, "done" | "failed">): Promise<void> {
+  async finalize(
+    finishedAt: string,
+    status: Extract<RunStatus, "done" | "failed">,
+  ): Promise<void> {
     for (const t of this.targets) await t.finalize(finishedAt, status);
   }
 }

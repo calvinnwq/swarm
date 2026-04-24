@@ -40,7 +40,11 @@ export interface RunResult {
 }
 
 export interface RoundRunnerEvents {
-  "round:start": { round: number; agents: string[]; schedulerDecision: SchedulerDecision };
+  "round:start": {
+    round: number;
+    agents: string[];
+    schedulerDecision: SchedulerDecision;
+  };
   "agent:start": { round: number; agent: string };
   "agent:ok": {
     round: number;
@@ -344,9 +348,7 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
         schedulerPolicy,
       );
       const selectedAgentNames = new Set(schedulerDecision.selected);
-      const roundAgents = agents.filter((a) =>
-        selectedAgentNames.has(a.name),
-      );
+      const roundAgents = agents.filter((a) => selectedAgentNames.has(a.name));
       emitter.emit("round:start", {
         round,
         agents: schedulerDecision.selected,

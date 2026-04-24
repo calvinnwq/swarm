@@ -1,10 +1,17 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentDefinition } from "../../../src/schemas/index.js";
+import type {
+  AgentDefinition,
+  AgentOutput,
+} from "../../../src/schemas/index.js";
 import type { BackendAdapter } from "../../../src/backends/index.js";
 import type { SwarmRunConfig } from "../../../src/lib/config.js";
 import type { RunCheckpoint } from "../../../src/schemas/run-checkpoint.js";
 import type { RoundPacket } from "../../../src/schemas/index.js";
+import type {
+  AgentResult,
+  RoundResult,
+} from "../../../src/lib/round-runner.js";
 
 // --- Mock factories ---
 
@@ -114,8 +121,20 @@ const config: SwarmRunConfig = {
 };
 
 const agents: AgentDefinition[] = [
-  { name: "alpha", description: "a", persona: "a", prompt: "a", backend: "claude" },
-  { name: "beta", description: "b", persona: "b", prompt: "b", backend: "claude" },
+  {
+    name: "alpha",
+    description: "a",
+    persona: "a",
+    prompt: "a",
+    backend: "claude",
+  },
+  {
+    name: "beta",
+    description: "b",
+    persona: "b",
+    prompt: "b",
+    backend: "claude",
+  },
 ];
 
 const backend = {} as BackendAdapter;
@@ -139,6 +158,53 @@ const checkpoint: RunCheckpoint = {
   orchestratorDirective: "focus on risks",
   checkpointedAt: "2026-04-24T00:00:00.000Z",
   startedAt: "2026-04-20T10:00:00.000Z",
+};
+
+const round3Output: AgentOutput = {
+  agent: "alpha",
+  round: 3,
+  stance: "support",
+  recommendation: "finish",
+  reasoning: ["new round basis"],
+  objections: [],
+  risks: [],
+  changesFromPriorRound: ["continued"],
+  confidence: "high",
+  openQuestions: [],
+};
+
+const round3Result: AgentResult = {
+  agent: "alpha",
+  ok: true,
+  output: round3Output,
+  raw: null,
+  error: null,
+};
+
+const resumedRound: RoundResult = {
+  round: 3,
+  agentResults: [round3Result],
+  packet: {
+    round: 3,
+    agents: ["alpha"],
+    summaries: [
+      {
+        agent: "alpha",
+        stance: "support",
+        recommendation: "finish",
+        objections: [],
+        risks: [],
+        confidence: "high",
+        openQuestions: [],
+      },
+    ],
+    keyObjections: [],
+    sharedRisks: [],
+    openQuestions: [],
+    questionResolutions: [],
+    questionResolutionLimit: 0,
+    deferredQuestions: [],
+  },
 };
 
 describe("resumeSwarm", () => {
@@ -165,7 +231,13 @@ describe("resumeSwarm", () => {
     const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
 
     await expect(
-      resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" }),
+      resumeSwarm({
+        config,
+        agents,
+        backend,
+        runDir: "/tmp/run-1",
+        ui: "silent",
+      }),
     ).rejects.toThrow("Cannot resume: no valid checkpoint found in /tmp/run-1");
   });
 
@@ -206,7 +278,13 @@ describe("resumeSwarm", () => {
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
 
     const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
-    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
 
     expect(ledgerReadMessagesMock).toHaveBeenCalled();
     expect(inboxRehydrateMock).toHaveBeenCalledWith([]);
@@ -217,10 +295,16 @@ describe("resumeSwarm", () => {
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
 
     const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
-    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
 
     const resumedEvent = ledgerAppendEventMock.mock.calls.find(
-      ([event]: [{ kind: string }]) => event.kind === "run:resumed",
+      ([event]) => (event as { kind: string }).kind === "run:resumed",
     );
     expect(resumedEvent).toBeDefined();
     expect(resumedEvent![0].metadata).toEqual({ resumedFromRound: 2 });
@@ -230,11 +314,16 @@ describe("resumeSwarm", () => {
     checkpointReadMock.mockReturnValue(checkpoint);
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
 
-    const { createRoundRunner } = await import(
-      "../../../src/lib/round-runner.js"
-    );
+    const { createRoundRunner } =
+      await import("../../../src/lib/round-runner.js");
     const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
-    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
 
     expect(createRoundRunner).toHaveBeenCalledWith(
       expect.objectContaining({ startRound: 3 }),
@@ -245,11 +334,16 @@ describe("resumeSwarm", () => {
     checkpointReadMock.mockReturnValue(checkpoint);
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
 
-    const { createRoundRunner } = await import(
-      "../../../src/lib/round-runner.js"
-    );
+    const { createRoundRunner } =
+      await import("../../../src/lib/round-runner.js");
     const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
-    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
 
     expect(createRoundRunner).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -264,10 +358,16 @@ describe("resumeSwarm", () => {
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
 
     const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
-    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
 
     const runStartedCall = ledgerAppendEventMock.mock.calls.find(
-      ([event]: [{ kind: string }]) => event.kind === "run:resumed",
+      ([event]) => (event as { kind: string }).kind === "run:resumed",
     );
     expect(runStartedCall![0].runId).toBe(
       "00000000-0000-0000-0000-000000000001",
@@ -279,17 +379,58 @@ describe("resumeSwarm", () => {
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
 
     const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
-    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
 
     expect(writeSynthesisMock).toHaveBeenCalled();
   });
 
+  it("includes checkpointed rounds when synthesizing a successful resume", async () => {
+    checkpointReadMock.mockReturnValue(checkpoint);
+    runMock.mockResolvedValue({
+      rounds: [resumedRound],
+      ok: true,
+      error: null,
+    });
+
+    const { buildOrchestratorSynthesis } =
+      await import("../../../src/lib/synthesis.js");
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
+
+    expect(buildOrchestratorSynthesis).toHaveBeenCalledWith(expect.anything(), [
+      expect.objectContaining({ round: 2, packet: priorPacket }),
+      resumedRound,
+    ]);
+  });
+
   it("does not write synthesis when resumed run fails", async () => {
     checkpointReadMock.mockReturnValue(checkpoint);
-    runMock.mockResolvedValue({ rounds: [], ok: false, error: "agent failure" });
+    runMock.mockResolvedValue({
+      rounds: [],
+      ok: false,
+      error: "agent failure",
+    });
 
     const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
-    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
 
     expect(writeSynthesisMock).not.toHaveBeenCalled();
   });
@@ -298,11 +439,16 @@ describe("resumeSwarm", () => {
     checkpointReadMock.mockReturnValue(checkpoint);
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
 
-    const { ArtifactWriter } = await import(
-      "../../../src/lib/artifact-writer.js"
-    );
+    const { ArtifactWriter } =
+      await import("../../../src/lib/artifact-writer.js");
     const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
-    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
 
     const opts = vi.mocked(ArtifactWriter).mock.calls[0][0];
     expect(opts.manifest.startedAt).toBe("2026-04-20T10:00:00.000Z");
@@ -312,21 +458,33 @@ describe("resumeSwarm", () => {
     checkpointReadMock.mockReturnValue(checkpoint);
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
 
-    const { createRoundRunner } = await import(
-      "../../../src/lib/round-runner.js"
-    );
+    const { createRoundRunner } =
+      await import("../../../src/lib/round-runner.js");
     const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
-    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
 
-    const opts = vi.mocked(createRoundRunner).mock.calls[0][0];
+    const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
     const testPacket = { ...priorPacket, round: 3 };
 
     checkpointWriteMock.mockReset();
+    inboxStageMock.mockReset();
     await opts.betweenRounds?.({ round: 3, packet: testPacket });
 
     // buildOrchestratorPassDirective is mocked to return "pass directive"
     expect(checkpointWriteMock).toHaveBeenCalledWith(
       expect.objectContaining({ orchestratorDirective: "pass directive" }),
+    );
+    expect(inboxStageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "broadcast",
+        recipients: ["alpha", "beta"],
+      }),
     );
   });
 
@@ -335,7 +493,13 @@ describe("resumeSwarm", () => {
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
 
     const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
-    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
 
     expect(initMock).not.toHaveBeenCalled();
   });

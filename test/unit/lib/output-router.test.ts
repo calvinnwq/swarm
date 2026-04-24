@@ -10,14 +10,26 @@ function makeTarget(): OutputTarget & {
   const calls: string[] = [];
   return {
     calls,
-    init: vi.fn(() => { calls.push("init"); }),
-    writeRound: vi.fn((_r: RoundResult, _b: string) => { calls.push("writeRound"); }),
-    writeSynthesis: vi.fn((_s: SynthesisResult) => { calls.push("writeSynthesis"); }),
-    finalize: vi.fn((_f: string, _s: "done" | "failed") => { calls.push("finalize"); }),
+    init: vi.fn(() => {
+      calls.push("init");
+    }),
+    writeRound: vi.fn((_r: RoundResult, _b: string) => {
+      calls.push("writeRound");
+    }),
+    writeSynthesis: vi.fn((_s: SynthesisResult) => {
+      calls.push("writeSynthesis");
+    }),
+    finalize: vi.fn((_f: string, _s: "done" | "failed") => {
+      calls.push("finalize");
+    }),
   };
 }
 
-const stubRound = { round: 1, agentResults: [], packet: {} } as unknown as RoundResult;
+const stubRound = {
+  round: 1,
+  agentResults: [],
+  packet: {},
+} as unknown as RoundResult;
 const stubSynthesis = { json: {}, markdown: "" } as unknown as SynthesisResult;
 
 describe("OutputRouter", () => {
@@ -60,13 +72,17 @@ describe("OutputRouter", () => {
   it("calls targets in order", async () => {
     const order: string[] = [];
     const a: OutputTarget = {
-      init: vi.fn(() => { order.push("a:init"); }),
+      init: vi.fn(() => {
+        order.push("a:init");
+      }),
       writeRound: vi.fn(),
       writeSynthesis: vi.fn(),
       finalize: vi.fn(),
     };
     const b: OutputTarget = {
-      init: vi.fn(() => { order.push("b:init"); }),
+      init: vi.fn(() => {
+        order.push("b:init");
+      }),
       writeRound: vi.fn(),
       writeSynthesis: vi.fn(),
       finalize: vi.fn(),
@@ -96,7 +112,9 @@ describe("OutputRouter", () => {
       finalize: vi.fn(),
     };
     const b: OutputTarget = {
-      init: vi.fn(() => { order.push("b"); }),
+      init: vi.fn(() => {
+        order.push("b");
+      }),
       writeRound: vi.fn(),
       writeSynthesis: vi.fn(),
       finalize: vi.fn(),

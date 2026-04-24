@@ -1,8 +1,13 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentDefinition } from "../../../src/schemas/index.js";
+import type {
+  AgentDefinition,
+  AgentOutput,
+  RoundPacket,
+} from "../../../src/schemas/index.js";
 import type { BackendAdapter } from "../../../src/backends/index.js";
 import type { SwarmRunConfig } from "../../../src/lib/config.js";
+import type { AgentResult } from "../../../src/lib/round-runner.js";
 
 const destroyMock = vi.fn();
 const initMock = vi.fn();
@@ -225,12 +230,131 @@ describe("runSwarm", () => {
     );
   });
 
+  it("does not mark failed rounds as completed checkpoints", async () => {
+    const failedPacket: RoundPacket = {
+      round: 1,
+      agents: ["alpha", "beta"],
+      summaries: [
+        {
+          agent: "alpha",
+          stance: "support",
+          recommendation: "ship",
+          objections: [],
+          risks: [],
+          confidence: "high",
+          openQuestions: [],
+        },
+      ],
+      keyObjections: [],
+      sharedRisks: [],
+      openQuestions: [],
+      questionResolutions: [],
+      questionResolutionLimit: 0,
+      deferredQuestions: [],
+    };
+    const alphaOutput: AgentOutput = {
+      agent: "alpha",
+      round: 1,
+      stance: "support",
+      recommendation: "ship",
+      reasoning: ["ok"],
+      objections: [],
+      risks: [],
+      changesFromPriorRound: [],
+      confidence: "high",
+      openQuestions: [],
+    };
+    const agentResults: AgentResult[] = [
+      {
+        agent: "alpha",
+        ok: true,
+        output: alphaOutput,
+        raw: null,
+        error: null,
+      },
+      {
+        agent: "beta",
+        ok: false,
+        output: null,
+        raw: null,
+        error: "boom",
+      },
+    ];
+    runMock.mockImplementationOnce(async () => {
+      emitterMock.emit("round:start", {
+        round: 1,
+        agents: ["alpha", "beta"],
+        schedulerDecision: {
+          round: 1,
+          policy: "all",
+          selected: ["alpha", "beta"],
+          reason: "all agents wake on round 1",
+        },
+      });
+      emitterMock.emit("round:done", {
+        round: 1,
+        packet: failedPacket,
+        agentResults,
+      });
+      return {
+        rounds: [{ round: 1, packet: failedPacket, agentResults }],
+        ok: false,
+        error: "Round 1 failed",
+      };
+    });
+
+    const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+    const config: SwarmRunConfig = {
+      topic: "topic",
+      rounds: 1,
+      backend: "claude",
+      preset: null,
+      agents: ["alpha", "beta"],
+      selectionSource: "explicit-agents",
+      resolveMode: "off",
+      goal: null,
+      decision: null,
+      docs: [],
+      commandText: "swarm run 1 topic --agents alpha,beta",
+    };
+    const agents: AgentDefinition[] = [
+      {
+        name: "alpha",
+        description: "a",
+        persona: "a",
+        prompt: "a",
+        backend: "claude",
+      },
+      {
+        name: "beta",
+        description: "b",
+        persona: "b",
+        prompt: "b",
+        backend: "claude",
+      },
+    ];
+
+    const code = await runSwarm({
+      config,
+      agents,
+      backend: {} as BackendAdapter,
+      ui: "silent",
+    });
+
+    expect(code).toBe(1);
+    expect(checkpointWriteMock).not.toHaveBeenCalled();
+    expect(
+      ledgerAppendEventMock.mock.calls.some(
+        ([event]) => (event as { kind: string }).kind === "round:completed",
+      ),
+    ).toBe(false);
+  });
+
   it("betweenRounds writes checkpoint with the fresh directive (not the stale prior-round value)", async () => {
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
 
-    const { createRoundRunner } = await import(
-      "../../../src/lib/round-runner.js"
-    );
+    const { createRoundRunner } =
+      await import("../../../src/lib/round-runner.js");
     const { runSwarm } = await import("../../../src/lib/run-swarm.js");
 
     const config: SwarmRunConfig = {
@@ -247,14 +371,20 @@ describe("runSwarm", () => {
       commandText: "swarm run 3 test-topic --agents alpha",
     };
     const agents: AgentDefinition[] = [
-      { name: "alpha", description: "a", persona: "a", prompt: "a", backend: "claude" },
+      {
+        name: "alpha",
+        description: "a",
+        persona: "a",
+        prompt: "a",
+        backend: "claude",
+      },
     ];
     const backend = {} as BackendAdapter;
 
     await runSwarm({ config, agents, backend, ui: "silent" });
 
     // Extract the betweenRounds callback that was passed to createRoundRunner
-    const opts = vi.mocked(createRoundRunner).mock.calls[0][0];
+    const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
     const testPacket = {
       round: 1,
       agents: ["alpha"],
@@ -269,11 +399,18 @@ describe("runSwarm", () => {
 
     // Reset to isolate writes that come from betweenRounds specifically
     checkpointWriteMock.mockReset();
+    inboxStageMock.mockReset();
     await opts.betweenRounds?.({ round: 1, packet: testPacket });
 
     // buildOrchestratorPassDirective is mocked to return "pass directive"
     expect(checkpointWriteMock).toHaveBeenCalledWith(
       expect.objectContaining({ orchestratorDirective: "pass directive" }),
+    );
+    expect(inboxStageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "broadcast",
+        recipients: ["alpha"],
+      }),
     );
   });
 });

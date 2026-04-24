@@ -238,7 +238,10 @@ export class ArtifactWriter implements OutputTarget {
   /**
    * Update the manifest with finishedAt timestamp and terminal status.
    */
-  finalize(finishedAt: string, status: Extract<RunStatus, "done" | "failed">): void {
+  finalize(
+    finishedAt: string,
+    status: Extract<RunStatus, "done" | "failed">,
+  ): void {
     const updated = { ...this.opts.manifest, finishedAt, status };
     writeFileSync(
       join(this.runDir, "manifest.json"),

@@ -1,5 +1,8 @@
 import type { LedgerWriter } from "./ledger-writer.js";
-import { MessageEnvelopeSchema, type MessageEnvelope } from "../schemas/message.js";
+import {
+  MessageEnvelopeSchema,
+  type MessageEnvelope,
+} from "../schemas/message.js";
 
 /**
  * Runtime-owned inbox for per-agent staged/committed message delivery.

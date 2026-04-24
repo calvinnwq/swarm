@@ -58,25 +58,33 @@ describe("MessageEnvelopeSchema", () => {
   });
 
   it("accepts roundNumber", () => {
-    const parsed = MessageEnvelopeSchema.parse({ ...validEnvelope, roundNumber: 2 });
+    const parsed = MessageEnvelopeSchema.parse({
+      ...validEnvelope,
+      roundNumber: 2,
+    });
     expect(parsed.roundNumber).toBe(2);
   });
 
   it("rejects empty recipients list", () => {
     expect(
-      MessageEnvelopeSchema.safeParse({ ...validEnvelope, recipients: [] }).success,
+      MessageEnvelopeSchema.safeParse({ ...validEnvelope, recipients: [] })
+        .success,
     ).toBe(false);
   });
 
   it("rejects unknown kind", () => {
     expect(
-      MessageEnvelopeSchema.safeParse({ ...validEnvelope, kind: "unknown" }).success,
+      MessageEnvelopeSchema.safeParse({ ...validEnvelope, kind: "unknown" })
+        .success,
     ).toBe(false);
   });
 
   it("rejects unknown deliveryStatus", () => {
     expect(
-      MessageEnvelopeSchema.safeParse({ ...validEnvelope, deliveryStatus: "pending" }).success,
+      MessageEnvelopeSchema.safeParse({
+        ...validEnvelope,
+        deliveryStatus: "pending",
+      }).success,
     ).toBe(false);
   });
 

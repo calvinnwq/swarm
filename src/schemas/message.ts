@@ -3,7 +3,12 @@ import { z } from "zod";
 export const MessageDeliveryStatusSchema = z.enum(["staged", "committed"]);
 export type MessageDeliveryStatus = z.infer<typeof MessageDeliveryStatusSchema>;
 
-export const MessageKindSchema = z.enum(["task", "response", "broadcast", "system"]);
+export const MessageKindSchema = z.enum([
+  "task",
+  "response",
+  "broadcast",
+  "system",
+]);
 export type MessageKind = z.infer<typeof MessageKindSchema>;
 
 // Senders: named agents, the orchestrator, or the runtime system
