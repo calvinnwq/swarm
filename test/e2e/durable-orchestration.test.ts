@@ -237,13 +237,13 @@ describe("e2e: durable outer-loop orchestration", () => {
       expect(kinds).toContain(expected);
     }
 
-    // round:completed for round 1 precedes orchestrator:pass
+    // orchestrator:pass for round 1 precedes checkpoint-backed round completion
     const r1completedIdx = events.findIndex(
       (e) => e.kind === "round:completed" && e.roundNumber === 1,
     );
     const passIdx = kinds.indexOf("orchestrator:pass");
-    expect(r1completedIdx).toBeLessThan(passIdx);
-    expect(r1completedIdx).toBeGreaterThan(-1);
+    expect(passIdx).toBeGreaterThan(-1);
+    expect(passIdx).toBeLessThan(r1completedIdx);
 
     // run:started precedes first round:started
     expect(kinds.indexOf("run:started")).toBeLessThan(
