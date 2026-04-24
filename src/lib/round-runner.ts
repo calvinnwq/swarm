@@ -164,7 +164,7 @@ function buildRoundPacket(
   const summaries = successful.map((r) => {
     const o = r.output!;
     return {
-      agent: o.agent,
+      agent: r.agent,
       stance: o.stance,
       recommendation: o.recommendation,
       objections: o.objections,

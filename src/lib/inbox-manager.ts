@@ -47,12 +47,17 @@ export class InboxManager {
    * then moved from the staged queue to the committed list.
    * Returns the committed envelopes (empty array if none were pending).
    */
-  commit(recipient: string): MessageEnvelope[] {
+  commit(
+    recipient: string,
+    shouldCommit: (message: MessageEnvelope) => boolean = () => true,
+  ): MessageEnvelope[] {
     const pending = this.staged.get(recipient);
     if (!pending || pending.length === 0) return [];
 
     const result: MessageEnvelope[] = [];
     for (const msg of pending) {
+      if (!shouldCommit(msg)) continue;
+
       const committedMsg = MessageEnvelopeSchema.parse({
         ...msg,
         recipients: [recipient],

@@ -179,6 +179,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   const completedRoundPackets: RoundPacket[] = [];
   const completedRoundResults: RoundResult[] = [];
   const pendingRoundWrites = new Map<number, Promise<void>>();
+  const activeRoundMessages = new Map<number, Set<string>>();
 
   const awaitRoundWrite = async (round: number) => {
     const pending = pendingRoundWrites.get(round);
@@ -214,6 +215,12 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       roundNumber: round + 1,
     };
     inbox.stage(message);
+    let activeMessages = activeRoundMessages.get(round + 1);
+    if (!activeMessages) {
+      activeMessages = new Set();
+      activeRoundMessages.set(round + 1, activeMessages);
+    }
+    activeMessages.add(message.messageId);
     ledger.appendEvent(makeEvent("orchestrator:pass", { roundNumber: round }));
     // Checkpoint after the directive is durable so resumed round N+1 receives
     // the same orchestrator guidance as an uninterrupted run.
@@ -227,6 +234,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       checkpointedAt: new Date().toISOString(),
       startedAt: startedAtIso,
     });
+    ledger.appendEvent(makeEvent("round:completed", { roundNumber: round }));
 
     return { directive };
   };
@@ -282,7 +290,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       );
       ledger.appendEvent(makeEvent("round:started", { roundNumber: round }));
       for (const agentName of agentNames) {
-        inbox.stage({
+        const message: MessageEnvelope = {
           messageId: randomUUID(),
           senderId: "orchestrator",
           recipients: [agentName],
@@ -291,7 +299,14 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
           deliveryStatus: "staged",
           createdAt: new Date().toISOString(),
           roundNumber: round,
-        });
+        };
+        inbox.stage(message);
+        let activeMessages = activeRoundMessages.get(round);
+        if (!activeMessages) {
+          activeMessages = new Set();
+          activeRoundMessages.set(round, activeMessages);
+        }
+        activeMessages.add(message.messageId);
       }
     },
   );
@@ -299,7 +314,11 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   emitter.on(
     "agent:start",
     ({ round, agent }: { round: number; agent: string }) => {
-      inbox.commit(agent);
+      const activeMessages = activeRoundMessages.get(round);
+      inbox.commit(
+        agent,
+        (message) => activeMessages?.has(message.messageId) ?? false,
+      );
       ledger.appendEvent(
         makeEvent("agent:started", { roundNumber: round, agentName: agent }),
       );
@@ -340,26 +359,24 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       const pending = router.writeRound(roundResult, brief).then(() => {
         if (!didRoundSucceed(agentResults)) return;
 
-        ledger.appendEvent(
-          makeEvent("round:completed", { roundNumber: round }),
-        );
         priorPacket = packet;
         completedRoundPackets.push(packet);
         completedRoundResults.push(roundResult);
-        if (round >= config.rounds) {
-          checkpoint.write({
-            runId: manifest.runId,
-            lastCompletedRound: round,
-            priorPacket: packet,
-            completedRoundPackets: [...completedRoundPackets],
-            completedRoundResults: checkpointRoundResults(
-              completedRoundResults,
-            ),
-            orchestratorDirective,
-            checkpointedAt: new Date().toISOString(),
-            startedAt: startedAtIso,
-          });
-        }
+        if (round < config.rounds) return;
+
+        checkpoint.write({
+          runId: manifest.runId,
+          lastCompletedRound: round,
+          priorPacket: packet,
+          completedRoundPackets: [...completedRoundPackets],
+          completedRoundResults: checkpointRoundResults(completedRoundResults),
+          orchestratorDirective,
+          checkpointedAt: new Date().toISOString(),
+          startedAt: startedAtIso,
+        });
+        ledger.appendEvent(
+          makeEvent("round:completed", { roundNumber: round }),
+        );
       });
       pendingRoundWrites.set(round, pending);
     },
@@ -488,6 +505,20 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
   );
   const completedRoundResults: RoundResult[] = [...resumedRoundResults];
   const pendingRoundWrites = new Map<number, Promise<void>>();
+  const startRound = lastCompletedRound + 1;
+  const activeRoundMessages = new Map<number, Set<string>>();
+  for (const recipient of inbox.stagedRecipients()) {
+    for (const message of inbox.getStaged(recipient)) {
+      if (message.roundNumber === startRound && message.kind === "broadcast") {
+        let activeMessages = activeRoundMessages.get(startRound);
+        if (!activeMessages) {
+          activeMessages = new Set();
+          activeRoundMessages.set(startRound, activeMessages);
+        }
+        activeMessages.add(message.messageId);
+      }
+    }
+  }
 
   const awaitRoundWrite = async (round: number) => {
     const pending = pendingRoundWrites.get(round);
@@ -523,6 +554,12 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
       roundNumber: round + 1,
     };
     inbox.stage(message);
+    let activeMessages = activeRoundMessages.get(round + 1);
+    if (!activeMessages) {
+      activeMessages = new Set();
+      activeRoundMessages.set(round + 1, activeMessages);
+    }
+    activeMessages.add(message.messageId);
     ledger.appendEvent(makeEvent("orchestrator:pass", { roundNumber: round }));
     checkpoint.write({
       runId: manifest.runId,
@@ -534,11 +571,10 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
       checkpointedAt: new Date().toISOString(),
       startedAt,
     });
+    ledger.appendEvent(makeEvent("round:completed", { roundNumber: round }));
 
     return { directive };
   };
-
-  const startRound = lastCompletedRound + 1;
 
   const { emitter, run } = createRoundRunner({
     config,
@@ -594,7 +630,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
       );
       ledger.appendEvent(makeEvent("round:started", { roundNumber: round }));
       for (const agentName of agentNames) {
-        inbox.stage({
+        const message: MessageEnvelope = {
           messageId: randomUUID(),
           senderId: "orchestrator",
           recipients: [agentName],
@@ -603,7 +639,14 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
           deliveryStatus: "staged",
           createdAt: new Date().toISOString(),
           roundNumber: round,
-        });
+        };
+        inbox.stage(message);
+        let activeMessages = activeRoundMessages.get(round);
+        if (!activeMessages) {
+          activeMessages = new Set();
+          activeRoundMessages.set(round, activeMessages);
+        }
+        activeMessages.add(message.messageId);
       }
     },
   );
@@ -611,7 +654,11 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
   emitter.on(
     "agent:start",
     ({ round, agent }: { round: number; agent: string }) => {
-      inbox.commit(agent);
+      const activeMessages = activeRoundMessages.get(round);
+      inbox.commit(
+        agent,
+        (message) => activeMessages?.has(message.messageId) ?? false,
+      );
       ledger.appendEvent(
         makeEvent("agent:started", { roundNumber: round, agentName: agent }),
       );
@@ -652,26 +699,24 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
       const pending = router.writeRound(roundResult, brief).then(() => {
         if (!didRoundSucceed(agentResults)) return;
 
-        ledger.appendEvent(
-          makeEvent("round:completed", { roundNumber: round }),
-        );
         currentPriorPacket = packet;
         completedRoundPackets.push(packet);
         completedRoundResults.push(roundResult);
-        if (round >= config.rounds) {
-          checkpoint.write({
-            runId: manifest.runId,
-            lastCompletedRound: round,
-            priorPacket: packet,
-            completedRoundPackets: [...completedRoundPackets],
-            completedRoundResults: checkpointRoundResults(
-              completedRoundResults,
-            ),
-            orchestratorDirective: currentOrchestratorDirective,
-            checkpointedAt: new Date().toISOString(),
-            startedAt,
-          });
-        }
+        if (round < config.rounds) return;
+
+        checkpoint.write({
+          runId: manifest.runId,
+          lastCompletedRound: round,
+          priorPacket: packet,
+          completedRoundPackets: [...completedRoundPackets],
+          completedRoundResults: checkpointRoundResults(completedRoundResults),
+          orchestratorDirective: currentOrchestratorDirective,
+          checkpointedAt: new Date().toISOString(),
+          startedAt,
+        });
+        ledger.appendEvent(
+          makeEvent("round:completed", { roundNumber: round }),
+        );
       });
       pendingRoundWrites.set(round, pending);
     },
