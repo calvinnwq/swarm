@@ -5338,4 +5338,100 @@ ${JSON.stringify(laterValidPayload)}
     expect(briefs[2]).toContain("beta stance for round 1");
     expect(briefs[2]).not.toContain("No prior round packet");
   });
+
+  it("calls betweenRounds after each non-final round with the round packet", async () => {
+    const config = makeConfig({ rounds: 3, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      const round = _prompt.includes("No prior round packet")
+        ? 1
+        : _prompt.includes("Orchestrator Pass — After Round 1")
+          ? 2
+          : 3;
+      return makeSuccessResponse(makeAgentOutput(agent.name, round));
+    });
+
+    const passArgs: { round: number }[] = [];
+    const betweenRounds = vi.fn(
+      async ({ round }: { round: number; packet: unknown }) => {
+        passArgs.push({ round });
+        return {
+          directive: `Orchestrator Pass — After Round ${round}\n\ndirective text`,
+        };
+      },
+    );
+
+    const { run } = createRoundRunner({
+      config,
+      agents,
+      backend,
+      betweenRounds,
+    });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    // Called after round 1 and round 2, but NOT after round 3 (last round)
+    expect(betweenRounds).toHaveBeenCalledTimes(2);
+    expect(passArgs[0].round).toBe(1);
+    expect(passArgs[1].round).toBe(2);
+  });
+
+  it("injects the betweenRounds directive into subsequent round briefs", async () => {
+    const config = makeConfig({ rounds: 2, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const briefs: string[] = [];
+    const backend: BackendAdapter = {
+      dispatch: vi.fn(async (prompt: string, agent: AgentDefinition) => {
+        briefs.push(prompt);
+        const round = prompt.includes("No prior round packet") ? 1 : 2;
+        return makeSuccessResponse(makeAgentOutput(agent.name, round));
+      }),
+    };
+
+    const betweenRounds = vi.fn(async () => ({
+      directive:
+        "## Orchestrator Pass — After Round 1\n\nFocus on convergence.",
+    }));
+
+    const { run } = createRoundRunner({
+      config,
+      agents,
+      backend,
+      betweenRounds,
+    });
+    await run();
+
+    // Round 2 briefs should include the orchestrator directive
+    const round2Briefs = briefs.slice(2);
+    for (const brief of round2Briefs) {
+      expect(brief).toContain("## Orchestrator Pass — After Round 1");
+      expect(brief).toContain("Focus on convergence.");
+    }
+  });
+
+  it("does not call betweenRounds for a single-round run", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+
+    const betweenRounds = vi.fn(async () => ({
+      directive: "should not appear",
+    }));
+
+    const { run } = createRoundRunner({
+      config,
+      agents,
+      backend,
+      betweenRounds,
+    });
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    expect(betweenRounds).not.toHaveBeenCalled();
+  });
 });

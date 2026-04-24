@@ -7,6 +7,7 @@ export const RunEventKindSchema = z.enum([
   "run:failed",
   "round:started",
   "round:completed",
+  "orchestrator:pass",
   "agent:started",
   "agent:completed",
   "agent:failed",
@@ -26,13 +27,19 @@ export type RunEvent = z.infer<typeof RunEventSchema>;
 
 // Allowed lifecycle state transitions.
 // Key = current state, value = set of states it may transition to.
-export const ALLOWED_RUN_STATUS_TRANSITIONS: Record<RunStatus, ReadonlySet<RunStatus>> = {
+export const ALLOWED_RUN_STATUS_TRANSITIONS: Record<
+  RunStatus,
+  ReadonlySet<RunStatus>
+> = {
   pending: new Set(["running", "failed"]),
   running: new Set(["done", "failed"]),
   done: new Set(),
   failed: new Set(),
 };
 
-export function isAllowedRunStatusTransition(from: RunStatus, to: RunStatus): boolean {
+export function isAllowedRunStatusTransition(
+  from: RunStatus,
+  to: RunStatus,
+): boolean {
   return ALLOWED_RUN_STATUS_TRANSITIONS[from].has(to);
 }

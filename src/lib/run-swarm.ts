@@ -1,20 +1,29 @@
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { AgentDefinition, RunManifest } from "../schemas/index.js";
+import type {
+  AgentDefinition,
+  RunManifest,
+  RunEvent,
+  RoundPacket,
+  MessageEnvelope,
+} from "../schemas/index.js";
 import type { BackendAdapter } from "../backends/index.js";
 import type { SwarmRunConfig } from "./config.js";
 import { createRoundRunner } from "./round-runner.js";
 import type { RoundResult } from "./round-runner.js";
 import { ArtifactWriter } from "./artifact-writer.js";
 import { buildRunDirName } from "./artifact-writer.js";
-import { buildSeedBrief, buildRoundBrief } from "./brief-generator.js";
+import {
+  buildSeedBrief,
+  buildRoundBrief,
+  buildOrchestratorPassDirective,
+} from "./brief-generator.js";
 import { buildOrchestratorSynthesis } from "./synthesis.js";
 import { attachLiveRenderer, attachQuietLogger } from "../ui/index.js";
 import { OutputRouter } from "./output-router.js";
 import type { OutputTarget } from "./output-router.js";
 import { LedgerWriter } from "./ledger-writer.js";
 import { InboxManager } from "./inbox-manager.js";
-import type { RunEvent } from "../schemas/index.js";
 
 export type SwarmUiMode = "live" | "quiet" | "silent";
 
@@ -76,7 +85,11 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   });
   const ledger = new LedgerWriter(runDir);
   const inbox = new InboxManager(ledger);
-  const router = new OutputRouter([writer, ledger, ...(opts.additionalTargets ?? [])]);
+  const router = new OutputRouter([
+    writer,
+    ledger,
+    ...(opts.additionalTargets ?? []),
+  ]);
   await router.init();
 
   const makeEvent = (
@@ -92,10 +105,42 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
 
   ledger.appendEvent(makeEvent("run:started"));
 
+  // Track round briefs for artifact writing
+  const roundBriefs = new Map<number, string>();
+  let priorPacket: RoundPacket | null = null;
+  let orchestratorDirective: string | undefined = undefined;
+
+  const betweenRounds = async ({
+    round,
+    packet,
+  }: {
+    round: number;
+    packet: RoundPacket;
+  }) => {
+    const directive = buildOrchestratorPassDirective(packet);
+    orchestratorDirective = directive;
+
+    const message: MessageEnvelope = {
+      messageId: randomUUID(),
+      senderId: "orchestrator",
+      recipients: ["broadcast"],
+      kind: "broadcast",
+      payload: { directive, fromRound: round },
+      deliveryStatus: "staged",
+      createdAt: new Date().toISOString(),
+      roundNumber: round + 1,
+    };
+    inbox.stage(message);
+    ledger.appendEvent(makeEvent("orchestrator:pass", { roundNumber: round }));
+
+    return { directive };
+  };
+
   const { emitter, run } = createRoundRunner({
     config,
     agents,
     backend,
+    betweenRounds,
   });
 
   const uiMode: SwarmUiMode =
@@ -107,30 +152,35 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     attachQuietLogger(emitter);
   }
 
-  // Track round briefs for artifact writing
-  const roundBriefs = new Map<number, string>();
-  let priorPacket: import("../schemas/index.js").RoundPacket | null = null;
-
-  emitter.on("round:start", ({ round, agents: agentNames }: { round: number; agents: string[] }) => {
-    const brief =
-      round === 1
-        ? seedBrief
-        : buildRoundBrief({ config, round, seedBrief, priorPacket });
-    roundBriefs.set(round, brief);
-    ledger.appendEvent(makeEvent("round:started", { roundNumber: round }));
-    for (const agentName of agentNames) {
-      inbox.stage({
-        messageId: randomUUID(),
-        senderId: "orchestrator",
-        recipients: [agentName],
-        kind: "task",
-        payload: { brief, round },
-        deliveryStatus: "staged",
-        createdAt: new Date().toISOString(),
-        roundNumber: round,
-      });
-    }
-  });
+  emitter.on(
+    "round:start",
+    ({ round, agents: agentNames }: { round: number; agents: string[] }) => {
+      const brief =
+        round === 1
+          ? seedBrief
+          : buildRoundBrief({
+              config,
+              round,
+              seedBrief,
+              priorPacket,
+              orchestratorDirective,
+            });
+      roundBriefs.set(round, brief);
+      ledger.appendEvent(makeEvent("round:started", { roundNumber: round }));
+      for (const agentName of agentNames) {
+        inbox.stage({
+          messageId: randomUUID(),
+          senderId: "orchestrator",
+          recipients: [agentName],
+          kind: "task",
+          payload: { brief, round },
+          deliveryStatus: "staged",
+          createdAt: new Date().toISOString(),
+          roundNumber: round,
+        });
+      }
+    },
+  );
 
   emitter.on(
     "agent:start",
@@ -168,8 +218,8 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       agentResults,
     }: {
       round: number;
-      packet: import("../schemas/index.js").RoundPacket;
-      agentResults: import("./round-runner.js").AgentResult[];
+      packet: RoundPacket;
+      agentResults: RoundResult["agentResults"];
     }) => {
       const brief = roundBriefs.get(round) ?? "";
       const roundResult: RoundResult = { round, agentResults, packet };

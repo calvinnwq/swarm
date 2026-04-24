@@ -63,6 +63,10 @@ export interface RoundRunnerOpts {
   backend: BackendAdapter;
   concurrency?: number;
   timeoutMs?: number;
+  betweenRounds?: (args: {
+    round: number;
+    packet: RoundPacket;
+  }) => Promise<{ directive: string } | undefined>;
 }
 
 function validateAgentOutput(
@@ -315,12 +319,19 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
     const roundResults: RoundResult[] = [];
     const seedBrief = buildSeedBrief(config);
     let priorPacket: RoundPacket | null = null;
+    let orchestratorDirective: string | undefined = undefined;
 
     for (let round = 1; round <= config.rounds; round++) {
       const agentNames = agents.map((a) => a.name);
       emitter.emit("round:start", { round, agents: agentNames });
 
-      const brief = buildRoundBrief({ config, round, seedBrief, priorPacket });
+      const brief = buildRoundBrief({
+        config,
+        round,
+        seedBrief,
+        priorPacket,
+        orchestratorDirective,
+      });
 
       const tasks = agents.map((agent) => () => {
         emitter.emit("agent:start", { round, agent: agent.name });
@@ -366,6 +377,11 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
       const roundResult: RoundResult = { round, agentResults, packet };
       roundResults.push(roundResult);
       emitter.emit("round:done", { round, packet, agentResults });
+
+      if (round < config.rounds) {
+        const passResult = await opts.betweenRounds?.({ round, packet });
+        orchestratorDirective = passResult?.directive;
+      }
     }
 
     emitter.emit("run:done", { rounds: roundResults, ok: true });

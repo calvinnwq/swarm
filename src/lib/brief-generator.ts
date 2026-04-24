@@ -82,10 +82,11 @@ export interface BuildRoundBriefArgs {
   round: number;
   seedBrief: string;
   priorPacket: RoundPacket | null;
+  orchestratorDirective?: string;
 }
 
 export function buildRoundBrief(args: BuildRoundBriefArgs): string {
-  const { config, round, seedBrief, priorPacket } = args;
+  const { config, round, seedBrief, priorPacket, orchestratorDirective } = args;
 
   const lines: string[] = [
     "# Swarm Round Brief",
@@ -108,7 +109,52 @@ export function buildRoundBrief(args: BuildRoundBriefArgs): string {
     lines.push("```json", JSON.stringify(priorPacket, null, 2), "```", "");
   }
 
+  if (orchestratorDirective) {
+    lines.push(orchestratorDirective, "");
+  }
+
   lines.push("## Instructions", ...ROUND_BRIEF_INSTRUCTIONS, "");
 
   return lines.join("\n").trimEnd() + "\n";
+}
+
+export function buildOrchestratorPassDirective(packet: RoundPacket): string {
+  const lines: string[] = [
+    `## Orchestrator Pass — After Round ${packet.round}`,
+    "",
+  ];
+
+  if (packet.summaries.length > 0) {
+    lines.push(`**Stance summary (${packet.summaries.length} agent(s)):**`);
+    for (const s of packet.summaries) {
+      lines.push(`- ${s.agent}: ${s.stance}`);
+    }
+    lines.push("");
+  }
+
+  if (packet.keyObjections.length > 0) {
+    lines.push("**Key objections to address this round:**");
+    for (const o of packet.keyObjections) {
+      lines.push(`- ${o}`);
+    }
+    lines.push("");
+  }
+
+  if (packet.sharedRisks.length > 0) {
+    lines.push("**Shared risks (flagged by 2+ agents):**");
+    for (const r of packet.sharedRisks) {
+      lines.push(`- ${r}`);
+    }
+    lines.push("");
+  }
+
+  if (packet.openQuestions.length > 0) {
+    lines.push("**Open questions to resolve:**");
+    for (const q of packet.openQuestions) {
+      lines.push(`- ${q}`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n").trimEnd();
 }

@@ -23,7 +23,11 @@ describe("RunEventSchema", () => {
   });
 
   it("accepts round-scoped events with roundNumber", () => {
-    const parsed = RunEventSchema.parse({ ...validEvent, kind: "round:started", roundNumber: 1 });
+    const parsed = RunEventSchema.parse({
+      ...validEvent,
+      kind: "round:started",
+      roundNumber: 1,
+    });
     expect(parsed.kind).toBe("round:started");
     expect(parsed.roundNumber).toBe(1);
   });
@@ -39,12 +43,17 @@ describe("RunEventSchema", () => {
   });
 
   it("accepts optional metadata", () => {
-    const parsed = RunEventSchema.parse({ ...validEvent, metadata: { durationMs: 1200 } });
+    const parsed = RunEventSchema.parse({
+      ...validEvent,
+      metadata: { durationMs: 1200 },
+    });
     expect(parsed.metadata).toEqual({ durationMs: 1200 });
   });
 
   it("rejects unknown kind", () => {
-    expect(RunEventSchema.safeParse({ ...validEvent, kind: "run:paused" }).success).toBe(false);
+    expect(
+      RunEventSchema.safeParse({ ...validEvent, kind: "run:paused" }).success,
+    ).toBe(false);
   });
 
   it("rejects missing runId", () => {
@@ -59,13 +68,26 @@ describe("RunEventSchema", () => {
       "run:failed",
       "round:started",
       "round:completed",
+      "orchestrator:pass",
       "agent:started",
       "agent:completed",
       "agent:failed",
     ] as const;
     for (const kind of kinds) {
-      expect(RunEventSchema.safeParse({ ...validEvent, kind }).success).toBe(true);
+      expect(RunEventSchema.safeParse({ ...validEvent, kind }).success).toBe(
+        true,
+      );
     }
+  });
+
+  it("accepts orchestrator:pass with roundNumber", () => {
+    const parsed = RunEventSchema.parse({
+      ...validEvent,
+      kind: "orchestrator:pass",
+      roundNumber: 1,
+    });
+    expect(parsed.kind).toBe("orchestrator:pass");
+    expect(parsed.roundNumber).toBe(1);
   });
 });
 
