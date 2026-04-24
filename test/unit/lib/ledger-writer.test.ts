@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
@@ -270,6 +276,29 @@ describe("LedgerWriter", () => {
       expect(msg.parentId).toBe("msg-root");
       expect(msg.causationId).toBe("msg-root");
     });
+
+    it("ignores a truncated trailing message record", () => {
+      const ledger = new LedgerWriter(runDir);
+      ledger.init();
+      const msg = makeMessage({ messageId: "msg-001" });
+      writeFileSync(
+        ledger.messagesPath,
+        `${JSON.stringify(msg)}\n{"messageId":"msg-002"`,
+      );
+
+      expect(ledger.readMessages()).toEqual([msg]);
+    });
+
+    it("throws for malformed non-trailing message records", () => {
+      const ledger = new LedgerWriter(runDir);
+      ledger.init();
+      writeFileSync(
+        ledger.messagesPath,
+        `{"messageId":"msg-001"\n${JSON.stringify(makeMessage({ messageId: "msg-002" }))}\n`,
+      );
+
+      expect(() => ledger.readMessages()).toThrow(SyntaxError);
+    });
   });
 
   describe("readEvents", () => {
@@ -304,6 +333,18 @@ describe("LedgerWriter", () => {
         "round:completed",
         "run:completed",
       ]);
+    });
+
+    it("ignores a truncated trailing event record", () => {
+      const ledger = new LedgerWriter(runDir);
+      ledger.init();
+      const event = makeEvent({ eventId: "e1", kind: "run:started" });
+      writeFileSync(
+        ledger.eventsPath,
+        `${JSON.stringify(event)}\n{"eventId":"e2"`,
+      );
+
+      expect(ledger.readEvents()).toEqual([event]);
     });
   });
 

@@ -120,8 +120,27 @@ function readJsonl<T>(filePath: string, schema: ZodLike<T>): T[] {
   } catch {
     return [];
   }
-  return content
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => schema.parse(JSON.parse(line)));
+  const lines = content.split("\n");
+  const hasTrailingNewline = content.endsWith("\n");
+  const records: T[] = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (!line) continue;
+
+    try {
+      records.push(schema.parse(JSON.parse(line)));
+    } catch (error) {
+      if (
+        error instanceof SyntaxError &&
+        !hasTrailingNewline &&
+        index === lines.length - 1
+      ) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  return records;
 }
