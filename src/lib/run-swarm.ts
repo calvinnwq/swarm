@@ -12,6 +12,8 @@ import { buildOrchestratorSynthesis } from "./synthesis.js";
 import { attachLiveRenderer, attachQuietLogger } from "../ui/index.js";
 import { OutputRouter } from "./output-router.js";
 import type { OutputTarget } from "./output-router.js";
+import { LedgerWriter } from "./ledger-writer.js";
+import type { RunEvent } from "../schemas/index.js";
 
 export type SwarmUiMode = "live" | "quiet" | "silent";
 
@@ -71,8 +73,22 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     seedBrief,
     wrapperName: backend.wrapperName ?? `${config.backend}-cli`,
   });
-  const router = new OutputRouter([writer, ...(opts.additionalTargets ?? [])]);
+  const ledger = new LedgerWriter(runDir);
+  const router = new OutputRouter([writer, ledger, ...(opts.additionalTargets ?? [])]);
   await router.init();
+
+  const makeEvent = (
+    kind: RunEvent["kind"],
+    extra?: Pick<RunEvent, "roundNumber" | "agentName" | "metadata">,
+  ): RunEvent => ({
+    eventId: randomUUID(),
+    kind,
+    runId: manifest.runId,
+    occurredAt: new Date().toISOString(),
+    ...extra,
+  });
+
+  ledger.appendEvent(makeEvent("run:started"));
 
   const { emitter, run } = createRoundRunner({
     config,
@@ -99,6 +115,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
         ? seedBrief
         : buildRoundBrief({ config, round, seedBrief, priorPacket });
     roundBriefs.set(round, brief);
+    ledger.appendEvent(makeEvent("round:started", { roundNumber: round }));
   });
 
   emitter.on(
@@ -115,6 +132,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       const brief = roundBriefs.get(round) ?? "";
       const roundResult: RoundResult = { round, agentResults, packet };
       void router.writeRound(roundResult, brief);
+      ledger.appendEvent(makeEvent("round:completed", { roundNumber: round }));
       priorPacket = packet;
     },
   );
@@ -127,6 +145,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       await router.writeSynthesis(synthesis);
     }
 
+    ledger.appendEvent(makeEvent(result.ok ? "run:completed" : "run:failed"));
     const finishedAt = new Date().toISOString();
     const finalStatus = result.ok ? "done" : "failed";
     await router.finalize(finishedAt, finalStatus);
