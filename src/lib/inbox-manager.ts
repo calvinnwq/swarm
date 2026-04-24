@@ -91,4 +91,48 @@ export class InboxManager {
     }
     return result;
   }
+
+  /**
+   * Rebuild in-memory staged/committed maps from a replayed message list.
+   * For each (messageId, recipient) pair the last-seen delivery status wins,
+   * matching the append-only JSONL ordering in messages.jsonl.
+   * Call this when resuming a run from the ledger.
+   */
+  rehydrate(messages: MessageEnvelope[]): void {
+    this.staged.clear();
+    this.committed.clear();
+
+    // Track the last envelope seen per (messageId, recipient)
+    const latest = new Map<string, Map<string, MessageEnvelope>>();
+    for (const msg of messages) {
+      for (const recipient of msg.recipients) {
+        let byRecipient = latest.get(msg.messageId);
+        if (!byRecipient) {
+          byRecipient = new Map();
+          latest.set(msg.messageId, byRecipient);
+        }
+        byRecipient.set(recipient, msg);
+      }
+    }
+
+    for (const byRecipient of latest.values()) {
+      for (const [recipient, msg] of byRecipient) {
+        if (msg.deliveryStatus === "staged") {
+          let bucket = this.staged.get(recipient);
+          if (!bucket) {
+            bucket = [];
+            this.staged.set(recipient, bucket);
+          }
+          bucket.push(msg);
+        } else {
+          let bucket = this.committed.get(recipient);
+          if (!bucket) {
+            bucket = [];
+            this.committed.set(recipient, bucket);
+          }
+          bucket.push(msg);
+        }
+      }
+    }
+  }
 }

@@ -24,6 +24,7 @@ import { OutputRouter } from "./output-router.js";
 import type { OutputTarget } from "./output-router.js";
 import { LedgerWriter } from "./ledger-writer.js";
 import { InboxManager } from "./inbox-manager.js";
+import { CheckpointWriter } from "./checkpoint-writer.js";
 
 export type SwarmUiMode = "live" | "quiet" | "silent";
 
@@ -84,6 +85,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     wrapperName: backend.wrapperName ?? `${config.backend}-cli`,
   });
   const ledger = new LedgerWriter(runDir);
+  const checkpoint = new CheckpointWriter(runDir);
   const inbox = new InboxManager(ledger);
   const router = new OutputRouter([
     writer,
@@ -226,6 +228,13 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       void router.writeRound(roundResult, brief);
       ledger.appendEvent(makeEvent("round:completed", { roundNumber: round }));
       priorPacket = packet;
+      checkpoint.write({
+        runId: manifest.runId,
+        lastCompletedRound: round,
+        priorPacket: packet,
+        orchestratorDirective,
+        checkpointedAt: new Date().toISOString(),
+      });
     },
   );
 

@@ -297,4 +297,51 @@ describe("LedgerWriter", () => {
       ).not.toThrow();
     });
   });
+
+  describe("getLastCompletedRound", () => {
+    it("returns 0 when no events have been written", () => {
+      const ledger = new LedgerWriter(runDir);
+      ledger.init();
+      expect(ledger.getLastCompletedRound()).toBe(0);
+    });
+
+    it("returns 0 when only non-round-completed events exist", () => {
+      const ledger = new LedgerWriter(runDir);
+      ledger.init();
+      ledger.appendEvent(makeEvent({ kind: "run:started" }));
+      ledger.appendEvent(makeEvent({ kind: "round:started", roundNumber: 1 }));
+      expect(ledger.getLastCompletedRound()).toBe(0);
+    });
+
+    it("returns the round number when one round:completed event exists", () => {
+      const ledger = new LedgerWriter(runDir);
+      ledger.init();
+      ledger.appendEvent(makeEvent({ kind: "round:completed", roundNumber: 1 }));
+      expect(ledger.getLastCompletedRound()).toBe(1);
+    });
+
+    it("returns the highest round number when multiple rounds are completed", () => {
+      const ledger = new LedgerWriter(runDir);
+      ledger.init();
+      ledger.appendEvent(makeEvent({ kind: "round:completed", roundNumber: 1 }));
+      ledger.appendEvent(makeEvent({ kind: "round:completed", roundNumber: 2 }));
+      ledger.appendEvent(makeEvent({ kind: "round:completed", roundNumber: 3 }));
+      expect(ledger.getLastCompletedRound()).toBe(3);
+    });
+
+    it("ignores round:started events when counting completed rounds", () => {
+      const ledger = new LedgerWriter(runDir);
+      ledger.init();
+      ledger.appendEvent(makeEvent({ kind: "round:started", roundNumber: 1 }));
+      ledger.appendEvent(makeEvent({ kind: "round:completed", roundNumber: 1 }));
+      ledger.appendEvent(makeEvent({ kind: "round:started", roundNumber: 2 }));
+      // round 2 started but not completed
+      expect(ledger.getLastCompletedRound()).toBe(1);
+    });
+
+    it("returns 0 when the ledger file does not exist", () => {
+      const ledger = new LedgerWriter(join(runDir, "nonexistent"));
+      expect(ledger.getLastCompletedRound()).toBe(0);
+    });
+  });
 });

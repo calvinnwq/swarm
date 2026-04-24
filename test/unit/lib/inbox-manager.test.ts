@@ -265,4 +265,92 @@ describe("InboxManager", () => {
       expect(inbox.stagedRecipients()).not.toContain("agent-alpha");
     });
   });
+
+  describe("rehydrate", () => {
+    it("clears existing in-memory state before rebuilding", () => {
+      inbox.stage(makeEnvelope({ messageId: "pre-existing" }));
+      inbox.rehydrate([]);
+      expect(inbox.getStaged("agent-alpha")).toHaveLength(0);
+      expect(inbox.stagedRecipients()).toHaveLength(0);
+    });
+
+    it("rebuilds staged state from a list of staged messages", () => {
+      const msg = makeEnvelope({ messageId: "msg-r1", deliveryStatus: "staged" });
+      inbox.rehydrate([msg]);
+      expect(inbox.getStaged("agent-alpha")).toHaveLength(1);
+      expect(inbox.getStaged("agent-alpha")[0].messageId).toBe("msg-r1");
+    });
+
+    it("rebuilds committed state from a list of committed messages", () => {
+      const msg = makeEnvelope({
+        messageId: "msg-r1",
+        deliveryStatus: "committed",
+      });
+      inbox.rehydrate([msg]);
+      expect(inbox.getCommitted("agent-alpha")).toHaveLength(1);
+      expect(inbox.getStaged("agent-alpha")).toHaveLength(0);
+    });
+
+    it("uses the last delivery status when a message appears staged then committed", () => {
+      const staged = makeEnvelope({ messageId: "msg-r1", deliveryStatus: "staged" });
+      const committed = makeEnvelope({
+        messageId: "msg-r1",
+        deliveryStatus: "committed",
+      });
+      inbox.rehydrate([staged, committed]);
+      expect(inbox.getCommitted("agent-alpha")).toHaveLength(1);
+      expect(inbox.getStaged("agent-alpha")).toHaveLength(0);
+    });
+
+    it("treats separate messages as independent even with the same recipient", () => {
+      const msg1 = makeEnvelope({ messageId: "msg-r1", deliveryStatus: "committed" });
+      const msg2 = makeEnvelope({ messageId: "msg-r2", deliveryStatus: "staged" });
+      inbox.rehydrate([msg1, msg2]);
+      expect(inbox.getCommitted("agent-alpha")).toHaveLength(1);
+      expect(inbox.getStaged("agent-alpha")).toHaveLength(1);
+    });
+
+    it("rebuilds state for multiple recipients from a multi-recipient message", () => {
+      const msg = makeEnvelope({
+        messageId: "broadcast-1",
+        recipients: ["agent-alpha", "agent-beta"],
+        deliveryStatus: "staged",
+      });
+      inbox.rehydrate([msg]);
+      expect(inbox.getStaged("agent-alpha")).toHaveLength(1);
+      expect(inbox.getStaged("agent-beta")).toHaveLength(1);
+    });
+
+    it("rebuilds committed for one recipient and staged for another in a multi-recipient message", () => {
+      const staged = makeEnvelope({
+        messageId: "msg-1",
+        recipients: ["agent-alpha", "agent-beta"],
+        deliveryStatus: "staged",
+      });
+      const committedAlpha = makeEnvelope({
+        messageId: "msg-1",
+        recipients: ["agent-alpha"],
+        deliveryStatus: "committed",
+      });
+      inbox.rehydrate([staged, committedAlpha]);
+      expect(inbox.getCommitted("agent-alpha")).toHaveLength(1);
+      expect(inbox.getStaged("agent-beta")).toHaveLength(1);
+    });
+
+    it("results in stagedRecipients() returning only recipients with staged messages", () => {
+      const msg1 = makeEnvelope({ messageId: "m1", deliveryStatus: "committed" });
+      const msg2 = makeEnvelope({
+        messageId: "m2",
+        recipients: ["agent-beta"],
+        deliveryStatus: "staged",
+      });
+      inbox.rehydrate([msg1, msg2]);
+      expect(inbox.stagedRecipients()).toEqual(["agent-beta"]);
+    });
+
+    it("handles an empty message list gracefully", () => {
+      expect(() => inbox.rehydrate([])).not.toThrow();
+      expect(inbox.stagedRecipients()).toHaveLength(0);
+    });
+  });
 });

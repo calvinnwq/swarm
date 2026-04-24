@@ -3,6 +3,7 @@ export * from "./agent-definition.js";
 export * from "./message.js";
 export * from "./preset.js";
 export * from "./round-packet.js";
+export * from "./run-checkpoint.js";
 export * from "./run-event.js";
 export * from "./run-manifest.js";
 export * from "./swarm-config.js";

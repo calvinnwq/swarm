@@ -117,7 +117,17 @@ describe("runSwarm", () => {
       });
       emitterMock.emit("round:done", {
         round: 1,
-        packet: { round: 1, outputs: [] },
+        packet: {
+          round: 1,
+          agents: ["product-manager"],
+          summaries: [],
+          keyObjections: [],
+          sharedRisks: [],
+          openQuestions: [],
+          questionResolutions: [],
+          questionResolutionLimit: 3,
+          deferredQuestions: [],
+        },
         agentResults: [],
       });
       return { rounds: [], ok: true, error: null };

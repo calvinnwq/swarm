@@ -73,6 +73,24 @@ export class LedgerWriter implements OutputTarget {
     return readJsonl(this.eventsPath, RunEventSchema);
   }
 
+  /**
+   * Return the highest round number for which a "round:completed" event has
+   * been written. Returns 0 if no round has been completed yet.
+   */
+  getLastCompletedRound(): number {
+    const events = this.readEvents();
+    let last = 0;
+    for (const event of events) {
+      if (
+        event.kind === "round:completed" &&
+        (event.roundNumber ?? 0) > last
+      ) {
+        last = event.roundNumber ?? 0;
+      }
+    }
+    return last;
+  }
+
   // OutputTarget lifecycle hooks: no-ops because the orchestration layer
   // drives event emission by calling appendEvent directly.
   writeRound(_roundResult: RoundResult, _brief: string): void {}
