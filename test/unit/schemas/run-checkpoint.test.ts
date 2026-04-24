@@ -18,6 +18,7 @@ const valid = {
   lastCompletedRound: 1,
   priorPacket: validPacket,
   checkpointedAt: "2026-04-24T10:00:00.000Z",
+  startedAt: "2026-04-24T09:00:00.000Z",
 };
 
 describe("RunCheckpointSchema", () => {
@@ -56,6 +57,16 @@ describe("RunCheckpointSchema", () => {
 
   it("rejects missing priorPacket", () => {
     const { priorPacket: _, ...rest } = valid;
+    expect(() => RunCheckpointSchema.parse(rest)).toThrow();
+  });
+
+  it("accepts a checkpoint with startedAt", () => {
+    const parsed = RunCheckpointSchema.parse(valid);
+    expect(parsed.startedAt).toBe("2026-04-24T09:00:00.000Z");
+  });
+
+  it("rejects missing startedAt", () => {
+    const { startedAt: _, ...rest } = valid;
     expect(() => RunCheckpointSchema.parse(rest)).toThrow();
   });
 

@@ -272,6 +272,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
         priorPacket: packet,
         orchestratorDirective,
         checkpointedAt: new Date().toISOString(),
+        startedAt: startedAtIso,
       });
     },
   );
@@ -317,8 +318,13 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     );
   }
 
-  const { runId, lastCompletedRound, priorPacket, orchestratorDirective } =
-    savedCheckpoint;
+  const {
+    runId,
+    lastCompletedRound,
+    priorPacket,
+    orchestratorDirective,
+    startedAt,
+  } = savedCheckpoint;
 
   const ledger = new LedgerWriter(runDir);
   const inbox = new InboxManager(ledger);
@@ -335,7 +341,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     decision: config.decision,
     agents: config.agents,
     resolveMode: config.resolveMode,
-    startedAt: new Date().toISOString(),
+    startedAt,
     runDir,
   };
 
@@ -353,7 +359,12 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     ledger,
     ...(opts.additionalTargets ?? []),
   ]);
-  await router.init();
+
+  // On resume: init only the ledger (idempotent append-only touch) and any
+  // additional targets. ArtifactWriter.init() must NOT run — it would
+  // overwrite the existing manifest.json and seed-brief.md.
+  await ledger.init();
+  for (const t of opts.additionalTargets ?? []) await t.init();
 
   const makeEvent = (
     kind: RunEvent["kind"],
@@ -522,6 +533,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
         priorPacket: packet,
         orchestratorDirective: currentOrchestratorDirective,
         checkpointedAt: new Date().toISOString(),
+        startedAt,
       });
     },
   );

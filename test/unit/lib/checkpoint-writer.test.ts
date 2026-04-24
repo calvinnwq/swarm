@@ -29,6 +29,7 @@ function makeCheckpoint(overrides: Partial<RunCheckpoint> = {}): RunCheckpoint {
     lastCompletedRound: 1,
     priorPacket: validPacket,
     checkpointedAt: "2026-04-24T10:00:00.000Z",
+    startedAt: "2026-04-24T09:00:00.000Z",
     ...overrides,
   };
 }

@@ -358,6 +358,7 @@ describe("e2e: durable outer-loop orchestration", () => {
       lastCompletedRound: 1,
       priorPacket,
       checkpointedAt: new Date().toISOString(),
+      startedAt: startedAt.toISOString(),
     });
 
     // No synthesis.json yet (run was interrupted before completion)

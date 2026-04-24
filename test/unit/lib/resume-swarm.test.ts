@@ -138,6 +138,7 @@ const checkpoint: RunCheckpoint = {
   priorPacket,
   orchestratorDirective: "focus on risks",
   checkpointedAt: "2026-04-24T00:00:00.000Z",
+  startedAt: "2026-04-20T10:00:00.000Z",
 };
 
 describe("resumeSwarm", () => {
@@ -291,5 +292,29 @@ describe("resumeSwarm", () => {
     await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
 
     expect(writeSynthesisMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves the original run's startedAt from the checkpoint (B1)", async () => {
+    checkpointReadMock.mockReturnValue(checkpoint);
+    runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+
+    const { ArtifactWriter } = await import(
+      "../../../src/lib/artifact-writer.js"
+    );
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+
+    const opts = vi.mocked(ArtifactWriter).mock.calls[0][0];
+    expect(opts.manifest.startedAt).toBe("2026-04-20T10:00:00.000Z");
+  });
+
+  it("does not call ArtifactWriter.init on resume, preserving the existing manifest.json (B2)", async () => {
+    checkpointReadMock.mockReturnValue(checkpoint);
+    runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+
+    expect(initMock).not.toHaveBeenCalled();
   });
 });

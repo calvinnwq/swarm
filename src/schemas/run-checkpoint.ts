@@ -7,6 +7,7 @@ export const RunCheckpointSchema = z.object({
   priorPacket: RoundPacketSchema,
   orchestratorDirective: z.string().optional(),
   checkpointedAt: z.iso.datetime(),
+  startedAt: z.iso.datetime(),
 });
 
 export type RunCheckpoint = z.infer<typeof RunCheckpointSchema>;
