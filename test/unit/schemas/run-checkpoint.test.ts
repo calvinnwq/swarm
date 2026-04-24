@@ -47,6 +47,41 @@ describe("RunCheckpointSchema", () => {
     expect(parsed.lastCompletedRound).toBe(5);
   });
 
+  it("accepts checkpointed round results", () => {
+    const parsed = RunCheckpointSchema.parse({
+      ...valid,
+      completedRoundResults: [
+        {
+          round: 1,
+          packet: validPacket,
+          agentResults: [
+            {
+              agent: "alpha",
+              ok: true,
+              output: {
+                agent: "alpha",
+                round: 1,
+                stance: "support",
+                recommendation: "ship",
+                reasoning: ["basis"],
+                objections: [],
+                risks: [],
+                changesFromPriorRound: [],
+                confidence: "high",
+                openQuestions: [],
+              },
+              error: null,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(parsed.completedRoundResults?.[0]?.agentResults[0]?.output).toEqual(
+      expect.objectContaining({ reasoning: ["basis"] }),
+    );
+  });
+
   it("rejects lastCompletedRound of 0", () => {
     expect(() =>
       RunCheckpointSchema.parse({ ...valid, lastCompletedRound: 0 }),

@@ -415,6 +415,54 @@ describe("resumeSwarm", () => {
     ]);
   });
 
+  it("restores checkpointed agent results when synthesizing final-round resumes", async () => {
+    const checkpointedResult: RoundResult = {
+      round: 3,
+      agentResults: [round3Result],
+      packet: resumedRound.packet,
+    };
+    checkpointReadMock.mockReturnValue({
+      ...checkpoint,
+      lastCompletedRound: 3,
+      priorPacket: resumedRound.packet,
+      completedRoundPackets: [priorPacket, resumedRound.packet],
+      completedRoundResults: [
+        {
+          round: 3,
+          packet: resumedRound.packet,
+          agentResults: [
+            {
+              agent: round3Result.agent,
+              ok: round3Result.ok,
+              output: round3Result.output,
+              error: round3Result.error,
+            },
+          ],
+        },
+      ],
+    });
+    runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+
+    const { buildOrchestratorSynthesis } =
+      await import("../../../src/lib/synthesis.js");
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    await resumeSwarm({
+      config,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+    });
+
+    expect(buildOrchestratorSynthesis).toHaveBeenCalledWith(expect.anything(), [
+      expect.objectContaining({
+        round: checkpointedResult.round,
+        packet: checkpointedResult.packet,
+        agentResults: [expect.objectContaining({ output: round3Output })],
+      }),
+    ]);
+  });
+
   it("does not write synthesis when resumed run fails", async () => {
     checkpointReadMock.mockReturnValue(checkpoint);
     runMock.mockResolvedValue({

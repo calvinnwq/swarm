@@ -350,6 +350,109 @@ describe("runSwarm", () => {
     ).toBe(false);
   });
 
+  it("waits for round output writes before completing the round", async () => {
+    let resolveWriteRound!: () => void;
+    writeRoundMock.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveWriteRound = resolve;
+      }),
+    );
+
+    const packet: RoundPacket = {
+      round: 1,
+      agents: ["alpha", "beta"],
+      summaries: [],
+      keyObjections: [],
+      sharedRisks: [],
+      openQuestions: [],
+      questionResolutions: [],
+      questionResolutionLimit: 0,
+      deferredQuestions: [],
+    };
+    const agentResults: AgentResult[] = [
+      { agent: "alpha", ok: true, output: null, raw: null, error: null },
+      { agent: "beta", ok: true, output: null, raw: null, error: null },
+    ];
+    runMock.mockImplementationOnce(async () => {
+      emitterMock.emit("round:start", {
+        round: 1,
+        agents: ["alpha", "beta"],
+        schedulerDecision: {
+          round: 1,
+          policy: "all",
+          selected: ["alpha", "beta"],
+          reason: "all agents wake on round 1",
+        },
+      });
+      emitterMock.emit("round:done", { round: 1, packet, agentResults });
+      return {
+        rounds: [{ round: 1, packet, agentResults }],
+        ok: true,
+        error: null,
+      };
+    });
+
+    const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+    const config: SwarmRunConfig = {
+      topic: "topic",
+      rounds: 1,
+      backend: "claude",
+      preset: null,
+      agents: ["alpha", "beta"],
+      selectionSource: "explicit-agents",
+      resolveMode: "off",
+      goal: null,
+      decision: null,
+      docs: [],
+      commandText: "swarm run 1 topic --agents alpha,beta",
+    };
+    const agents: AgentDefinition[] = [
+      {
+        name: "alpha",
+        description: "a",
+        persona: "a",
+        prompt: "a",
+        backend: "claude",
+      },
+      {
+        name: "beta",
+        description: "b",
+        persona: "b",
+        prompt: "b",
+        backend: "claude",
+      },
+    ];
+
+    const promise = runSwarm({
+      config,
+      agents,
+      backend: {} as BackendAdapter,
+      ui: "silent",
+    });
+    await Promise.resolve();
+
+    expect(
+      ledgerAppendEventMock.mock.calls.some(
+        ([event]) => (event as { kind: string }).kind === "round:completed",
+      ),
+    ).toBe(false);
+
+    resolveWriteRound();
+    await expect(promise).resolves.toBe(0);
+
+    const roundCompletedCall = ledgerAppendEventMock.mock.calls.find(
+      ([event]) => (event as { kind: string }).kind === "round:completed",
+    );
+    const runCompletedCall = ledgerAppendEventMock.mock.calls.find(
+      ([event]) => (event as { kind: string }).kind === "run:completed",
+    );
+    expect(roundCompletedCall).toBeDefined();
+    expect(runCompletedCall).toBeDefined();
+    expect(roundCompletedCall![0]).toEqual(
+      expect.objectContaining({ kind: "round:completed" }),
+    );
+  });
+
   it("betweenRounds writes checkpoint with the fresh directive (not the stale prior-round value)", async () => {
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
 

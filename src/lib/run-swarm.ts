@@ -83,6 +83,37 @@ function roundPacketsToResults(packets: RoundPacket[]): RoundResult[] {
   }));
 }
 
+function checkpointRoundResults(roundResults: RoundResult[]) {
+  return roundResults.map(({ round, agentResults, packet }) => ({
+    round,
+    packet,
+    agentResults: agentResults.map(({ agent, ok, output, error }) => ({
+      agent,
+      ok,
+      output,
+      error,
+    })),
+  }));
+}
+
+function restoreCheckpointRoundResults(
+  checkpointResults: NonNullable<
+    import("../schemas/index.js").RunCheckpoint["completedRoundResults"]
+  >,
+): RoundResult[] {
+  return checkpointResults.map(({ round, agentResults, packet }) => ({
+    round,
+    packet,
+    agentResults: agentResults.map(({ agent, ok, output, error }) => ({
+      agent,
+      ok,
+      output,
+      error,
+      raw: null,
+    })),
+  }));
+}
+
 /**
  * Full pipeline orchestrator: runs rounds, writes artifacts, synthesizes.
  * Returns 0 on success, 1 on failure.
@@ -146,6 +177,13 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   let priorPacket: RoundPacket | null = null;
   let orchestratorDirective: string | undefined = undefined;
   const completedRoundPackets: RoundPacket[] = [];
+  const completedRoundResults: RoundResult[] = [];
+  const pendingRoundWrites = new Map<number, Promise<void>>();
+
+  const awaitRoundWrite = async (round: number) => {
+    const pending = pendingRoundWrites.get(round);
+    if (pending) await pending;
+  };
 
   const betweenRounds = async ({
     round,
@@ -154,6 +192,8 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     round: number;
     packet: RoundPacket;
   }) => {
+    await awaitRoundWrite(round);
+
     const directive = buildOrchestratorPassDirective(packet);
     orchestratorDirective = directive;
 
@@ -182,6 +222,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       lastCompletedRound: round,
       priorPacket: packet,
       completedRoundPackets: [...completedRoundPackets],
+      completedRoundResults: checkpointRoundResults(completedRoundResults),
       orchestratorDirective: directive,
       checkpointedAt: new Date().toISOString(),
       startedAt: startedAtIso,
@@ -296,28 +337,37 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     }) => {
       const brief = roundBriefs.get(round) ?? "";
       const roundResult: RoundResult = { round, agentResults, packet };
-      void router.writeRound(roundResult, brief);
-      if (!didRoundSucceed(agentResults)) return;
+      const pending = router.writeRound(roundResult, brief).then(() => {
+        if (!didRoundSucceed(agentResults)) return;
 
-      ledger.appendEvent(makeEvent("round:completed", { roundNumber: round }));
-      priorPacket = packet;
-      completedRoundPackets.push(packet);
-      if (round >= config.rounds) {
-        checkpoint.write({
-          runId: manifest.runId,
-          lastCompletedRound: round,
-          priorPacket: packet,
-          completedRoundPackets: [...completedRoundPackets],
-          orchestratorDirective,
-          checkpointedAt: new Date().toISOString(),
-          startedAt: startedAtIso,
-        });
-      }
+        ledger.appendEvent(
+          makeEvent("round:completed", { roundNumber: round }),
+        );
+        priorPacket = packet;
+        completedRoundPackets.push(packet);
+        completedRoundResults.push(roundResult);
+        if (round >= config.rounds) {
+          checkpoint.write({
+            runId: manifest.runId,
+            lastCompletedRound: round,
+            priorPacket: packet,
+            completedRoundPackets: [...completedRoundPackets],
+            completedRoundResults: checkpointRoundResults(
+              completedRoundResults,
+            ),
+            orchestratorDirective,
+            checkpointedAt: new Date().toISOString(),
+            startedAt: startedAtIso,
+          });
+        }
+      });
+      pendingRoundWrites.set(round, pending);
     },
   );
 
   try {
     const result = await run();
+    await Promise.all(pendingRoundWrites.values());
 
     if (result.ok) {
       const synthesis = buildOrchestratorSynthesis(manifest, result.rounds);
@@ -367,6 +417,11 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     savedCheckpoint.completedRoundPackets.length > 0
       ? savedCheckpoint.completedRoundPackets
       : [priorPacket];
+  const resumedRoundResults =
+    savedCheckpoint.completedRoundResults &&
+    savedCheckpoint.completedRoundResults.length > 0
+      ? restoreCheckpointRoundResults(savedCheckpoint.completedRoundResults)
+      : roundPacketsToResults(resumedFromRoundPackets);
 
   const ledger = new LedgerWriter(runDir);
   const inbox = new InboxManager(ledger);
@@ -428,7 +483,16 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
   const roundBriefs = new Map<number, string>();
   let currentPriorPacket: RoundPacket | null = priorPacket;
   let currentOrchestratorDirective: string | undefined = orchestratorDirective;
-  const completedRoundPackets: RoundPacket[] = [...resumedFromRoundPackets];
+  const completedRoundPackets: RoundPacket[] = resumedRoundResults.map(
+    (result) => result.packet,
+  );
+  const completedRoundResults: RoundResult[] = [...resumedRoundResults];
+  const pendingRoundWrites = new Map<number, Promise<void>>();
+
+  const awaitRoundWrite = async (round: number) => {
+    const pending = pendingRoundWrites.get(round);
+    if (pending) await pending;
+  };
 
   const betweenRounds = async ({
     round,
@@ -437,6 +501,8 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     round: number;
     packet: RoundPacket;
   }) => {
+    await awaitRoundWrite(round);
+
     const directive = buildOrchestratorPassDirective(packet);
     currentOrchestratorDirective = directive;
 
@@ -463,6 +529,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
       lastCompletedRound: round,
       priorPacket: packet,
       completedRoundPackets: [...completedRoundPackets],
+      completedRoundResults: checkpointRoundResults(completedRoundResults),
       orchestratorDirective: directive,
       checkpointedAt: new Date().toISOString(),
       startedAt,
@@ -582,32 +649,41 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     }) => {
       const brief = roundBriefs.get(round) ?? "";
       const roundResult: RoundResult = { round, agentResults, packet };
-      void router.writeRound(roundResult, brief);
-      if (!didRoundSucceed(agentResults)) return;
+      const pending = router.writeRound(roundResult, brief).then(() => {
+        if (!didRoundSucceed(agentResults)) return;
 
-      ledger.appendEvent(makeEvent("round:completed", { roundNumber: round }));
-      currentPriorPacket = packet;
-      completedRoundPackets.push(packet);
-      if (round >= config.rounds) {
-        checkpoint.write({
-          runId: manifest.runId,
-          lastCompletedRound: round,
-          priorPacket: packet,
-          completedRoundPackets: [...completedRoundPackets],
-          orchestratorDirective: currentOrchestratorDirective,
-          checkpointedAt: new Date().toISOString(),
-          startedAt,
-        });
-      }
+        ledger.appendEvent(
+          makeEvent("round:completed", { roundNumber: round }),
+        );
+        currentPriorPacket = packet;
+        completedRoundPackets.push(packet);
+        completedRoundResults.push(roundResult);
+        if (round >= config.rounds) {
+          checkpoint.write({
+            runId: manifest.runId,
+            lastCompletedRound: round,
+            priorPacket: packet,
+            completedRoundPackets: [...completedRoundPackets],
+            completedRoundResults: checkpointRoundResults(
+              completedRoundResults,
+            ),
+            orchestratorDirective: currentOrchestratorDirective,
+            checkpointedAt: new Date().toISOString(),
+            startedAt,
+          });
+        }
+      });
+      pendingRoundWrites.set(round, pending);
     },
   );
 
   try {
     const result = await run();
+    await Promise.all(pendingRoundWrites.values());
 
     if (result.ok) {
       const synthesis = buildOrchestratorSynthesis(manifest, [
-        ...roundPacketsToResults(resumedFromRoundPackets),
+        ...resumedRoundResults,
         ...result.rounds,
       ]);
       await router.writeSynthesis(synthesis);
