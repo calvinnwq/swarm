@@ -5435,3 +5435,86 @@ ${JSON.stringify(laterValidPayload)}
     expect(betweenRounds).not.toHaveBeenCalled();
   });
 });
+
+describe("startRound resume option", () => {
+  it("skips rounds before startRound", async () => {
+    const config = makeConfig({ rounds: 3, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+    const emittedRounds: number[] = [];
+
+    const backend = makeStubBackend((_prompt, agent) => {
+      const round = emittedRounds[emittedRounds.length - 1] ?? 1;
+      return makeSuccessResponse(makeAgentOutput(agent.name, round));
+    });
+
+    const { emitter, run } = createRoundRunner({
+      config,
+      agents,
+      backend,
+      startRound: 2,
+    });
+
+    emitter.on("round:start", ({ round }: { round: number }) => {
+      emittedRounds.push(round);
+    });
+
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    expect(emittedRounds).toEqual([2, 3]);
+    expect(emittedRounds).not.toContain(1);
+  });
+
+  it("uses initialPriorPacket for the scheduler in the first executed round", async () => {
+    const config = makeConfig({ rounds: 3, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const priorPacket = {
+      round: 1,
+      agents: ["alpha", "beta"],
+      summaries: [
+        {
+          agent: "alpha",
+          stance: "agree",
+          recommendation: "go",
+          objections: [],
+          risks: [],
+          confidence: "high" as const,
+          openQuestions: [],
+        },
+      ],
+      keyObjections: [],
+      sharedRisks: [],
+      openQuestions: [],
+      questionResolutions: [],
+      questionResolutionLimit: 3,
+      deferredQuestions: [],
+    };
+
+    const backend = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 2)),
+    );
+
+    const schedulerDecisions: Array<{ round: number; selected: string[] }> = [];
+    const { emitter, run } = createRoundRunner({
+      config,
+      agents,
+      backend,
+      startRound: 2,
+      schedulerPolicy: "addressed-only",
+      initialPriorPacket: priorPacket,
+    });
+
+    emitter.on(
+      "round:start",
+      ({ round, agents: selected }: { round: number; agents: string[] }) => {
+        schedulerDecisions.push({ round, selected });
+      },
+    );
+
+    await run();
+
+    expect(schedulerDecisions[0]?.round).toBe(2);
+    expect(schedulerDecisions[0]?.selected).toEqual(["alpha"]);
+  });
+});

@@ -69,6 +69,12 @@ export interface RoundRunnerOpts {
   concurrency?: number;
   timeoutMs?: number;
   schedulerPolicy?: SchedulerPolicy;
+  /** First round to execute; rounds before this are treated as already complete (resume path). */
+  startRound?: number;
+  /** Prior-round packet to seed the scheduler and brief-builder (resume path). */
+  initialPriorPacket?: RoundPacket | null;
+  /** Orchestrator directive carried over from the last completed round (resume path). */
+  initialOrchestratorDirective?: string;
   betweenRounds?: (args: {
     round: number;
     packet: RoundPacket;
@@ -318,6 +324,7 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
       DEFAULT_CONCURRENCY,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     schedulerPolicy = "all",
+    startRound = 1,
   } = opts;
 
   const emitter = new EventEmitter();
@@ -325,10 +332,11 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
   async function run(): Promise<RunResult> {
     const roundResults: RoundResult[] = [];
     const seedBrief = buildSeedBrief(config);
-    let priorPacket: RoundPacket | null = null;
-    let orchestratorDirective: string | undefined = undefined;
+    let priorPacket: RoundPacket | null = opts.initialPriorPacket ?? null;
+    let orchestratorDirective: string | undefined =
+      opts.initialOrchestratorDirective;
 
-    for (let round = 1; round <= config.rounds; round++) {
+    for (let round = startRound; round <= config.rounds; round++) {
       const schedulerDecision = selectAgentsForRound(
         agents,
         round,

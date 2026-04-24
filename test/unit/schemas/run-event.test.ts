@@ -64,10 +64,12 @@ describe("RunEventSchema", () => {
   it("accepts all valid event kinds", () => {
     const kinds = [
       "run:started",
+      "run:resumed",
       "run:completed",
       "run:failed",
       "round:started",
       "round:completed",
+      "scheduler:decision",
       "orchestrator:pass",
       "agent:started",
       "agent:completed",
@@ -78,6 +80,16 @@ describe("RunEventSchema", () => {
         true,
       );
     }
+  });
+
+  it("accepts run:resumed with resumedFromRound metadata", () => {
+    const parsed = RunEventSchema.parse({
+      ...validEvent,
+      kind: "run:resumed",
+      metadata: { resumedFromRound: 2 },
+    });
+    expect(parsed.kind).toBe("run:resumed");
+    expect(parsed.metadata).toEqual({ resumedFromRound: 2 });
   });
 
   it("accepts orchestrator:pass with roundNumber", () => {

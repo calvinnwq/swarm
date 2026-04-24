@@ -3,6 +3,7 @@ import { RunStatusSchema, type RunStatus } from "./run-manifest.js";
 
 export const RunEventKindSchema = z.enum([
   "run:started",
+  "run:resumed",
   "run:completed",
   "run:failed",
   "round:started",
