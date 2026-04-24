@@ -134,6 +134,20 @@ describe("InboxManager", () => {
       expect(committed.senderId).toBe("orchestrator");
     });
 
+    it("writes recipient-scoped committed envelopes", () => {
+      inbox.stage(
+        makeEnvelope({ recipients: ["agent-alpha", "agent-beta"] }),
+      );
+      vi.clearAllMocks();
+
+      const [committed] = inbox.commit("agent-alpha");
+
+      expect(committed.recipients).toEqual(["agent-alpha"]);
+      expect(ledger.appendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ recipients: ["agent-alpha"] }),
+      );
+    });
+
     it("clears the staged queue after committing", () => {
       inbox.stage(makeEnvelope());
       inbox.commit("agent-alpha");
@@ -378,6 +392,22 @@ describe("InboxManager", () => {
       });
       inbox.rehydrate([staged, committedAlpha]);
       expect(inbox.getCommitted("agent-alpha")).toHaveLength(1);
+      expect(inbox.getStaged("agent-beta")).toHaveLength(1);
+    });
+
+    it("keeps uncommitted recipients staged after partial commit replay", () => {
+      const staged = makeEnvelope({
+        messageId: "msg-1",
+        recipients: ["agent-alpha", "agent-beta"],
+        deliveryStatus: "staged",
+      });
+      inbox.stage(staged);
+      const [committedAlpha] = inbox.commit("agent-alpha");
+
+      inbox.rehydrate([staged, committedAlpha]);
+
+      expect(inbox.getCommitted("agent-alpha")).toHaveLength(1);
+      expect(inbox.getCommitted("agent-beta")).toHaveLength(0);
       expect(inbox.getStaged("agent-beta")).toHaveLength(1);
     });
 

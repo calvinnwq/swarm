@@ -55,6 +55,7 @@ export class InboxManager {
     for (const msg of pending) {
       const committedMsg = MessageEnvelopeSchema.parse({
         ...msg,
+        recipients: [recipient],
         deliveryStatus: "committed",
       });
       this.ledger.appendMessage(committedMsg);
