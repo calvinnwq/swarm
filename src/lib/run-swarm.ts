@@ -13,6 +13,7 @@ import { attachLiveRenderer, attachQuietLogger } from "../ui/index.js";
 import { OutputRouter } from "./output-router.js";
 import type { OutputTarget } from "./output-router.js";
 import { LedgerWriter } from "./ledger-writer.js";
+import { InboxManager } from "./inbox-manager.js";
 import type { RunEvent } from "../schemas/index.js";
 
 export type SwarmUiMode = "live" | "quiet" | "silent";
@@ -74,6 +75,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     wrapperName: backend.wrapperName ?? `${config.backend}-cli`,
   });
   const ledger = new LedgerWriter(runDir);
+  const inbox = new InboxManager(ledger);
   const router = new OutputRouter([writer, ledger, ...(opts.additionalTargets ?? [])]);
   await router.init();
 
@@ -109,14 +111,54 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   const roundBriefs = new Map<number, string>();
   let priorPacket: import("../schemas/index.js").RoundPacket | null = null;
 
-  emitter.on("round:start", ({ round }: { round: number }) => {
+  emitter.on("round:start", ({ round, agents: agentNames }: { round: number; agents: string[] }) => {
     const brief =
       round === 1
         ? seedBrief
         : buildRoundBrief({ config, round, seedBrief, priorPacket });
     roundBriefs.set(round, brief);
     ledger.appendEvent(makeEvent("round:started", { roundNumber: round }));
+    for (const agentName of agentNames) {
+      inbox.stage({
+        messageId: randomUUID(),
+        senderId: "orchestrator",
+        recipients: [agentName],
+        kind: "task",
+        payload: { brief, round },
+        deliveryStatus: "staged",
+        createdAt: new Date().toISOString(),
+        roundNumber: round,
+      });
+    }
   });
+
+  emitter.on(
+    "agent:start",
+    ({ round, agent }: { round: number; agent: string }) => {
+      inbox.commit(agent);
+      ledger.appendEvent(
+        makeEvent("agent:started", { roundNumber: round, agentName: agent }),
+      );
+    },
+  );
+
+  emitter.on(
+    "agent:ok",
+    ({ round, agent }: { round: number; agent: string }) => {
+      ledger.appendEvent(
+        makeEvent("agent:completed", { roundNumber: round, agentName: agent }),
+      );
+    },
+  );
+
+  emitter.on(
+    "agent:fail",
+    ({ round, agent }: { round: number; agent: string }) => {
+      ledger.appendEvent(
+        makeEvent("agent:failed", { roundNumber: round, agentName: agent }),
+      );
+    },
+  );
 
   emitter.on(
     "round:done",
