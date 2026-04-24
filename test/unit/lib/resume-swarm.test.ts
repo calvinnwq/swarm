@@ -308,6 +308,28 @@ describe("resumeSwarm", () => {
     expect(opts.manifest.startedAt).toBe("2026-04-20T10:00:00.000Z");
   });
 
+  it("betweenRounds writes checkpoint with the fresh directive (not the stale prior-round value)", async () => {
+    checkpointReadMock.mockReturnValue(checkpoint);
+    runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+
+    const { createRoundRunner } = await import(
+      "../../../src/lib/round-runner.js"
+    );
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    await resumeSwarm({ config, agents, backend, runDir: "/tmp/run-1", ui: "silent" });
+
+    const opts = vi.mocked(createRoundRunner).mock.calls[0][0];
+    const testPacket = { ...priorPacket, round: 3 };
+
+    checkpointWriteMock.mockReset();
+    await opts.betweenRounds?.({ round: 3, packet: testPacket });
+
+    // buildOrchestratorPassDirective is mocked to return "pass directive"
+    expect(checkpointWriteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ orchestratorDirective: "pass directive" }),
+    );
+  });
+
   it("does not call ArtifactWriter.init on resume, preserving the existing manifest.json (B2)", async () => {
     checkpointReadMock.mockReturnValue(checkpoint);
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });

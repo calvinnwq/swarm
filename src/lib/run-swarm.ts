@@ -153,6 +153,16 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     };
     inbox.stage(message);
     ledger.appendEvent(makeEvent("orchestrator:pass", { roundNumber: round }));
+    // Overwrite the round:done checkpoint with the freshly computed directive so
+    // that a resumed run for round N+1 receives the correct orchestrator guidance.
+    checkpoint.write({
+      runId: manifest.runId,
+      lastCompletedRound: round,
+      priorPacket: packet,
+      orchestratorDirective: directive,
+      checkpointedAt: new Date().toISOString(),
+      startedAt: startedAtIso,
+    });
 
     return { directive };
   };
@@ -409,6 +419,14 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     };
     inbox.stage(message);
     ledger.appendEvent(makeEvent("orchestrator:pass", { roundNumber: round }));
+    checkpoint.write({
+      runId: manifest.runId,
+      lastCompletedRound: round,
+      priorPacket: packet,
+      orchestratorDirective: directive,
+      checkpointedAt: new Date().toISOString(),
+      startedAt,
+    });
 
     return { directive };
   };
