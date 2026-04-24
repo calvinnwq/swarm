@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import type { AgentDefinition, RunManifest } from "../schemas/index.js";
 import type { BackendAdapter } from "../backends/index.js";
 import type { SwarmRunConfig } from "./config.js";
@@ -48,6 +49,8 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   const runDir = join(baseDir, buildRunDirName(startedAt, config.topic));
 
   const manifest: RunManifest = {
+    runId: randomUUID(),
+    status: "running",
     topic: config.topic,
     rounds: config.rounds,
     backend: config.backend,
@@ -125,7 +128,8 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     }
 
     const finishedAt = new Date().toISOString();
-    await router.finalize(finishedAt);
+    const finalStatus = result.ok ? "done" : "failed";
+    await router.finalize(finishedAt, finalStatus);
 
     return result.ok ? 0 : 1;
   } finally {

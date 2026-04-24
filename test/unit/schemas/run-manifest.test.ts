@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { RunManifestSchema } from "../../../src/schemas/index.js";
 
 const valid = {
+  runId: "00000000-0000-0000-0000-000000000001",
+  status: "running" as const,
   topic: "sample topic",
   rounds: 2,
   backend: "claude" as const,
@@ -18,6 +20,8 @@ describe("RunManifestSchema", () => {
     expect(parsed.topic).toBe("sample topic");
     expect(parsed.preset).toBeNull();
     expect(parsed.finishedAt).toBeUndefined();
+    expect(parsed.runId).toBe("00000000-0000-0000-0000-000000000001");
+    expect(parsed.status).toBe("running");
   });
 
   it("accepts finishedAt and a preset name", () => {
@@ -28,6 +32,16 @@ describe("RunManifestSchema", () => {
     });
     expect(parsed.preset).toBe("default");
     expect(parsed.finishedAt).toBe("2026-04-15T01:30:00.000Z");
+  });
+
+  it("accepts done and failed statuses", () => {
+    expect(RunManifestSchema.parse({ ...valid, status: "done" }).status).toBe("done");
+    expect(RunManifestSchema.parse({ ...valid, status: "failed" }).status).toBe("failed");
+    expect(RunManifestSchema.parse({ ...valid, status: "pending" }).status).toBe("pending");
+  });
+
+  it("rejects an unknown status", () => {
+    expect(RunManifestSchema.safeParse({ ...valid, status: "crashed" }).success).toBe(false);
   });
 
   it("rejects an unknown resolveMode", () => {
