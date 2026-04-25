@@ -8,6 +8,7 @@ import {
 } from "../../../src/backends/harness-adapter.js";
 import { ClaudeCliAdapter } from "../../../src/backends/claude-cli.js";
 import { CodexCliAdapter } from "../../../src/backends/codex-cli.js";
+import { OpenCodeCliAdapter } from "../../../src/backends/opencode-cli.js";
 import { resolveAgentRuntime } from "../../../src/lib/harness-resolution.js";
 import { SwarmCommandError } from "../../../src/lib/parse-command.js";
 import {
@@ -34,8 +35,11 @@ describe("createHarnessAdapter", () => {
     expect(createHarnessAdapter("codex")).toBeInstanceOf(CodexCliAdapter);
   });
 
+  it("creates an OpenCode adapter for the opencode harness", () => {
+    expect(createHarnessAdapter("opencode")).toBeInstanceOf(OpenCodeCliAdapter);
+  });
+
   it("rejects planned harnesses with a hard-fail", () => {
-    expect(() => createHarnessAdapter("opencode")).toThrow(SwarmCommandError);
     expect(() => createHarnessAdapter("rovo")).toThrow(SwarmCommandError);
   });
 
@@ -81,7 +85,7 @@ describe("HarnessAdapterRegistry", () => {
   it("hard-fails forRuntime when the harness is not implemented", () => {
     const registry = new HarnessAdapterRegistry();
     const runtime = resolveAgentRuntime(
-      makeAgent({ backend: "claude", harness: "opencode" }),
+      makeAgent({ backend: "claude", harness: "rovo" }),
     );
     expect(() => registry.forRuntime(runtime)).toThrow(SwarmCommandError);
   });

@@ -83,30 +83,28 @@ describe("harness-resolution", () => {
   it("collectUnavailableHarnesses flags planned harnesses with their agent name", () => {
     const resolved = resolveAgentRuntimes([
       makeAgent({ name: "ok-claude", harness: "claude" }),
-      makeAgent({ name: "wants-opencode", harness: "opencode" }),
+      makeAgent({ name: "ok-opencode", harness: "opencode" }),
       makeAgent({ name: "wants-rovo", harness: "rovo" }),
     ]);
     const issues = collectUnavailableHarnesses(resolved);
-    expect(issues.map((i) => i.agentName)).toEqual([
-      "wants-opencode",
-      "wants-rovo",
-    ]);
+    expect(issues.map((i) => i.agentName)).toEqual(["wants-rovo"]);
     expect(issues.every((i) => i.reason === "not-implemented")).toBe(true);
     expect(issues[0]?.message).toContain("not yet implemented");
-    expect(issues[0]?.message).toContain("claude, codex");
+    expect(issues[0]?.message).toContain("claude, codex, opencode");
   });
 
   it("collectUnavailableHarnesses returns an empty list when all harnesses are implemented", () => {
     const resolved = resolveAgentRuntimes([
       makeAgent({ name: "a", harness: "claude" }),
       makeAgent({ name: "b", harness: "codex" }),
+      makeAgent({ name: "c", harness: "opencode" }),
     ]);
     expect(collectUnavailableHarnesses(resolved)).toEqual([]);
   });
 
   it("assertResolvedRuntimesAvailable throws SwarmCommandError when a harness is planned", () => {
     const resolved = resolveAgentRuntimes([
-      makeAgent({ name: "wants-opencode", harness: "opencode" }),
+      makeAgent({ name: "wants-rovo", harness: "rovo" }),
     ]);
     expect(() => assertResolvedRuntimesAvailable(resolved)).toThrow(
       SwarmCommandError,
@@ -117,6 +115,7 @@ describe("harness-resolution", () => {
     const resolved = resolveAgentRuntimes([
       makeAgent({ name: "a", harness: "claude" }),
       makeAgent({ name: "b", harness: "codex" }),
+      makeAgent({ name: "c", harness: "opencode" }),
     ]);
     expect(() => assertResolvedRuntimesAvailable(resolved)).not.toThrow();
   });

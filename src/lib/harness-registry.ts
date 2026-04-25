@@ -79,12 +79,13 @@ const HARNESS_DESCRIPTORS: Readonly<Record<HarnessId, HarnessDescriptor>> = {
       runArgs: ["run"],
     },
     capability: {
-      authProbeArgs: ["--version"],
+      authProbeArgs: ["auth", "list"],
+      runtimeProbeArgs: ["run", "--help"],
       missingBinHint:
         "install OpenCode and ensure `opencode` is available on PATH",
       missingAuthHint: "run `opencode auth login` and retry",
     },
-    status: "planned",
+    status: "implemented",
   },
   rovo: {
     id: "rovo",
