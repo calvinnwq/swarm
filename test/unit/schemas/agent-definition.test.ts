@@ -54,4 +54,66 @@ describe("AgentDefinitionSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("leaves harness and model undefined when not provided", () => {
+    const parsed = AgentDefinitionSchema.parse({
+      name: "delta",
+      description: "x",
+      persona: "x",
+      prompt: "x",
+    });
+
+    expect(parsed.harness).toBeUndefined();
+    expect(parsed.model).toBeUndefined();
+  });
+
+  it("accepts a harness and model on top of backend", () => {
+    const parsed = AgentDefinitionSchema.parse({
+      name: "epsilon",
+      description: "x",
+      persona: "x",
+      prompt: "x",
+      backend: "claude",
+      harness: "opencode",
+      model: "anthropic/claude-sonnet-4-6",
+    });
+
+    expect(parsed.harness).toBe("opencode");
+    expect(parsed.model).toBe("anthropic/claude-sonnet-4-6");
+  });
+
+  it("accepts each known harness id", () => {
+    for (const harness of ["claude", "codex", "opencode", "rovo"] as const) {
+      const parsed = AgentDefinitionSchema.parse({
+        name: `agent-${harness}`,
+        description: "x",
+        persona: "x",
+        prompt: "x",
+        harness,
+      });
+      expect(parsed.harness).toBe(harness);
+    }
+  });
+
+  it("rejects an unknown harness id", () => {
+    const result = AgentDefinitionSchema.safeParse({
+      name: "zeta",
+      description: "x",
+      persona: "x",
+      prompt: "x",
+      harness: "gemini",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty model string", () => {
+    const result = AgentDefinitionSchema.safeParse({
+      name: "eta",
+      description: "x",
+      persona: "x",
+      prompt: "x",
+      model: "   ",
+    });
+    expect(result.success).toBe(false);
+  });
 });

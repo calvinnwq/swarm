@@ -1,5 +1,6 @@
 export * from "./agent-output.js";
 export * from "./agent-definition.js";
+export * from "./harness-id.js";
 export * from "./message.js";
 export * from "./preset.js";
 export * from "./round-packet.js";
