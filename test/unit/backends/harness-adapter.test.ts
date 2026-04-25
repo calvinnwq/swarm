@@ -9,12 +9,15 @@ import {
 import { ClaudeCliAdapter } from "../../../src/backends/claude-cli.js";
 import { CodexCliAdapter } from "../../../src/backends/codex-cli.js";
 import { OpenCodeCliAdapter } from "../../../src/backends/opencode-cli.js";
+import { RovoAcliAdapter } from "../../../src/backends/rovo-acli.js";
 import { resolveAgentRuntime } from "../../../src/lib/harness-resolution.js";
 import { SwarmCommandError } from "../../../src/lib/parse-command.js";
 import {
   AgentDefinitionSchema,
   type AgentDefinition,
 } from "../../../src/schemas/agent-definition.js";
+import type { HarnessId } from "../../../src/schemas/harness-id.js";
+import type { ResolvedAgentRuntime } from "../../../src/schemas/resolved-agent-runtime.js";
 
 function makeAgent(overrides: Partial<AgentDefinition> = {}): AgentDefinition {
   return AgentDefinitionSchema.parse({
@@ -39,8 +42,8 @@ describe("createHarnessAdapter", () => {
     expect(createHarnessAdapter("opencode")).toBeInstanceOf(OpenCodeCliAdapter);
   });
 
-  it("rejects planned harnesses with a hard-fail", () => {
-    expect(() => createHarnessAdapter("rovo")).toThrow(SwarmCommandError);
+  it("creates a Rovo adapter for the rovo harness", () => {
+    expect(createHarnessAdapter("rovo")).toBeInstanceOf(RovoAcliAdapter);
   });
 
   it("rejects unknown harness ids", () => {
@@ -82,11 +85,14 @@ describe("HarnessAdapterRegistry", () => {
     expect(registry.forRuntime(runtime)).toBe(adapter);
   });
 
-  it("hard-fails forRuntime when the harness is not implemented", () => {
+  it("hard-fails forRuntime when the harness is unknown to the registry", () => {
     const registry = new HarnessAdapterRegistry();
-    const runtime = resolveAgentRuntime(
-      makeAgent({ backend: "claude", harness: "rovo" }),
-    );
+    const runtime: ResolvedAgentRuntime = {
+      agentName: "ghost",
+      harness: "future-harness" as HarnessId,
+      model: null,
+      source: { harness: "agent.harness", model: "harness-default" },
+    };
     expect(() => registry.forRuntime(runtime)).toThrow(SwarmCommandError);
   });
 });
@@ -110,14 +116,17 @@ describe("buildHarnessAdapterRegistry", () => {
     expect(registry.has("codex")).toBe(true);
   });
 
-  it("propagates the hard-fail when a planned harness is requested", () => {
-    const resolved = [
+  it("propagates the hard-fail when an unknown harness is requested", () => {
+    const resolved: ResolvedAgentRuntime[] = [
       resolveAgentRuntime(
         makeAgent({ name: "ok", backend: "claude", harness: "claude" }),
       ),
-      resolveAgentRuntime(
-        makeAgent({ name: "planned", backend: "claude", harness: "rovo" }),
-      ),
+      {
+        agentName: "ghost",
+        harness: "future-harness" as HarnessId,
+        model: null,
+        source: { harness: "agent.harness", model: "harness-default" },
+      },
     ];
     expect(() => buildHarnessAdapterRegistry(resolved)).toThrow(
       SwarmCommandError,

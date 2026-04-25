@@ -10,7 +10,6 @@ import {
   resolveAgentRuntime,
   resolveAgentRuntimes,
 } from "../../../src/lib/harness-resolution.js";
-import { SwarmCommandError } from "../../../src/lib/parse-command.js";
 
 function makeAgent(overrides: Partial<AgentDefinition> = {}): AgentDefinition {
   return AgentDefinitionSchema.parse({
@@ -66,31 +65,21 @@ describe("harness-resolution", () => {
       makeAgent({ name: "first", harness: "claude" }),
       makeAgent({ name: "second", harness: "codex" }),
       makeAgent({ name: "third", harness: "opencode" }),
+      makeAgent({ name: "fourth", harness: "rovo" }),
     ];
     const resolved = resolveAgentRuntimes(agents);
     expect(resolved.map((r) => r.agentName)).toEqual([
       "first",
       "second",
       "third",
+      "fourth",
     ]);
     expect(resolved.map((r) => r.harness)).toEqual([
       "claude",
       "codex",
       "opencode",
+      "rovo",
     ]);
-  });
-
-  it("collectUnavailableHarnesses flags planned harnesses with their agent name", () => {
-    const resolved = resolveAgentRuntimes([
-      makeAgent({ name: "ok-claude", harness: "claude" }),
-      makeAgent({ name: "ok-opencode", harness: "opencode" }),
-      makeAgent({ name: "wants-rovo", harness: "rovo" }),
-    ]);
-    const issues = collectUnavailableHarnesses(resolved);
-    expect(issues.map((i) => i.agentName)).toEqual(["wants-rovo"]);
-    expect(issues.every((i) => i.reason === "not-implemented")).toBe(true);
-    expect(issues[0]?.message).toContain("not yet implemented");
-    expect(issues[0]?.message).toContain("claude, codex, opencode");
   });
 
   it("collectUnavailableHarnesses returns an empty list when all harnesses are implemented", () => {
@@ -98,17 +87,9 @@ describe("harness-resolution", () => {
       makeAgent({ name: "a", harness: "claude" }),
       makeAgent({ name: "b", harness: "codex" }),
       makeAgent({ name: "c", harness: "opencode" }),
+      makeAgent({ name: "d", harness: "rovo" }),
     ]);
     expect(collectUnavailableHarnesses(resolved)).toEqual([]);
-  });
-
-  it("assertResolvedRuntimesAvailable throws SwarmCommandError when a harness is planned", () => {
-    const resolved = resolveAgentRuntimes([
-      makeAgent({ name: "wants-rovo", harness: "rovo" }),
-    ]);
-    expect(() => assertResolvedRuntimesAvailable(resolved)).toThrow(
-      SwarmCommandError,
-    );
   });
 
   it("assertResolvedRuntimesAvailable is a no-op when every harness is implemented", () => {
@@ -116,6 +97,7 @@ describe("harness-resolution", () => {
       makeAgent({ name: "a", harness: "claude" }),
       makeAgent({ name: "b", harness: "codex" }),
       makeAgent({ name: "c", harness: "opencode" }),
+      makeAgent({ name: "d", harness: "rovo" }),
     ]);
     expect(() => assertResolvedRuntimesAvailable(resolved)).not.toThrow();
   });

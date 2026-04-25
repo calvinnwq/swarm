@@ -55,16 +55,18 @@ describe("harness-registry", () => {
     expect(opencode.status).toBe("implemented");
   });
 
-  it("marks rovo as planned but discoverable", () => {
+  it("matches existing rovo-acli wrapper name and probe args", () => {
     const rovo = getHarnessDescriptor("rovo");
-    expect(rovo.status).toBe("planned");
+    expect(rovo.wrapperName).toBe("rovo-acli");
     expect(rovo.command.bin).toBe("acli");
     expect(rovo.command.runArgs).toContain("rovodev");
+    expect(rovo.command.runArgs).toContain("run");
+    expect(rovo.status).toBe("implemented");
   });
 
-  it("listImplementedHarnessIds returns only implemented harnesses", () => {
+  it("listImplementedHarnessIds returns every harness once all are implemented", () => {
     const implemented = listImplementedHarnessIds();
-    expect(implemented).toEqual(["claude", "codex", "opencode"]);
+    expect(implemented).toEqual(["claude", "codex", "opencode", "rovo"]);
   });
 
   it("rejects unknown harness ids with SwarmCommandError", () => {

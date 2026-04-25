@@ -9,6 +9,7 @@ import type { HarnessId } from "../schemas/harness-id.js";
 import { ClaudeCliAdapter } from "./claude-cli.js";
 import { CodexCliAdapter } from "./codex-cli.js";
 import { OpenCodeCliAdapter } from "./opencode-cli.js";
+import { RovoAcliAdapter } from "./rovo-acli.js";
 import type { BackendAdapter } from "./index.js";
 
 export function createHarnessAdapter(harness: HarnessId): BackendAdapter {
@@ -25,6 +26,8 @@ export function createHarnessAdapter(harness: HarnessId): BackendAdapter {
       return new CodexCliAdapter();
     case "opencode":
       return new OpenCodeCliAdapter();
+    case "rovo":
+      return new RovoAcliAdapter();
     default:
       throw new SwarmCommandError(
         `harness "${harness}" has no adapter implementation`,

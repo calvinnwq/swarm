@@ -93,15 +93,16 @@ const HARNESS_DESCRIPTORS: Readonly<Record<HarnessId, HarnessDescriptor>> = {
     wrapperName: "rovo-acli",
     command: {
       bin: "acli",
-      runArgs: ["rovodev", "run"],
+      runArgs: ["rovodev", "run", "--shadow", "-y"],
     },
     capability: {
       authProbeArgs: ["rovodev", "--help"],
+      runtimeProbeArgs: ["rovodev", "run", "--help"],
       missingBinHint:
         "install Atlassian acli with the rovodev plugin and ensure `acli` is available on PATH",
       missingAuthHint: "run `acli rovodev auth login` and retry",
     },
-    status: "planned",
+    status: "implemented",
   },
 };
 
