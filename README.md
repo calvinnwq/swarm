@@ -248,7 +248,10 @@ Each run produces a self-contained directory under `.swarm/runs/`:
 
 ```
 .swarm/runs/20260419-121439-should-we-adopt-server-components/
-├── manifest.json          # Run metadata (topic, goal, decision, rounds, backend, agents, timestamps)
+├── manifest.json          # Run metadata (run ID, status, topic, goal, decision, rounds, backend, agents, timestamps)
+├── checkpoint.json        # Durable recovery checkpoint after completed rounds
+├── events.jsonl           # Append-only orchestration event ledger
+├── messages.jsonl         # Append-only staged/committed message ledger
 ├── seed-brief.md          # Initial brief sent to all agents in round 1
 ├── round-01/
 │   ├── brief.md           # Round brief (same as seed-brief for round 1)
@@ -256,7 +259,7 @@ Each run produces a self-contained directory under `.swarm/runs/`:
 │       ├── product-manager.md
 │       └── principal-engineer.md
 ├── round-02/
-│   ├── brief.md           # Includes prior-round packet for context
+│   ├── brief.md           # Includes prior-round packet and orchestrator pass context
 │   └── agents/
 │       ├── product-manager.md
 │       └── principal-engineer.md
@@ -309,11 +312,18 @@ src/
 │   ├── round-runner.ts    # Concurrent agent dispatch with events
 │   ├── synthesis.ts       # Deterministic synthesis engine
 │   ├── artifact-writer.ts # Incremental disk persistence
+│   ├── checkpoint-writer.ts # Atomic durable recovery checkpoints
+│   ├── ledger-writer.ts   # Append-only message and event ledgers
+│   ├── inbox-manager.ts   # Staged/committed message delivery
+│   ├── scheduler.ts       # Per-round agent selection
 │   ├── run-swarm.ts       # Pipeline orchestrator
 │   ├── parse-command.ts   # CLI argument parsing/validation
 │   └── config.ts          # SwarmRunConfig types
 ├── schemas/               # Zod schemas for all data contracts
-│   └── backend-id.ts      # Shared backend identifier schema
+│   ├── backend-id.ts      # Shared backend identifier schema
+│   ├── message.ts         # Durable message envelope schema
+│   ├── run-checkpoint.ts  # Recovery checkpoint schema
+│   └── run-event.ts       # Orchestration event schema
 └── ui/                    # Terminal rendering (live + quiet)
 ```
 
