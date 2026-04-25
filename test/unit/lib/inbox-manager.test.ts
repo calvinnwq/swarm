@@ -135,9 +135,7 @@ describe("InboxManager", () => {
     });
 
     it("writes recipient-scoped committed envelopes", () => {
-      inbox.stage(
-        makeEnvelope({ recipients: ["agent-alpha", "agent-beta"] }),
-      );
+      inbox.stage(makeEnvelope({ recipients: ["agent-alpha", "agent-beta"] }));
       vi.clearAllMocks();
 
       const [committed] = inbox.commit("agent-alpha");
