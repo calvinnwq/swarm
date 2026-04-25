@@ -132,7 +132,7 @@ describe("smoke: README golden path", () => {
     expect(result.stdout).toContain("no .swarm/config.yml (CLI flags only)");
     expect(result.stdout).toContain("[OK] agent registry");
     expect(result.stdout).toContain("[OK] preset registry");
-    expect(result.stdout).not.toContain("backend capability");
+    expect(result.stdout).not.toContain("harness capability");
     expect(result.stdout).not.toContain("config agents");
     expect(result.stdout).not.toContain("config preset");
     expect(result.stderr).toBe("");
@@ -159,7 +159,7 @@ describe("smoke: README golden path", () => {
     );
     expect(result.stdout).toContain("[OK] agent registry");
     expect(result.stdout).toContain("[OK] preset registry");
-    expect(result.stdout).toContain("[OK] backend capability");
+    expect(result.stdout).toContain("[OK] harness capability");
     expect(result.stderr).toBe("");
   });
 
@@ -182,7 +182,7 @@ describe("smoke: README golden path", () => {
     expect(result.stdout).toContain('unknown preset "missing-preset"');
     expect(result.stdout).toContain("[OK] agent registry");
     expect(result.stdout).toContain("[OK] preset registry");
-    expect(result.stdout).toContain("[OK] backend capability");
+    expect(result.stdout).toContain("[OK] harness capability");
     expect(result.stderr).toBe("");
   });
 
@@ -206,7 +206,7 @@ describe("smoke: README golden path", () => {
     expect(result.stdout).toContain("rounds");
     expect(result.stdout).toContain("[OK] agent registry");
     expect(result.stdout).toContain("[OK] preset registry");
-    expect(result.stdout).not.toContain("backend capability");
+    expect(result.stdout).not.toContain("harness capability");
     expect(result.stderr).toBe("");
   });
 

@@ -175,7 +175,7 @@ program
 program
   .command("doctor")
   .description(
-    "Diagnose swarm setup: config, agents, presets, and backend capability",
+    "Diagnose swarm setup: config, agents, presets, and harness capability",
   )
   .action(async () => {
     try {

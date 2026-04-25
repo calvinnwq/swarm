@@ -167,12 +167,13 @@ describe("runDoctor backend checks", () => {
       (entry) => entry.name === "config backend",
     );
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(check?.status).toBe("ok");
     expect(check?.message).toContain("claude");
     expect(capability?.status).toBe("ok");
     expect(capability?.message).toContain("installed and authenticated");
+    expect(capability?.message).toContain('harness "claude"');
     expect(report.ok).toBe(true);
   });
 
@@ -211,12 +212,12 @@ describe("runDoctor backend checks", () => {
       (entry) => entry.name === "config backend",
     );
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(check?.status).toBe("ok");
     expect(check?.message).toContain('backend "codex" matches preset');
     expect(capability?.status).toBe("ok");
-    expect(capability?.message).toContain('backend "codex"');
+    expect(capability?.message).toContain('harness "codex"');
     expect(report.ok).toBe(true);
   });
 
@@ -255,7 +256,7 @@ describe("runDoctor backend checks", () => {
     const report = await runDoctor(roots);
 
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(capability?.status).toBe("fail");
     expect(capability?.message).toContain(
@@ -299,7 +300,7 @@ describe("runDoctor backend checks", () => {
       (entry) => entry.name === "config backend",
     );
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(check?.status).toBe("fail");
     expect(check?.message).toContain("product-manager (claude)");
@@ -308,7 +309,7 @@ describe("runDoctor backend checks", () => {
     expect(report.ok).toBe(false);
   });
 
-  it("skips backend capability checks when there is no config", async () => {
+  it("skips harness capability checks when there is no config", async () => {
     const roots = await makeIsolatedRoots();
     await writeFileUnder(
       roots.bundledAgentsDir,
@@ -334,13 +335,13 @@ describe("runDoctor backend checks", () => {
     const report = await runDoctor(roots);
 
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(capability).toBeUndefined();
     expect(report.ok).toBe(true);
   });
 
-  it("does not fail backend capability when no config backend is available", async () => {
+  it("does not fail harness capability when no config backend is available", async () => {
     const roots = await makeIsolatedRoots();
     await writeFileUnder(
       roots.bundledAgentsDir,
@@ -366,7 +367,7 @@ describe("runDoctor backend checks", () => {
     const report = await runDoctor(roots);
 
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(capability).toBeUndefined();
     expect(report.ok).toBe(true);
@@ -409,7 +410,7 @@ describe("runDoctor backend checks", () => {
     const report = await runDoctor(roots);
 
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(capability?.status).toBe("fail");
     expect(capability?.message).toContain("claude auth login");

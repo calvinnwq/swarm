@@ -3,8 +3,9 @@ import {
   type AgentRegistry,
   type LoadAgentRegistryOptions,
 } from "./agent-registry.js";
-import { checkBackendCapability } from "./backend-capability.js";
 import { collectAgentBackendMismatches } from "./backend-selection.js";
+import { checkHarnessCapability } from "./harness-capability.js";
+import { backendToHarness } from "./harness-resolution.js";
 import {
   loadPresetRegistry,
   type LoadPresetRegistryOptions,
@@ -101,7 +102,9 @@ export async function runDoctor(
   const effectiveBackend = resolveDoctorBackend(projectConfigCheck);
   if (effectiveBackend) {
     checks.push(
-      await checkBackendCapability(effectiveBackend, { env: options.env }),
+      await checkHarnessCapability(backendToHarness(effectiveBackend), {
+        env: options.env,
+      }),
     );
   }
 

@@ -167,9 +167,9 @@ describe("e2e: codex backend", () => {
     expect(result.stdout).toContain(
       'backend "codex" matches preset "product-decision-codex" (2 agent(s))',
     );
-    expect(result.stdout).toContain("[OK] backend capability");
+    expect(result.stdout).toContain("[OK] harness capability");
     expect(result.stdout).toContain(
-      'backend "codex" is installed and authenticated',
+      'harness "codex" is installed and authenticated',
     );
     expect(result.stderr).toBe("");
   });

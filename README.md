@@ -55,7 +55,7 @@ Options:
 
 Commands:
   run [options] <rounds> <topic...>  Run a swarm
-  doctor                             Diagnose swarm setup: config, agents, presets, backend selection, and backend capability
+  doctor                             Diagnose swarm setup: config, agents, presets, backend selection, and harness capability
   help [command]                     display help for command
 ```
 
@@ -142,7 +142,7 @@ Preset names must use lowercase letters, numbers, `-`, or `_`, and `agents` must
 
 ### `swarm doctor`
 
-Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, that any agents or preset referenced in the project config actually resolve, that any configured backend is supported and matches the resolved config agents or preset agents, and, when a project config resolves an effective backend, that the backend CLI is installed and authenticated. For Codex projects, that probe also verifies the installed CLI supports `codex exec`. Without `.swarm/config.yml`, `swarm doctor` skips backend capability checks. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
+Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, that any agents or preset referenced in the project config actually resolve, that any configured backend is supported and matches the resolved config agents or preset agents, and, when a project config resolves an effective backend, that the underlying harness CLI is installed and authenticated. For Codex projects, that probe also verifies the installed CLI supports `codex exec`. Without `.swarm/config.yml`, `swarm doctor` skips harness capability checks. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
 
 ```bash
 swarm doctor
