@@ -223,6 +223,46 @@ Evaluate the topic from a technical architecture lens. Consider
 system complexity, operational burden, and migration risk.
 ```
 
+### Harness and model selection
+
+Each agent can pin the runtime harness and model it dispatches through, independent of the run-level `--backend`. Two optional fields are recognized on every agent definition (YAML or Markdown frontmatter):
+
+| Field      | Values                                 | Default                                    |
+| ---------- | -------------------------------------- | ------------------------------------------ |
+| `harness`  | `claude`, `codex`, `opencode`, `rovo`  | Falls back to the agent's `backend`        |
+| `model`    | Any non-empty string                   | Harness default (the harness chooses)      |
+
+Resolution order per agent (first wins): `agent.harness` → `agent.backend` → run-level `--backend` (claude). The resolved (`harness`, `model`) pair is captured in `manifest.json` under `agentRuntimes` and rendered into each agent's per-round markdown header (`Harness:` / `Model:`).
+
+This unlocks **mixed-harness swarms**: a single run can route one agent through Claude and another through Codex (or OpenCode / Rovo Dev), as long as each harness's CLI is installed and authenticated. Example agent overrides for a mixed run:
+
+```yaml
+# .swarm/agents/pm-mixed.yml — claude harness with a pinned model
+name: pm-mixed
+description: Product manager dispatched via Claude
+persona: You are a rigorous product manager.
+prompt: Evaluate the topic and return the swarm JSON contract.
+harness: claude
+model: claude-sonnet-4-5
+```
+
+```yaml
+# .swarm/agents/pe-mixed.yml — codex harness, harness-default model
+name: pe-mixed
+description: Principal engineer dispatched via Codex
+persona: You are a principal engineer.
+prompt: Evaluate the topic and return the swarm JSON contract.
+harness: codex
+```
+
+```bash
+swarm run 1 "Should we adopt mixed-harness swarms" \
+  --agents pm-mixed,pe-mixed \
+  --resolve off
+```
+
+`swarm doctor` probes the run-level backend's harness (whichever the project config or `--backend` selects). At run start, the CLI additionally fails fast if any agent requests an unimplemented harness, listing the harnesses currently available. Today `claude` and `codex` ignore `agent.model` at dispatch time (the model is recorded in artifacts only); `opencode` and `rovo` pass it through as `--model` to their CLIs.
+
 ### Agent output schema
 
 Each agent returns structured JSON:
