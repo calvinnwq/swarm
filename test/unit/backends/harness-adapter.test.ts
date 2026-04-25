@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildHarnessAdapterRegistry,
+  createAgentAdapterResolver,
   createHarnessAdapter,
   HarnessAdapterRegistry,
 } from "../../../src/backends/harness-adapter.js";
@@ -116,5 +117,51 @@ describe("buildHarnessAdapterRegistry", () => {
     expect(() => buildHarnessAdapterRegistry(resolved)).toThrow(
       SwarmCommandError,
     );
+  });
+});
+
+describe("createAgentAdapterResolver", () => {
+  it("returns the harness-specific adapter per agent", () => {
+    const claudeAgent = makeAgent({
+      name: "alpha",
+      backend: "claude",
+      harness: "claude",
+    });
+    const codexAgent = makeAgent({
+      name: "beta",
+      backend: "codex",
+      harness: "codex",
+    });
+    const resolved = [claudeAgent, codexAgent].map(resolveAgentRuntime);
+    const registry = buildHarnessAdapterRegistry(resolved);
+    const resolve = createAgentAdapterResolver(resolved, registry);
+
+    expect(resolve(claudeAgent)).toBeInstanceOf(ClaudeCliAdapter);
+    expect(resolve(codexAgent)).toBeInstanceOf(CodexCliAdapter);
+  });
+
+  it("returns the same adapter instance across calls for the same agent", () => {
+    const agent = makeAgent({
+      name: "alpha",
+      backend: "claude",
+      harness: "claude",
+    });
+    const resolved = [agent].map(resolveAgentRuntime);
+    const registry = buildHarnessAdapterRegistry(resolved);
+    const resolve = createAgentAdapterResolver(resolved, registry);
+    expect(resolve(agent)).toBe(resolve(agent));
+  });
+
+  it("hard-fails for an agent with no resolved runtime", () => {
+    const known = makeAgent({
+      name: "alpha",
+      backend: "claude",
+      harness: "claude",
+    });
+    const unknown = makeAgent({ name: "ghost" });
+    const resolved = [known].map(resolveAgentRuntime);
+    const registry = buildHarnessAdapterRegistry(resolved);
+    const resolve = createAgentAdapterResolver(resolved, registry);
+    expect(() => resolve(unknown)).toThrow(SwarmCommandError);
   });
 });

@@ -10,7 +10,7 @@ import type {
 import type { BackendAdapter } from "../backends/index.js";
 import type { SwarmRunConfig } from "./config.js";
 import { createRoundRunner } from "./round-runner.js";
-import type { RoundResult } from "./round-runner.js";
+import type { BackendAdapterResolver, RoundResult } from "./round-runner.js";
 import {
   selectAgentsForRound,
   type SchedulerDecision,
@@ -42,6 +42,12 @@ export interface ResumeSwarmOpts {
   ui?: SwarmUiMode;
   additionalTargets?: OutputTarget[];
   schedulerPolicy?: SchedulerPolicy;
+  /**
+   * Per-agent adapter resolver. When provided, each agent dispatches via
+   * the adapter returned for it; `backend` is the default fallback and is
+   * still used for run-level metadata such as wrapperName.
+   */
+  resolveBackend?: BackendAdapterResolver;
 }
 
 export interface RunSwarmOpts {
@@ -69,6 +75,12 @@ export interface RunSwarmOpts {
    * agents that successfully responded in the prior round.
    */
   schedulerPolicy?: SchedulerPolicy;
+  /**
+   * Per-agent adapter resolver. When provided, each agent dispatches via
+   * the adapter returned for it; `backend` is the default fallback and is
+   * still used for run-level metadata such as wrapperName.
+   */
+  resolveBackend?: BackendAdapterResolver;
 }
 
 function didRoundSucceed(agentResults: RoundResult["agentResults"]): boolean {
@@ -245,6 +257,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     backend,
     betweenRounds,
     schedulerPolicy: opts.schedulerPolicy,
+    resolveBackend: opts.resolveBackend,
   });
 
   const uiMode: SwarmUiMode =
@@ -582,6 +595,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     backend,
     betweenRounds,
     schedulerPolicy: opts.schedulerPolicy,
+    resolveBackend: opts.resolveBackend,
     startRound,
     initialPriorPacket: priorPacket,
     initialOrchestratorDirective: orchestratorDirective,

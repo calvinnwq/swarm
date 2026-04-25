@@ -4,6 +4,7 @@ import {
   listImplementedHarnessIds,
 } from "../lib/harness-registry.js";
 import type { ResolvedAgentRuntime } from "../lib/harness-resolution.js";
+import type { AgentDefinition } from "../schemas/agent-definition.js";
 import type { HarnessId } from "../schemas/harness-id.js";
 import { ClaudeCliAdapter } from "./claude-cli.js";
 import { CodexCliAdapter } from "./codex-cli.js";
@@ -64,4 +65,29 @@ export function buildHarnessAdapterRegistry(
     registry.get(entry.harness);
   }
   return registry;
+}
+
+/**
+ * Builds a per-agent adapter resolver from a list of resolved runtimes and a
+ * pre-warmed registry. The returned resolver dispatches each AgentDefinition
+ * to the adapter for its resolved harness; agents not in `resolved` raise a
+ * SwarmCommandError so dispatch never silently picks a default backend.
+ */
+export function createAgentAdapterResolver(
+  resolved: readonly ResolvedAgentRuntime[],
+  registry: HarnessAdapterRegistry,
+): (agent: AgentDefinition) => BackendAdapter {
+  const harnessByAgent = new Map<string, HarnessId>();
+  for (const entry of resolved) {
+    harnessByAgent.set(entry.agentName, entry.harness);
+  }
+  return (agent) => {
+    const harness = harnessByAgent.get(agent.name);
+    if (harness === undefined) {
+      throw new SwarmCommandError(
+        `agent "${agent.name}" has no resolved runtime; resolve runtimes before dispatching`,
+      );
+    }
+    return registry.get(harness);
+  };
 }

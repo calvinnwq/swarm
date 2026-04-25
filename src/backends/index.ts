@@ -24,5 +24,6 @@ export { createBackendAdapter } from "./factory.js";
 export {
   createHarnessAdapter,
   buildHarnessAdapterRegistry,
+  createAgentAdapterResolver,
   HarnessAdapterRegistry,
 } from "./harness-adapter.js";

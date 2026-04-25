@@ -66,6 +66,8 @@ export interface RoundRunnerEvents {
   "run:done": { rounds: RoundResult[]; ok: boolean };
 }
 
+export type BackendAdapterResolver = (agent: AgentDefinition) => BackendAdapter;
+
 export interface RoundRunnerOpts {
   config: SwarmRunConfig;
   agents: AgentDefinition[];
@@ -73,6 +75,12 @@ export interface RoundRunnerOpts {
   concurrency?: number;
   timeoutMs?: number;
   schedulerPolicy?: SchedulerPolicy;
+  /**
+   * Per-agent adapter resolver. When provided, each agent dispatches through
+   * the adapter returned for it; the run-level `backend` becomes the default
+   * for any agent the resolver does not cover.
+   */
+  resolveBackend?: BackendAdapterResolver;
   /** First round to execute; rounds before this are treated as already complete (resume path). */
   startRound?: number;
   /** Prior-round packet to seed the scheduler and brief-builder (resume path). */
@@ -329,7 +337,10 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
     timeoutMs = DEFAULT_TIMEOUT_MS,
     schedulerPolicy = "all",
     startRound = 1,
+    resolveBackend,
   } = opts;
+
+  const adapterFor: BackendAdapterResolver = resolveBackend ?? (() => backend);
 
   const emitter = new EventEmitter();
 
@@ -365,7 +376,7 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
 
       const tasks = roundAgents.map((agent) => () => {
         emitter.emit("agent:start", { round, agent: agent.name });
-        return dispatchAgent(backend, brief, agent, timeoutMs);
+        return dispatchAgent(adapterFor(agent), brief, agent, timeoutMs);
       });
 
       const agentResults = await runWithConcurrency(tasks, concurrency);
