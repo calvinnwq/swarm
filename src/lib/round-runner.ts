@@ -9,6 +9,11 @@ import type { AgentResponse, BackendAdapter } from "../backends/index.js";
 import { extractAgentOutputJson } from "../backends/json-output.js";
 import type { SwarmRunConfig } from "./config.js";
 import { buildSeedBrief, buildRoundBrief } from "./brief-generator.js";
+import {
+  selectAgentsForRound,
+  type SchedulerPolicy,
+  type SchedulerDecision,
+} from "./scheduler.js";
 
 const DEFAULT_CONCURRENCY = 3;
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -35,7 +40,11 @@ export interface RunResult {
 }
 
 export interface RoundRunnerEvents {
-  "round:start": { round: number; agents: string[] };
+  "round:start": {
+    round: number;
+    agents: string[];
+    schedulerDecision: SchedulerDecision;
+  };
   "agent:start": { round: number; agent: string };
   "agent:ok": {
     round: number;
@@ -63,6 +72,17 @@ export interface RoundRunnerOpts {
   backend: BackendAdapter;
   concurrency?: number;
   timeoutMs?: number;
+  schedulerPolicy?: SchedulerPolicy;
+  /** First round to execute; rounds before this are treated as already complete (resume path). */
+  startRound?: number;
+  /** Prior-round packet to seed the scheduler and brief-builder (resume path). */
+  initialPriorPacket?: RoundPacket | null;
+  /** Orchestrator directive carried over from the last completed round (resume path). */
+  initialOrchestratorDirective?: string;
+  betweenRounds?: (args: {
+    round: number;
+    packet: RoundPacket;
+  }) => Promise<{ directive: string } | undefined>;
 }
 
 function validateAgentOutput(
@@ -144,7 +164,7 @@ function buildRoundPacket(
   const summaries = successful.map((r) => {
     const o = r.output!;
     return {
-      agent: o.agent,
+      agent: r.agent,
       stance: o.stance,
       recommendation: o.recommendation,
       objections: o.objections,
@@ -307,6 +327,8 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
     concurrency = Number(process.env["SWARM_CONCURRENCY"]) ||
       DEFAULT_CONCURRENCY,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    schedulerPolicy = "all",
+    startRound = 1,
   } = opts;
 
   const emitter = new EventEmitter();
@@ -314,15 +336,34 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
   async function run(): Promise<RunResult> {
     const roundResults: RoundResult[] = [];
     const seedBrief = buildSeedBrief(config);
-    let priorPacket: RoundPacket | null = null;
+    let priorPacket: RoundPacket | null = opts.initialPriorPacket ?? null;
+    let orchestratorDirective: string | undefined =
+      opts.initialOrchestratorDirective;
 
-    for (let round = 1; round <= config.rounds; round++) {
-      const agentNames = agents.map((a) => a.name);
-      emitter.emit("round:start", { round, agents: agentNames });
+    for (let round = startRound; round <= config.rounds; round++) {
+      const schedulerDecision = selectAgentsForRound(
+        agents,
+        round,
+        priorPacket,
+        schedulerPolicy,
+      );
+      const selectedAgentNames = new Set(schedulerDecision.selected);
+      const roundAgents = agents.filter((a) => selectedAgentNames.has(a.name));
+      emitter.emit("round:start", {
+        round,
+        agents: schedulerDecision.selected,
+        schedulerDecision,
+      });
 
-      const brief = buildRoundBrief({ config, round, seedBrief, priorPacket });
+      const brief = buildRoundBrief({
+        config,
+        round,
+        seedBrief,
+        priorPacket,
+        orchestratorDirective,
+      });
 
-      const tasks = agents.map((agent) => () => {
+      const tasks = roundAgents.map((agent) => () => {
         emitter.emit("agent:start", { round, agent: agent.name });
         return dispatchAgent(backend, brief, agent, timeoutMs);
       });
@@ -366,6 +407,11 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
       const roundResult: RoundResult = { round, agentResults, packet };
       roundResults.push(roundResult);
       emitter.emit("round:done", { round, packet, agentResults });
+
+      if (round < config.rounds) {
+        const passResult = await opts.betweenRounds?.({ round, packet });
+        orchestratorDirective = passResult?.directive;
+      }
     }
 
     emitter.emit("run:done", { rounds: roundResults, ok: true });

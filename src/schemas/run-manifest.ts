@@ -4,8 +4,13 @@ import { BackendIdSchema } from "./backend-id.js";
 export const ResolveModeSchema = z.enum(["off", "orchestrator", "agents"]);
 export type ResolveMode = z.infer<typeof ResolveModeSchema>;
 
+export const RunStatusSchema = z.enum(["pending", "running", "done", "failed"]);
+export type RunStatus = z.infer<typeof RunStatusSchema>;
+
 export const RunManifestSchema = z
   .object({
+    runId: z.string().min(1),
+    status: RunStatusSchema,
     topic: z.string().min(1),
     rounds: z.int().min(1),
     backend: BackendIdSchema,

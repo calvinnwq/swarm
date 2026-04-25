@@ -49,7 +49,7 @@ program
   .option("--agents <list>", "comma-separated agent names")
   .option(
     "--resolve <mode>",
-    "record resolution mode in manifest: off | orchestrator | agents (between-round sub-pass not yet implemented)",
+    "record resolution mode in manifest: off | orchestrator | agents (mode-specific resolution is stubbed)",
   )
   .option("--goal <text>", "primary goal for the swarm")
   .option("--decision <text>", "decision target for the swarm")

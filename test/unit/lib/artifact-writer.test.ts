@@ -18,6 +18,8 @@ import {
 
 function makeManifest(runDir: string): RunManifest {
   return {
+    runId: "00000000-0000-0000-0000-000000000001",
+    status: "running",
     topic: "Should we adopt TypeScript?",
     rounds: 2,
     backend: "claude",
@@ -271,6 +273,8 @@ describe("ArtifactWriter", () => {
         "product-manager",
         "principal-engineer",
       ]);
+      expect(manifestJson.runId).toBe("00000000-0000-0000-0000-000000000001");
+      expect(manifestJson.status).toBe("running");
 
       const seedBrief = readFileSync(join(runDir, "seed-brief.md"), "utf-8");
       expect(seedBrief).toBe("# Seed Brief\n\nTopic: TypeScript");
@@ -397,12 +401,13 @@ describe("ArtifactWriter", () => {
       });
       writer.init();
 
-      writer.finalize("2026-04-19T10:05:00.000Z");
+      writer.finalize("2026-04-19T10:05:00.000Z", "done");
 
       const updated = JSON.parse(
         readFileSync(join(runDir, "manifest.json"), "utf-8"),
       );
       expect(updated.finishedAt).toBe("2026-04-19T10:05:00.000Z");
+      expect(updated.status).toBe("done");
       expect(updated.topic).toBe("Should we adopt TypeScript?");
     });
   });
@@ -450,7 +455,7 @@ describe("ArtifactWriter", () => {
       writer.writeRound(makeRoundResult(1, agents), "brief r1");
       writer.writeRound(makeRoundResult(2, agents), "brief r2");
       writer.writeSynthesis(makeSynthesis());
-      writer.finalize("2026-04-19T10:05:00.000Z");
+      writer.finalize("2026-04-19T10:05:00.000Z", "done");
 
       // Verify complete tree
       const expected = [

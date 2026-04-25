@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildRoundBrief,
   buildSeedBrief,
+  buildOrchestratorPassDirective,
   type SwarmRunConfig,
 } from "../../../src/lib/index.js";
 import {
@@ -178,5 +179,113 @@ describe("buildRoundBrief", () => {
     });
     // Seed section should not contain trailing blank lines before the next heading
     expect(out).toMatch(/Topic: x\n\n## Prior Round Packet/);
+  });
+
+  it("injects orchestratorDirective section before ## Instructions when provided", () => {
+    const out = buildRoundBrief({
+      config: configWith({ rounds: 3 }),
+      round: 2,
+      seedBrief,
+      priorPacket: samplePacket,
+      orchestratorDirective:
+        "## Orchestrator Pass — After Round 1\n\n**Stance summary (1 agent(s)):**\n- alpha: lean toward option B",
+    });
+    expect(out).toContain("## Orchestrator Pass — After Round 1");
+    expect(out).toContain("**Stance summary (1 agent(s)):**");
+    // Directive appears before Instructions
+    const directiveIdx = out.indexOf("## Orchestrator Pass");
+    const instructionsIdx = out.indexOf("## Instructions");
+    expect(directiveIdx).toBeGreaterThan(0);
+    expect(directiveIdx).toBeLessThan(instructionsIdx);
+  });
+
+  it("omits orchestratorDirective section when not provided", () => {
+    const out = buildRoundBrief({
+      config: configWith({ rounds: 3 }),
+      round: 2,
+      seedBrief,
+      priorPacket: samplePacket,
+    });
+    expect(out).not.toContain("## Orchestrator Pass");
+  });
+});
+
+describe("buildOrchestratorPassDirective", () => {
+  const fullPacket: RoundPacket = {
+    round: 1,
+    agents: ["alpha", "beta"],
+    summaries: [
+      {
+        agent: "alpha",
+        stance: "lean toward option B",
+        recommendation: "ship it",
+        objections: [],
+        risks: [],
+        confidence: "high",
+        openQuestions: [],
+      },
+      {
+        agent: "beta",
+        stance: "cautious about timeline",
+        recommendation: "phase it",
+        objections: [],
+        risks: [],
+        confidence: "medium",
+        openQuestions: [],
+      },
+    ],
+    keyObjections: ["Risk of scope creep", "Team capacity unclear"],
+    sharedRisks: ["Deadline pressure"],
+    openQuestions: ["Which team owns deployment?"],
+    questionResolutions: [],
+    questionResolutionLimit: 3,
+    deferredQuestions: [],
+  };
+
+  it("includes the round number in the header", () => {
+    const out = buildOrchestratorPassDirective(fullPacket);
+    expect(out).toContain("## Orchestrator Pass — After Round 1");
+  });
+
+  it("lists each agent stance", () => {
+    const out = buildOrchestratorPassDirective(fullPacket);
+    expect(out).toContain("alpha: lean toward option B");
+    expect(out).toContain("beta: cautious about timeline");
+  });
+
+  it("lists key objections", () => {
+    const out = buildOrchestratorPassDirective(fullPacket);
+    expect(out).toContain("Risk of scope creep");
+    expect(out).toContain("Team capacity unclear");
+  });
+
+  it("lists shared risks", () => {
+    const out = buildOrchestratorPassDirective(fullPacket);
+    expect(out).toContain("Deadline pressure");
+  });
+
+  it("lists open questions", () => {
+    const out = buildOrchestratorPassDirective(fullPacket);
+    expect(out).toContain("Which team owns deployment?");
+  });
+
+  it("omits empty sections", () => {
+    const emptyPacket: RoundPacket = {
+      ...fullPacket,
+      summaries: [],
+      keyObjections: [],
+      sharedRisks: [],
+      openQuestions: [],
+    };
+    const out = buildOrchestratorPassDirective(emptyPacket);
+    expect(out).not.toContain("**Stance summary");
+    expect(out).not.toContain("**Key objections");
+    expect(out).not.toContain("**Shared risks");
+    expect(out).not.toContain("**Open questions");
+  });
+
+  it("returns a string that does not end with a newline (trimmed)", () => {
+    const out = buildOrchestratorPassDirective(fullPacket);
+    expect(out.endsWith("\n")).toBe(false);
   });
 });

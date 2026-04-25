@@ -1,5 +1,6 @@
 import type { RoundResult } from "./round-runner.js";
 import type { SynthesisResult } from "./synthesis.js";
+import type { RunStatus } from "../schemas/index.js";
 
 /**
  * Delivery hook for a single output destination.
@@ -10,7 +11,10 @@ export interface OutputTarget {
   init(): void | Promise<void>;
   writeRound(roundResult: RoundResult, brief: string): void | Promise<void>;
   writeSynthesis(synthesis: SynthesisResult): void | Promise<void>;
-  finalize(finishedAt: string): void | Promise<void>;
+  finalize(
+    finishedAt: string,
+    status: Extract<RunStatus, "done" | "failed">,
+  ): void | Promise<void>;
 }
 
 /**
@@ -32,7 +36,10 @@ export class OutputRouter {
     for (const t of this.targets) await t.writeSynthesis(synthesis);
   }
 
-  async finalize(finishedAt: string): Promise<void> {
-    for (const t of this.targets) await t.finalize(finishedAt);
+  async finalize(
+    finishedAt: string,
+    status: Extract<RunStatus, "done" | "failed">,
+  ): Promise<void> {
+    for (const t of this.targets) await t.finalize(finishedAt, status);
   }
 }

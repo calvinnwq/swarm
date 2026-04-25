@@ -132,7 +132,9 @@ describe("e2e: CLI integration with --agents flag", () => {
     expect(entry).toBeTruthy();
     const runDir = join(runsDir, entry);
 
-    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
     expect(manifest.topic).toBe("Should we adopt TypeScript everywhere");
     expect(manifest.rounds).toBe(2);
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
@@ -147,8 +149,12 @@ describe("e2e: CLI integration with --agents flag", () => {
     for (const round of ["round-01", "round-02"]) {
       const roundDir = join(runDir, round);
       expect(existsSync(join(roundDir, "brief.md"))).toBe(true);
-      expect(existsSync(join(roundDir, "agents", "product-manager.md"))).toBe(true);
-      expect(existsSync(join(roundDir, "agents", "principal-engineer.md"))).toBe(true);
+      expect(existsSync(join(roundDir, "agents", "product-manager.md"))).toBe(
+        true,
+      );
+      expect(
+        existsSync(join(roundDir, "agents", "principal-engineer.md")),
+      ).toBe(true);
     }
 
     const r1brief = readFileSync(join(runDir, "round-01", "brief.md"), "utf-8");
@@ -164,7 +170,9 @@ describe("e2e: CLI integration with --agents flag", () => {
     expect(r1pm).toContain("Round: 1");
     expect(r1pm).toContain("Status: ok");
 
-    const synthesis = JSON.parse(readFileSync(join(runDir, "synthesis.json"), "utf-8"));
+    const synthesis = JSON.parse(
+      readFileSync(join(runDir, "synthesis.json"), "utf-8"),
+    );
     expect(synthesis.topic).toBe("Should we adopt TypeScript everywhere");
     expect(synthesis.roundCount).toBe(2);
     expect(synthesis.agentCount).toBe(2);
@@ -173,7 +181,9 @@ describe("e2e: CLI integration with --agents flag", () => {
     expect(synthesis.sharedRisks).toContain("shared risk");
 
     const synthesisMd = readFileSync(join(runDir, "synthesis.md"), "utf-8");
-    expect(synthesisMd).toContain("# Synthesis: Should we adopt TypeScript everywhere");
+    expect(synthesisMd).toContain(
+      "# Synthesis: Should we adopt TypeScript everywhere",
+    );
     expect(synthesisMd).toContain("### Round 1");
     expect(synthesisMd).toContain("### Round 2");
   });
@@ -205,20 +215,28 @@ describe("e2e: CLI integration with --agents flag", () => {
     const [entry] = readdirSync(runsDir);
     const runDir = join(runsDir, entry);
 
-    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
     expect(manifest.rounds).toBe(1);
     expect(manifest.resolveMode).toBe("off");
     expect(manifest.preset).toBeNull();
 
     expect(existsSync(join(runDir, "round-01"))).toBe(true);
     expect(existsSync(join(runDir, "synthesis.json"))).toBe(true);
-    const synthesis = JSON.parse(readFileSync(join(runDir, "synthesis.json"), "utf-8"));
+    const synthesis = JSON.parse(
+      readFileSync(join(runDir, "synthesis.json"), "utf-8"),
+    );
     expect(synthesis.resolveMode).toBe("off");
   });
 
   it("carries a --doc into the seed brief", () => {
     const docPath = join(baseDir, "context.md");
-    writeFileSync(docPath, "# Context\n\nThis is carry-forward context.\n", "utf-8");
+    writeFileSync(
+      docPath,
+      "# Context\n\nThis is carry-forward context.\n",
+      "utf-8",
+    );
 
     const result = spawnSync(
       "node",
@@ -290,7 +308,9 @@ describe("e2e: CLI integration with --agents flag", () => {
     const [entry] = readdirSync(runsDir);
     const runDir = join(runsDir, entry);
 
-    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
     expect(manifest.agents).toContain("product-manager");
 
     const r1pm = readFileSync(
@@ -331,7 +351,9 @@ describe("e2e: CLI integration with --agents flag", () => {
     const [entry] = readdirSync(runsDir);
     const runDir = join(runsDir, entry);
 
-    const manifest = JSON.parse(readFileSync(join(runDir, "manifest.json"), "utf-8"));
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
     expect(manifest.agents).toEqual(["product-manager", "principal-engineer"]);
     expect(manifest.preset).toBeNull();
   });

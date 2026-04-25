@@ -74,7 +74,7 @@ Options:
   --agents <list>    comma-separated agent names
   --backend <name>   runtime backend adapter (currently: claude, codex)
   --resolve <mode>   record resolution mode in manifest: off | orchestrator | agents
-                     (between-round sub-pass not yet implemented)
+                     (mode-specific resolution is stubbed)
   --goal <text>      primary goal for the swarm
   --decision <text>  decision target for the swarm
   --doc <path>       carry-forward document (repeatable)
@@ -83,7 +83,7 @@ Options:
   -h, --help         display help for command
 ```
 
-> **Heads up — `--resolve` is a stub for alpha.** The value is accepted, persisted in the run manifest, and carried through synthesis, but no between-round question-resolution sub-pass runs yet. Pass it for forward-compatibility; expect no functional change between modes today.
+> **Heads up — `--resolve` behavior is limited for alpha.** The value is accepted, persisted in the run manifest, and carried through synthesis. A between-round orchestrator pass now feeds later round briefs, but resolve modes do not yet change question-resolution behavior.
 
 ### Bundled presets
 
@@ -159,7 +159,7 @@ preset: product-decision
 backend: claude
 goal: Decide on migration strategy
 decision: Adopt / Defer / Reject
-resolve: off # off | orchestrator | agents (stub; see note above)
+resolve: off # off | orchestrator | agents (limited; see note above)
 docs:
   - docs/architecture.md
 ```
@@ -187,7 +187,7 @@ Swarm ships with six bundled agents:
 | `product-designer`         | UX, usability, and user-journey perspective                     |
 | `product-manager-codex`    | Codex-backed product decision framing                           |
 | `principal-engineer-codex` | Codex-backed engineering feasibility                            |
-| `orchestrator`             | Coordinator persona reserved for resolve modes (not active yet) |
+| `orchestrator`             | Coordinator persona for between-round context and resolve modes  |
 
 A project-local agent with the same `name` as a bundled agent fully replaces it for that project. A user-global agent overrides the bundled version machine-wide but yields to any project-local definition. Duplicate `name` values within the same root are an error.
 
@@ -248,7 +248,10 @@ Each run produces a self-contained directory under `.swarm/runs/`:
 
 ```
 .swarm/runs/20260419-121439-should-we-adopt-server-components/
-├── manifest.json          # Run metadata (topic, goal, decision, rounds, backend, agents, timestamps)
+├── manifest.json          # Run metadata (run ID, status, topic, goal, decision, rounds, backend, agents, timestamps)
+├── checkpoint.json        # Durable recovery checkpoint after completed rounds
+├── events.jsonl           # Append-only orchestration event ledger
+├── messages.jsonl         # Append-only staged/committed message ledger
 ├── seed-brief.md          # Initial brief sent to all agents in round 1
 ├── round-01/
 │   ├── brief.md           # Round brief (same as seed-brief for round 1)
@@ -256,7 +259,7 @@ Each run produces a self-contained directory under `.swarm/runs/`:
 │       ├── product-manager.md
 │       └── principal-engineer.md
 ├── round-02/
-│   ├── brief.md           # Includes prior-round packet for context
+│   ├── brief.md           # Includes prior-round packet and orchestrator pass context
 │   └── agents/
 │       ├── product-manager.md
 │       └── principal-engineer.md
@@ -309,11 +312,18 @@ src/
 │   ├── round-runner.ts    # Concurrent agent dispatch with events
 │   ├── synthesis.ts       # Deterministic synthesis engine
 │   ├── artifact-writer.ts # Incremental disk persistence
+│   ├── checkpoint-writer.ts # Atomic durable recovery checkpoints
+│   ├── ledger-writer.ts   # Append-only message and event ledgers
+│   ├── inbox-manager.ts   # Staged/committed message delivery
+│   ├── scheduler.ts       # Per-round agent selection
 │   ├── run-swarm.ts       # Pipeline orchestrator
 │   ├── parse-command.ts   # CLI argument parsing/validation
 │   └── config.ts          # SwarmRunConfig types
 ├── schemas/               # Zod schemas for all data contracts
-│   └── backend-id.ts      # Shared backend identifier schema
+│   ├── backend-id.ts      # Shared backend identifier schema
+│   ├── message.ts         # Durable message envelope schema
+│   ├── run-checkpoint.ts  # Recovery checkpoint schema
+│   └── run-event.ts       # Orchestration event schema
 └── ui/                    # Terminal rendering (live + quiet)
 ```
 

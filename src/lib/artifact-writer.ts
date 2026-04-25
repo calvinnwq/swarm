@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentOutput, RunManifest } from "../schemas/index.js";
+import type { AgentOutput, RunManifest, RunStatus } from "../schemas/index.js";
 import type { AgentResult, RoundResult } from "./round-runner.js";
 import type { SynthesisResult } from "./synthesis.js";
 import type { OutputTarget } from "./output-router.js";
@@ -236,10 +236,13 @@ export class ArtifactWriter implements OutputTarget {
   }
 
   /**
-   * Update the manifest with finishedAt timestamp.
+   * Update the manifest with finishedAt timestamp and terminal status.
    */
-  finalize(finishedAt: string): void {
-    const updated = { ...this.opts.manifest, finishedAt };
+  finalize(
+    finishedAt: string,
+    status: Extract<RunStatus, "done" | "failed">,
+  ): void {
+    const updated = { ...this.opts.manifest, finishedAt, status };
     writeFileSync(
       join(this.runDir, "manifest.json"),
       JSON.stringify(updated, null, 2) + "\n",

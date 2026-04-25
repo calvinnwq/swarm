@@ -10,14 +10,26 @@ function makeTarget(): OutputTarget & {
   const calls: string[] = [];
   return {
     calls,
-    init: vi.fn(() => { calls.push("init"); }),
-    writeRound: vi.fn((_r: RoundResult, _b: string) => { calls.push("writeRound"); }),
-    writeSynthesis: vi.fn((_s: SynthesisResult) => { calls.push("writeSynthesis"); }),
-    finalize: vi.fn((_f: string) => { calls.push("finalize"); }),
+    init: vi.fn(() => {
+      calls.push("init");
+    }),
+    writeRound: vi.fn((_r: RoundResult, _b: string) => {
+      calls.push("writeRound");
+    }),
+    writeSynthesis: vi.fn((_s: SynthesisResult) => {
+      calls.push("writeSynthesis");
+    }),
+    finalize: vi.fn((_f: string, _s: "done" | "failed") => {
+      calls.push("finalize");
+    }),
   };
 }
 
-const stubRound = { round: 1, agentResults: [], packet: {} } as unknown as RoundResult;
+const stubRound = {
+  round: 1,
+  agentResults: [],
+  packet: {},
+} as unknown as RoundResult;
 const stubSynthesis = { json: {}, markdown: "" } as unknown as SynthesisResult;
 
 describe("OutputRouter", () => {
@@ -48,25 +60,29 @@ describe("OutputRouter", () => {
     expect(b.writeSynthesis).toHaveBeenCalledWith(stubSynthesis);
   });
 
-  it("calls finalize on all targets with the timestamp", async () => {
+  it("calls finalize on all targets with the timestamp and status", async () => {
     const a = makeTarget();
     const b = makeTarget();
     const router = new OutputRouter([a, b]);
-    await router.finalize("2026-04-23T00:00:00.000Z");
-    expect(a.finalize).toHaveBeenCalledWith("2026-04-23T00:00:00.000Z");
-    expect(b.finalize).toHaveBeenCalledWith("2026-04-23T00:00:00.000Z");
+    await router.finalize("2026-04-23T00:00:00.000Z", "done");
+    expect(a.finalize).toHaveBeenCalledWith("2026-04-23T00:00:00.000Z", "done");
+    expect(b.finalize).toHaveBeenCalledWith("2026-04-23T00:00:00.000Z", "done");
   });
 
   it("calls targets in order", async () => {
     const order: string[] = [];
     const a: OutputTarget = {
-      init: vi.fn(() => { order.push("a:init"); }),
+      init: vi.fn(() => {
+        order.push("a:init");
+      }),
       writeRound: vi.fn(),
       writeSynthesis: vi.fn(),
       finalize: vi.fn(),
     };
     const b: OutputTarget = {
-      init: vi.fn(() => { order.push("b:init"); }),
+      init: vi.fn(() => {
+        order.push("b:init");
+      }),
       writeRound: vi.fn(),
       writeSynthesis: vi.fn(),
       finalize: vi.fn(),
@@ -81,7 +97,7 @@ describe("OutputRouter", () => {
     await expect(router.init()).resolves.toBeUndefined();
     await expect(router.writeRound(stubRound, "")).resolves.toBeUndefined();
     await expect(router.writeSynthesis(stubSynthesis)).resolves.toBeUndefined();
-    await expect(router.finalize("ts")).resolves.toBeUndefined();
+    await expect(router.finalize("ts", "done")).resolves.toBeUndefined();
   });
 
   it("awaits async targets before calling the next", async () => {
@@ -96,7 +112,9 @@ describe("OutputRouter", () => {
       finalize: vi.fn(),
     };
     const b: OutputTarget = {
-      init: vi.fn(() => { order.push("b"); }),
+      init: vi.fn(() => {
+        order.push("b");
+      }),
       writeRound: vi.fn(),
       writeSynthesis: vi.fn(),
       finalize: vi.fn(),
