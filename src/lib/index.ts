@@ -7,6 +7,7 @@ export * from "./brief-generator.js";
 export * from "./config.js";
 export * from "./doctor.js";
 export * from "./harness-registry.js";
+export * from "./harness-resolution.js";
 export * from "./inbox-manager.js";
 export * from "./load-project-config.js";
 export * from "./parse-command.js";
