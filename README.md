@@ -74,7 +74,7 @@ Options:
   --agents <list>    comma-separated agent names
   --backend <name>   runtime backend adapter (currently: claude, codex)
   --resolve <mode>   record resolution mode in manifest: off | orchestrator | agents
-                     (between-round sub-pass not yet implemented)
+                     (mode-specific resolution is stubbed)
   --goal <text>      primary goal for the swarm
   --decision <text>  decision target for the swarm
   --doc <path>       carry-forward document (repeatable)
@@ -83,7 +83,7 @@ Options:
   -h, --help         display help for command
 ```
 
-> **Heads up — `--resolve` is a stub for alpha.** The value is accepted, persisted in the run manifest, and carried through synthesis, but no between-round question-resolution sub-pass runs yet. Pass it for forward-compatibility; expect no functional change between modes today.
+> **Heads up — `--resolve` behavior is limited for alpha.** The value is accepted, persisted in the run manifest, and carried through synthesis. A between-round orchestrator pass now feeds later round briefs, but resolve modes do not yet change question-resolution behavior.
 
 ### Bundled presets
 
@@ -159,7 +159,7 @@ preset: product-decision
 backend: claude
 goal: Decide on migration strategy
 decision: Adopt / Defer / Reject
-resolve: off # off | orchestrator | agents (stub; see note above)
+resolve: off # off | orchestrator | agents (limited; see note above)
 docs:
   - docs/architecture.md
 ```
@@ -187,7 +187,7 @@ Swarm ships with six bundled agents:
 | `product-designer`         | UX, usability, and user-journey perspective                     |
 | `product-manager-codex`    | Codex-backed product decision framing                           |
 | `principal-engineer-codex` | Codex-backed engineering feasibility                            |
-| `orchestrator`             | Coordinator persona reserved for resolve modes (not active yet) |
+| `orchestrator`             | Coordinator persona for between-round context and resolve modes  |
 
 A project-local agent with the same `name` as a bundled agent fully replaces it for that project. A user-global agent overrides the bundled version machine-wide but yields to any project-local definition. Duplicate `name` values within the same root are an error.
 
