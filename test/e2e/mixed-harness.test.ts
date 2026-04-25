@@ -101,6 +101,66 @@ process.stdout.write(JSON.stringify({
   chmodSync(scriptPath, 0o755);
 }
 
+function installOpenCodeStub(binDir: string): void {
+  mkdirSync(binDir, { recursive: true });
+  const scriptPath = join(binDir, "opencode");
+  writeFileSync(
+    scriptPath,
+    `#!/usr/bin/env node
+const prompt = process.argv[process.argv.length - 1] ?? "";
+const match = prompt.match(/AGENT-NAME:(\\S+)/);
+const agent = match ? match[1] : "unknown-opencode-agent";
+const modelIdx = process.argv.indexOf("--model");
+const model = modelIdx >= 0 ? (process.argv[modelIdx + 1] ?? "") : "";
+
+process.stdout.write(JSON.stringify({
+  agent,
+  round: 1,
+  stance: "Adopt",
+  recommendation: agent + " dispatched via opencode harness model=" + model,
+  reasoning: [agent + " reasoned through the opencode CLI"],
+  objections: [],
+  risks: ["mixed-harness shared risk"],
+  changesFromPriorRound: [],
+  confidence: "high",
+  openQuestions: [],
+}));
+`,
+    "utf-8",
+  );
+  chmodSync(scriptPath, 0o755);
+}
+
+function installAcliStub(binDir: string): void {
+  mkdirSync(binDir, { recursive: true });
+  const scriptPath = join(binDir, "acli");
+  writeFileSync(
+    scriptPath,
+    `#!/usr/bin/env node
+const prompt = process.argv[process.argv.length - 1] ?? "";
+const match = prompt.match(/AGENT-NAME:(\\S+)/);
+const agent = match ? match[1] : "unknown-rovo-agent";
+const modelIdx = process.argv.indexOf("--model");
+const model = modelIdx >= 0 ? (process.argv[modelIdx + 1] ?? "") : "";
+
+process.stdout.write(JSON.stringify({
+  agent,
+  round: 1,
+  stance: "Adopt",
+  recommendation: agent + " dispatched via rovo harness model=" + model,
+  reasoning: [agent + " reasoned through the acli rovodev CLI"],
+  objections: [],
+  risks: ["mixed-harness shared risk"],
+  changesFromPriorRound: [],
+  confidence: "high",
+  openQuestions: [],
+}));
+`,
+    "utf-8",
+  );
+  chmodSync(scriptPath, 0o755);
+}
+
 function writeAgent(
   baseDir: string,
   name: string,
@@ -135,6 +195,8 @@ describe("e2e: mixed-harness swarm run", () => {
     mkdirSync(join(baseDir, ".swarm", "agents"), { recursive: true });
     installClaudeStub(binDir);
     installCodexStub(binDir);
+    installOpenCodeStub(binDir);
+    installAcliStub(binDir);
     originalPath = process.env.PATH;
     process.env.PATH = `${binDir}:${originalPath ?? ""}`;
   });
@@ -227,5 +289,89 @@ describe("e2e: mixed-harness swarm run", () => {
     expect(peMd).toContain("Harness: codex");
     expect(peMd).toContain("Model: harness-default");
     expect(peMd).toContain("pe-mixed dispatched via codex harness");
+  });
+
+  it("dispatches one agent through opencode and one through rovo in the same round", () => {
+    writeAgent(baseDir, "pm-oc", {
+      name: "pm-oc",
+      description: "PM routed via opencode harness",
+      persona: "AGENT-NAME:pm-oc You are a rigorous product manager.",
+      prompt: "Evaluate the topic and return the swarm JSON contract.",
+      harness: "opencode",
+      model: "opencode-sonnet",
+    });
+    writeAgent(baseDir, "pe-rovo", {
+      name: "pe-rovo",
+      description: "PE routed via rovo harness",
+      persona: "AGENT-NAME:pe-rovo You are a principal engineer.",
+      prompt: "Evaluate the topic and return the swarm JSON contract.",
+      harness: "rovo",
+    });
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt opencode+rovo mixed swarms",
+        "--agents",
+        "pm-oc,pe-rovo",
+        "--resolve",
+        "off",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ""}` },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("[run] complete rounds=1");
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const [entry] = readdirSync(runsDir);
+    expect(entry).toBeTruthy();
+    const runDir = join(runsDir, entry);
+
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
+    expect(manifest.agents).toEqual(["pm-oc", "pe-rovo"]);
+    expect(manifest.agentRuntimes).toEqual([
+      {
+        agentName: "pm-oc",
+        harness: "opencode",
+        model: "opencode-sonnet",
+        source: { harness: "agent.harness", model: "agent.model" },
+      },
+      {
+        agentName: "pe-rovo",
+        harness: "rovo",
+        model: null,
+        source: { harness: "agent.harness", model: "harness-default" },
+      },
+    ]);
+
+    const pmMd = readFileSync(
+      join(runDir, "round-01", "agents", "pm-oc.md"),
+      "utf-8",
+    );
+    expect(pmMd).toContain("Status: ok");
+    expect(pmMd).toContain("Harness: opencode");
+    expect(pmMd).toContain("Model: opencode-sonnet");
+    expect(pmMd).toContain(
+      "pm-oc dispatched via opencode harness model=opencode-sonnet",
+    );
+
+    const peMd = readFileSync(
+      join(runDir, "round-01", "agents", "pe-rovo.md"),
+      "utf-8",
+    );
+    expect(peMd).toContain("Status: ok");
+    expect(peMd).toContain("Harness: rovo");
+    expect(peMd).toContain("Model: harness-default");
+    expect(peMd).toContain("pe-rovo dispatched via rovo harness model=");
   });
 });
