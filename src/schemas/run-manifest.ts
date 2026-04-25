@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BackendIdSchema } from "./backend-id.js";
+import { ResolvedAgentRuntimeSchema } from "./resolved-agent-runtime.js";
 
 export const ResolveModeSchema = z.enum(["off", "orchestrator", "agents"]);
 export type ResolveMode = z.infer<typeof ResolveModeSchema>;
@@ -18,6 +19,7 @@ export const RunManifestSchema = z
     goal: z.string().nullable().optional(),
     decision: z.string().nullable().optional(),
     agents: z.array(z.string()).min(1),
+    agentRuntimes: z.array(ResolvedAgentRuntimeSchema).optional(),
     resolveMode: ResolveModeSchema,
     startedAt: z.iso.datetime(),
     finishedAt: z.iso.datetime().optional(),

@@ -18,6 +18,7 @@ import {
 import {
   buildHarnessAdapterRegistry,
   createAgentAdapterResolver,
+  createAgentRuntimeResolver,
   createBackendAdapter,
 } from "./backends/index.js";
 
@@ -148,6 +149,7 @@ program
           resolved,
           harnessRegistry,
         );
+        const resolveRuntime = createAgentRuntimeResolver(resolved);
         const backend = createBackendAdapter(config.backend);
         const ui = options.quiet === true ? "quiet" : undefined;
         const exitCode = await runSwarm({
@@ -156,6 +158,8 @@ program
           backend,
           ui,
           resolveBackend,
+          resolveRuntime,
+          agentRuntimes: resolved,
         });
         process.exit(exitCode);
       } catch (err) {

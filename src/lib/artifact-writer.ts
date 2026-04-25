@@ -38,7 +38,8 @@ export function buildRunDirName(startedAt: Date, topic: string): string {
  * Render a single agent's output as a markdown file matching the reference layout.
  *
  * Format:
- *   YAML-ish header (Agent, Round, Status, Exit code, Timed out, Duration seconds, Wrapper)
+ *   YAML-ish header (Agent, Round, Status, Exit code, Timed out,
+ *                    Duration seconds, Wrapper, Harness, Model)
  *   Sections: Stance, Recommendation, Reasoning, Objections, Risks,
  *             Changes From Prior Round, Confidence, Open Questions
  *   ## Raw Output code block
@@ -64,6 +65,10 @@ export function renderAgentMarkdown(
   lines.push(`Timed out: ${timedOut}`);
   lines.push(`Duration seconds: ${durationSeconds}`);
   lines.push(`Wrapper: ${wrapperName}`);
+  if (result.runtime) {
+    lines.push(`Harness: ${result.runtime.harness}`);
+    lines.push(`Model: ${result.runtime.model ?? "harness-default"}`);
+  }
   lines.push("");
 
   if (!result.ok || !result.output) {

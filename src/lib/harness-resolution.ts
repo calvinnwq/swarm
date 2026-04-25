@@ -1,24 +1,22 @@
 import type { AgentDefinition } from "../schemas/agent-definition.js";
 import type { BackendId } from "../schemas/backend-id.js";
 import type { HarnessId } from "../schemas/harness-id.js";
+import type {
+  HarnessResolutionSource,
+  ModelResolutionSource,
+  ResolvedAgentRuntime,
+} from "../schemas/resolved-agent-runtime.js";
 import {
   getHarnessDescriptor,
   listImplementedHarnessIds,
 } from "./harness-registry.js";
 import { SwarmCommandError } from "./parse-command.js";
 
-export type HarnessResolutionSource = "agent.harness" | "agent.backend";
-export type ModelResolutionSource = "agent.model" | "harness-default";
-
-export interface ResolvedAgentRuntime {
-  readonly agentName: string;
-  readonly harness: HarnessId;
-  readonly model: string | null;
-  readonly source: {
-    readonly harness: HarnessResolutionSource;
-    readonly model: ModelResolutionSource;
-  };
-}
+export type {
+  HarnessResolutionSource,
+  ModelResolutionSource,
+  ResolvedAgentRuntime,
+} from "../schemas/resolved-agent-runtime.js";
 
 const BACKEND_TO_HARNESS: Readonly<Record<BackendId, HarnessId>> = {
   claude: "claude",

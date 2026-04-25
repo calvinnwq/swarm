@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import type {
   AgentDefinition,
   AgentOutput,
+  ResolvedAgentRuntime,
   RoundPacket,
 } from "../schemas/index.js";
 import { AgentOutputSchema } from "../schemas/index.js";
@@ -25,6 +26,7 @@ export interface AgentResult {
   output: AgentOutput | null;
   raw: AgentResponse | null;
   error: string | null;
+  runtime?: ResolvedAgentRuntime;
 }
 
 export interface RoundResult {
@@ -67,6 +69,9 @@ export interface RoundRunnerEvents {
 }
 
 export type BackendAdapterResolver = (agent: AgentDefinition) => BackendAdapter;
+export type AgentRuntimeResolver = (
+  agent: AgentDefinition,
+) => ResolvedAgentRuntime | undefined;
 
 export interface RoundRunnerOpts {
   config: SwarmRunConfig;
@@ -81,6 +86,12 @@ export interface RoundRunnerOpts {
    * for any agent the resolver does not cover.
    */
   resolveBackend?: BackendAdapterResolver;
+  /**
+   * Per-agent runtime resolver. When provided, each agent's resolved harness
+   * and model are stamped onto the AgentResult so artifacts can record what
+   * actually ran. Agents not covered by the resolver get no runtime metadata.
+   */
+  resolveRuntime?: AgentRuntimeResolver;
   /** First round to execute; rounds before this are treated as already complete (resume path). */
   startRound?: number;
   /** Prior-round packet to seed the scheduler and brief-builder (resume path). */
@@ -214,20 +225,24 @@ async function dispatchAgent(
   brief: string,
   agent: AgentDefinition,
   timeoutMs: number,
+  runtime?: ResolvedAgentRuntime,
 ): Promise<AgentResult> {
+  const stamp = (result: AgentResult): AgentResult =>
+    runtime ? { ...result, runtime } : result;
+
   async function dispatch(
     prompt: string,
   ): Promise<AgentResponse | AgentResult> {
     try {
       return await backend.dispatch(prompt, agent, { timeoutMs });
     } catch (err) {
-      return {
+      return stamp({
         agent: agent.name,
         ok: false,
         output: null,
         raw: null,
         error: `Dispatch error: ${err instanceof Error ? err.message : String(err)}`,
-      };
+      });
     }
   }
 
@@ -239,13 +254,13 @@ async function dispatchAgent(
   let response = initial;
 
   if (!response.ok) {
-    return {
+    return stamp({
       agent: agent.name,
       ok: false,
       output: null,
       raw: response,
       error: formatBackendFailure(backend, response),
-    };
+    });
   }
 
   let validation = validateAgentOutput(backend, response.stdout);
@@ -258,44 +273,44 @@ async function dispatchAgent(
       buildRepairPrompt(brief, agent, validation.error, response.stdout),
     );
     if ("agent" in repaired) {
-      return {
+      return stamp({
         agent: agent.name,
         ok: false,
         output: null,
         raw: response,
         error: `${validation.error}; repair dispatch failed: ${repaired.error}`,
-      };
+      });
     }
     if (!repaired.ok) {
-      return {
+      return stamp({
         agent: agent.name,
         ok: false,
         output: null,
         raw: repaired,
         error: formatBackendFailure(backend, repaired),
-      };
+      });
     }
     response = repaired;
     validation = validateAgentOutput(backend, response.stdout);
   }
 
   if (!validation.ok) {
-    return {
+    return stamp({
       agent: agent.name,
       ok: false,
       output: null,
       raw: response,
       error: `${validation.error} after ${MAX_FORMAT_REPAIR_ATTEMPTS + 1} attempt(s)`,
-    };
+    });
   }
 
-  return {
+  return stamp({
     agent: agent.name,
     ok: true,
     output: validation.output,
     raw: response,
     error: null,
-  };
+  });
 }
 
 export async function runWithConcurrency<T>(
@@ -338,9 +353,11 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
     schedulerPolicy = "all",
     startRound = 1,
     resolveBackend,
+    resolveRuntime,
   } = opts;
 
   const adapterFor: BackendAdapterResolver = resolveBackend ?? (() => backend);
+  const runtimeFor: AgentRuntimeResolver = resolveRuntime ?? (() => undefined);
 
   const emitter = new EventEmitter();
 
@@ -376,7 +393,13 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
 
       const tasks = roundAgents.map((agent) => () => {
         emitter.emit("agent:start", { round, agent: agent.name });
-        return dispatchAgent(adapterFor(agent), brief, agent, timeoutMs);
+        return dispatchAgent(
+          adapterFor(agent),
+          brief,
+          agent,
+          timeoutMs,
+          runtimeFor(agent),
+        );
       });
 
       const agentResults = await runWithConcurrency(tasks, concurrency);

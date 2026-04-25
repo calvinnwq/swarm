@@ -25,5 +25,6 @@ export {
   createHarnessAdapter,
   buildHarnessAdapterRegistry,
   createAgentAdapterResolver,
+  createAgentRuntimeResolver,
   HarnessAdapterRegistry,
 } from "./harness-adapter.js";

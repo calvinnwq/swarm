@@ -91,3 +91,19 @@ export function createAgentAdapterResolver(
     return registry.get(harness);
   };
 }
+
+/**
+ * Builds a per-agent runtime resolver from a list of resolved runtimes. The
+ * returned resolver hands each AgentDefinition its ResolvedAgentRuntime so
+ * round-runner can stamp the resolved harness/model onto the AgentResult for
+ * artifact writers. Returns undefined for agents not present in `resolved`.
+ */
+export function createAgentRuntimeResolver(
+  resolved: readonly ResolvedAgentRuntime[],
+): (agent: AgentDefinition) => ResolvedAgentRuntime | undefined {
+  const runtimeByAgent = new Map<string, ResolvedAgentRuntime>();
+  for (const entry of resolved) {
+    runtimeByAgent.set(entry.agentName, entry);
+  }
+  return (agent) => runtimeByAgent.get(agent.name);
+}

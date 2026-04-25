@@ -5612,3 +5612,101 @@ describe("createRoundRunner per-agent backend resolution", () => {
     expect(alphaExtract).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("createRoundRunner per-agent runtime stamping", () => {
+  it("stamps the resolved runtime onto each AgentResult on success", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+
+    const runtimes = {
+      alpha: {
+        agentName: "alpha",
+        harness: "claude" as const,
+        model: "sonnet-4-7",
+        source: {
+          harness: "agent.harness" as const,
+          model: "agent.model" as const,
+        },
+      },
+      beta: {
+        agentName: "beta",
+        harness: "codex" as const,
+        model: null,
+        source: {
+          harness: "agent.harness" as const,
+          model: "harness-default" as const,
+        },
+      },
+    };
+
+    const { run } = createRoundRunner({
+      config,
+      agents,
+      backend,
+      resolveRuntime: (agent) =>
+        runtimes[agent.name as "alpha" | "beta"] ?? undefined,
+    });
+
+    const result = await run();
+    expect(result.ok).toBe(true);
+    const round1 = result.rounds[0]!;
+    const alphaResult = round1.agentResults.find((r) => r.agent === "alpha")!;
+    const betaResult = round1.agentResults.find((r) => r.agent === "beta")!;
+    expect(alphaResult.runtime).toEqual(runtimes.alpha);
+    expect(betaResult.runtime).toEqual(runtimes.beta);
+  });
+
+  it("stamps the resolved runtime even when dispatch fails", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) =>
+      agent.name === "alpha"
+        ? makeFailResponse()
+        : makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+
+    const alphaRuntime = {
+      agentName: "alpha",
+      harness: "claude" as const,
+      model: null,
+      source: {
+        harness: "agent.backend" as const,
+        model: "harness-default" as const,
+      },
+    };
+
+    const { run } = createRoundRunner({
+      config,
+      agents,
+      backend,
+      resolveRuntime: (agent) =>
+        agent.name === "alpha" ? alphaRuntime : undefined,
+    });
+
+    const result = await run();
+    const alphaResult = result.rounds[0]!.agentResults.find(
+      (r) => r.agent === "alpha",
+    )!;
+    expect(alphaResult.ok).toBe(false);
+    expect(alphaResult.runtime).toEqual(alphaRuntime);
+  });
+
+  it("leaves runtime unset when no resolver is provided", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha"] });
+    const agents = ["alpha"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+    const alphaResult = result.rounds[0]!.agentResults[0]!;
+    expect(alphaResult.runtime).toBeUndefined();
+  });
+});
