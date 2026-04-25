@@ -277,6 +277,7 @@ describe("e2e: mixed-harness swarm run", () => {
       "utf-8",
     );
     expect(pmMd).toContain("Status: ok");
+    expect(pmMd).toContain("Wrapper: claude-cli");
     expect(pmMd).toContain("Harness: claude");
     expect(pmMd).toContain("Model: claude-sonnet-4-5");
     expect(pmMd).toContain("pm-mixed dispatched via claude harness");
@@ -286,6 +287,7 @@ describe("e2e: mixed-harness swarm run", () => {
       "utf-8",
     );
     expect(peMd).toContain("Status: ok");
+    expect(peMd).toContain("Wrapper: codex-cli");
     expect(peMd).toContain("Harness: codex");
     expect(peMd).toContain("Model: harness-default");
     expect(peMd).toContain("pe-mixed dispatched via codex harness");
@@ -359,6 +361,7 @@ describe("e2e: mixed-harness swarm run", () => {
       "utf-8",
     );
     expect(pmMd).toContain("Status: ok");
+    expect(pmMd).toContain("Wrapper: opencode-cli");
     expect(pmMd).toContain("Harness: opencode");
     expect(pmMd).toContain("Model: opencode-sonnet");
     expect(pmMd).toContain(
@@ -370,6 +373,7 @@ describe("e2e: mixed-harness swarm run", () => {
       "utf-8",
     );
     expect(peMd).toContain("Status: ok");
+    expect(peMd).toContain("Wrapper: rovo-acli");
     expect(peMd).toContain("Harness: rovo");
     expect(peMd).toContain("Model: harness-default");
     expect(peMd).toContain("pe-rovo dispatched via rovo harness model=");

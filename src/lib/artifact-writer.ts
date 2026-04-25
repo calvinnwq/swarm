@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentOutput, RunManifest, RunStatus } from "../schemas/index.js";
+import { getHarnessDescriptor } from "./harness-registry.js";
 import type { AgentResult, RoundResult } from "./round-runner.js";
 import type { SynthesisResult } from "./synthesis.js";
 import type { OutputTarget } from "./output-router.js";
@@ -57,6 +58,14 @@ export function renderAgentMarkdown(
   const durationMs = result.raw?.durationMs ?? 0;
   const durationSeconds = (durationMs / 1000).toFixed(1);
 
+  // When a per-agent runtime is stamped, derive the Wrapper from the
+  // harness registry so mixed-harness runs show consistent metadata
+  // (Wrapper agrees with Harness/Model). Falls back to the run-level
+  // wrapperName for legacy non-runtime-stamped results.
+  const effectiveWrapper = result.runtime
+    ? getHarnessDescriptor(result.runtime.harness).wrapperName
+    : wrapperName;
+
   // Header
   lines.push(`Agent: ${result.agent}`);
   lines.push(`Round: ${round}`);
@@ -64,7 +73,7 @@ export function renderAgentMarkdown(
   lines.push(`Exit code: ${exitCode}`);
   lines.push(`Timed out: ${timedOut}`);
   lines.push(`Duration seconds: ${durationSeconds}`);
-  lines.push(`Wrapper: ${wrapperName}`);
+  lines.push(`Wrapper: ${effectiveWrapper}`);
   if (result.runtime) {
     lines.push(`Harness: ${result.runtime.harness}`);
     lines.push(`Model: ${result.runtime.model ?? "harness-default"}`);

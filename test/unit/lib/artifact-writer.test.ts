@@ -284,6 +284,21 @@ describe("renderAgentMarkdown", () => {
     expect(md).not.toContain("Harness:");
     expect(md).not.toContain("Model:");
   });
+
+  it("derives Wrapper from runtime.harness when stamped, overriding the run-level wrapperName", () => {
+    const result = makeAgentResult("principal-engineer", 1);
+    result.runtime = {
+      agentName: "principal-engineer",
+      harness: "codex",
+      model: "gpt-5",
+      source: { harness: "agent.harness", model: "agent.model" },
+    };
+    const md = renderAgentMarkdown(result, 1, "claude-cli");
+
+    expect(md).toContain("Wrapper: codex-cli");
+    expect(md).toContain("Harness: codex");
+    expect(md).toContain("Model: gpt-5");
+  });
 });
 
 describe("ArtifactWriter", () => {
