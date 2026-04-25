@@ -261,7 +261,7 @@ swarm run 1 "Should we adopt mixed-harness swarms" \
   --resolve off
 ```
 
-`swarm doctor` probes the run-level backend's harness (whichever the project config or `--backend` selects). At run start, the CLI additionally fails fast if any agent requests an unimplemented harness, listing the harnesses currently available. Today `claude` and `codex` ignore `agent.model` at dispatch time (the model is recorded in artifacts only); `opencode` and `rovo` pass it through as `--model` to their CLIs.
+`swarm doctor` probes the run-level backend's harness (whichever the project config or `--backend` selects). At run start, the CLI additionally fails fast if any agent requests an unimplemented harness, listing the harnesses currently available. When `agent.model` is set, every harness adapter forwards it to its CLI: `claude --model <model>`, `codex -m <model>`, `opencode --model <model>`, and `acli rovodev run --model <model>`. Omitting `agent.model` lets the harness pick its own default.
 
 ### Agent output schema
 

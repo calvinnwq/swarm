@@ -69,6 +69,9 @@ export class ClaudeCliAdapter implements BackendAdapter {
     if (systemPrompt.length > 0) {
       args.push("--system-prompt", systemPrompt);
     }
+    if (typeof agent.model === "string" && agent.model.length > 0) {
+      args.push("--model", agent.model);
+    }
 
     const start = performance.now();
     const result = await execa("claude", args, {

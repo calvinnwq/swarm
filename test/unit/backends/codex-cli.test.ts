@@ -127,6 +127,7 @@ describe("CodexCliAdapter", () => {
       timeout: 5_000,
     });
     expect(args).not.toContain("-m");
+    expect(args).not.toContain("--model");
 
     const schema = JSON.parse(
       await import("node:fs/promises").then(({ readFile }) =>
@@ -165,6 +166,31 @@ describe("CodexCliAdapter", () => {
     expect(firstWorkdir).toBeTruthy();
     expect(secondWorkdir).toBeTruthy();
     expect(firstWorkdir).not.toBe(secondWorkdir);
+  });
+
+  it("forwards agent.model as -m when set, immediately before the stdin terminator", async () => {
+    vi.mocked(execa).mockResolvedValueOnce({
+      exitCode: 0,
+      stdout:
+        '{"agent":"product-manager-codex","round":1,"stance":"Adopt","recommendation":"x","reasoning":[],"objections":[],"risks":[],"changesFromPriorRound":[],"confidence":"high","openQuestions":[]}',
+      stderr: "",
+      timedOut: false,
+    } as Awaited<ReturnType<typeof execa>>);
+
+    const adapter = new CodexCliAdapter();
+    await adapter.dispatch(
+      "brief",
+      { ...agent, model: "gpt-5" },
+      {
+        timeoutMs: 5_000,
+      },
+    );
+
+    const args = vi.mocked(execa).mock.calls[0]?.[1] as string[];
+    const flagIndex = args.indexOf("-m");
+    expect(flagIndex).toBeGreaterThan(-1);
+    expect(args[flagIndex + 1]).toBe("gpt-5");
+    expect(args.at(-1)).toBe("-");
   });
 
   it("formats failure output using normalized stderr", () => {

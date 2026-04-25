@@ -47,12 +47,14 @@ const sys = sysIdx >= 0 ? (process.argv[sysIdx + 1] ?? "") : "";
 fs.readFileSync(0, "utf8");
 const match = sys.match(/AGENT-NAME:(\\S+)/);
 const agent = match ? match[1] : "unknown-claude-agent";
+const modelIdx = process.argv.indexOf("--model");
+const model = modelIdx >= 0 ? (process.argv[modelIdx + 1] ?? "") : "";
 
 process.stdout.write(JSON.stringify({
   agent,
   round: 1,
   stance: "Adopt",
-  recommendation: agent + " dispatched via claude harness",
+  recommendation: agent + " dispatched via claude harness model=" + model,
   reasoning: [agent + " reasoned through the claude CLI"],
   objections: [],
   risks: ["mixed-harness shared risk"],
@@ -82,12 +84,14 @@ if (process.argv[2] === "login" && process.argv[3] === "status") {
 const prompt = fs.readFileSync(0, "utf8");
 const match = prompt.match(/AGENT-NAME:(\\S+)/);
 const agent = match ? match[1] : "unknown-codex-agent";
+const modelIdx = process.argv.indexOf("-m");
+const model = modelIdx >= 0 ? (process.argv[modelIdx + 1] ?? "") : "";
 
 process.stdout.write(JSON.stringify({
   agent,
   round: 1,
   stance: "Adopt",
-  recommendation: agent + " dispatched via codex harness",
+  recommendation: agent + " dispatched via codex harness model=" + model,
   reasoning: [agent + " reasoned through the codex CLI"],
   objections: [],
   risks: ["mixed-harness shared risk"],
@@ -280,7 +284,9 @@ describe("e2e: mixed-harness swarm run", () => {
     expect(pmMd).toContain("Wrapper: claude-cli");
     expect(pmMd).toContain("Harness: claude");
     expect(pmMd).toContain("Model: claude-sonnet-4-5");
-    expect(pmMd).toContain("pm-mixed dispatched via claude harness");
+    expect(pmMd).toContain(
+      "pm-mixed dispatched via claude harness model=claude-sonnet-4-5",
+    );
 
     const peMd = readFileSync(
       join(runDir, "round-01", "agents", "pe-mixed.md"),
@@ -290,7 +296,7 @@ describe("e2e: mixed-harness swarm run", () => {
     expect(peMd).toContain("Wrapper: codex-cli");
     expect(peMd).toContain("Harness: codex");
     expect(peMd).toContain("Model: harness-default");
-    expect(peMd).toContain("pe-mixed dispatched via codex harness");
+    expect(peMd).toContain("pe-mixed dispatched via codex harness model=");
   });
 
   it("dispatches one agent through opencode and one through rovo in the same round", () => {

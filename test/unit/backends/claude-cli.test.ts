@@ -2828,4 +2828,30 @@ describe("ClaudeCliAdapter.dispatch", () => {
       syscall: "spawn claude",
     });
   });
+
+  it("forwards agent.model as --model when set", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch("brief", makeAgent({ model: "claude-sonnet-4-5" }), {
+      timeoutMs: 5000,
+    });
+
+    const { args } = getCallArgs();
+    const flagIndex = args.indexOf("--model");
+    expect(flagIndex).toBeGreaterThan(-1);
+    expect(args[flagIndex + 1]).toBe("claude-sonnet-4-5");
+  });
+
+  it("omits --model when agent.model is not set", async () => {
+    execaMock.mockReset();
+    mockOkResponse();
+
+    const adapter = new ClaudeCliAdapter();
+    await adapter.dispatch("brief", makeAgent(), { timeoutMs: 5000 });
+
+    const { args } = getCallArgs();
+    expect(args).not.toContain("--model");
+  });
 });
