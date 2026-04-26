@@ -1,5 +1,6 @@
 import { constants } from "node:fs";
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -76,20 +77,22 @@ export async function materializeCarryForwardDocPackets(
   const resolvedDocs = await resolveCarryForwardDocPaths(docs, options);
   return Promise.all(
     resolvedDocs.map(async (doc) => {
-      const content = await readFile(doc.absolutePath, "utf-8");
+      const content = await readCarryForwardDocExcerpt(
+        doc.absolutePath,
+        maxCharsPerDoc,
+      );
       const info = await stat(doc.absolutePath);
-      const excerpt = content.slice(0, maxCharsPerDoc);
       return {
         path: doc.displayPath,
-        content: excerpt,
-        originalCharCount: content.length,
-        includedCharCount: excerpt.length,
-        truncated: excerpt.length < content.length,
+        content: content.excerpt,
+        originalCharCount: content.originalCharCount,
+        includedCharCount: content.excerpt.length,
+        truncated: content.excerpt.length < content.originalCharCount,
         provenance: {
           absolutePath: doc.absolutePath,
           excerptStart: 0,
-          excerptEnd: excerpt.length,
-          sha256: createHash("sha256").update(content).digest("hex"),
+          excerptEnd: content.excerpt.length,
+          sha256: content.sha256,
           mtimeMs: info.mtimeMs,
         },
       };
@@ -186,6 +189,32 @@ async function resolveCarryForwardDocPaths(
   }
 
   return deduped;
+}
+
+async function readCarryForwardDocExcerpt(
+  absolutePath: string,
+  maxChars: number,
+): Promise<{ excerpt: string; originalCharCount: number; sha256: string }> {
+  const hash = createHash("sha256");
+  const stream = createReadStream(absolutePath, { encoding: "utf-8" });
+  let excerpt = "";
+  let originalCharCount = 0;
+
+  for await (const chunk of stream) {
+    const text = typeof chunk === "string" ? chunk : chunk.toString("utf-8");
+    hash.update(text);
+    originalCharCount += text.length;
+
+    if (excerpt.length < maxChars) {
+      excerpt += text.slice(0, maxChars - excerpt.length);
+    }
+  }
+
+  return {
+    excerpt,
+    originalCharCount,
+    sha256: hash.digest("hex"),
+  };
 }
 
 interface ResolvedDocPath {
