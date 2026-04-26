@@ -65,4 +65,42 @@ describe("RunManifestSchema", () => {
       false,
     );
   });
+
+  it("accepts an agentRuntimes array of resolved runtimes", () => {
+    const parsed = RunManifestSchema.parse({
+      ...valid,
+      agentRuntimes: [
+        {
+          agentName: "alpha",
+          harness: "claude",
+          model: "sonnet-4-7",
+          source: { harness: "agent.harness", model: "agent.model" },
+        },
+        {
+          agentName: "beta",
+          harness: "codex",
+          model: null,
+          source: { harness: "agent.backend", model: "harness-default" },
+        },
+      ],
+    });
+    expect(parsed.agentRuntimes).toHaveLength(2);
+    expect(parsed.agentRuntimes?.[0]?.harness).toBe("claude");
+    expect(parsed.agentRuntimes?.[1]?.model).toBeNull();
+  });
+
+  it("rejects an agentRuntimes entry with an unknown harness", () => {
+    const result = RunManifestSchema.safeParse({
+      ...valid,
+      agentRuntimes: [
+        {
+          agentName: "alpha",
+          harness: "phantom",
+          model: null,
+          source: { harness: "agent.harness", model: "harness-default" },
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
 });

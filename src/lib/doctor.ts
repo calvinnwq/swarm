@@ -3,8 +3,12 @@ import {
   type AgentRegistry,
   type LoadAgentRegistryOptions,
 } from "./agent-registry.js";
-import { checkBackendCapability } from "./backend-capability.js";
 import { collectAgentBackendMismatches } from "./backend-selection.js";
+import { checkHarnessCapability } from "./harness-capability.js";
+import {
+  backendToHarness,
+  resolveAgentRuntimes,
+} from "./harness-resolution.js";
 import {
   loadPresetRegistry,
   type LoadPresetRegistryOptions,
@@ -18,6 +22,7 @@ import {
 } from "./load-project-config.js";
 import type { AgentDefinition } from "../schemas/index.js";
 import type { BackendId } from "../schemas/backend-id.js";
+import type { HarnessId } from "../schemas/harness-id.js";
 import { SwarmCommandError } from "./parse-command.js";
 
 export type DoctorCheckStatus = "ok" | "warn" | "fail";
@@ -98,11 +103,19 @@ export async function runDoctor(
     }
   }
 
-  const effectiveBackend = resolveDoctorBackend(projectConfigCheck);
-  if (effectiveBackend) {
-    checks.push(
-      await checkBackendCapability(effectiveBackend, { env: options.env }),
+  if (loadedConfig) {
+    const harnesses = resolveDoctorHarnesses(
+      loadedConfig.config,
+      agentRegistry,
+      presetRegistry,
     );
+    for (const harness of harnesses) {
+      checks.push(
+        await checkHarnessCapability(harness, {
+          env: options.env,
+        }),
+      );
+    }
   }
 
   const ok = checks.every((c) => c.status !== "fail");
@@ -283,7 +296,10 @@ function checkConfigBackend(
   agentRegistry: AgentRegistry,
   presetRegistry: PresetRegistry | null,
 ): DoctorCheck | null {
-  const backend = config.backend ?? "claude";
+  if (!config.backend) {
+    return null;
+  }
+  const backend = config.backend;
 
   if (config.agents) {
     const agents = resolveAgents(config.agents, agentRegistry);
@@ -330,23 +346,15 @@ function checkConfigBackend(
   return null;
 }
 
-function resolveDoctorBackend(projectConfig: {
-  loaded: LoadedProjectConfig | null;
-  state: "missing" | "loaded" | "invalid";
-}): BackendId | null {
-  if (projectConfig.state !== "loaded") {
-    return null;
-  }
-
-  return projectConfig.loaded?.config.backend ?? "claude";
-}
-
 function buildConfigBackendCheck(
   backend: BackendId,
   agents: AgentDefinition[],
   messages: { okMessage: string; mismatchPrefix: string },
 ): DoctorCheck {
-  const mismatches = collectAgentBackendMismatches(backend, agents);
+  const mismatches = collectAgentBackendMismatches(
+    backend,
+    agents.filter((agent) => agent.harness === undefined),
+  );
   if (mismatches.length > 0) {
     return {
       name: "config backend",
@@ -360,6 +368,54 @@ function buildConfigBackendCheck(
     status: "ok",
     message: messages.okMessage,
   };
+}
+
+function resolveDoctorHarnesses(
+  config: LoadedProjectConfig["config"],
+  agentRegistry: AgentRegistry | null,
+  presetRegistry: PresetRegistry | null,
+): HarnessId[] {
+  const backend = config.backend ?? "claude";
+  const runtimeBackend = config.backend === undefined ? undefined : backend;
+  const agents = resolveConfiguredAgents(config, agentRegistry, presetRegistry);
+  if (!agents) {
+    return [backendToHarness(backend)];
+  }
+
+  return [
+    ...new Set(
+      resolveAgentRuntimes(agents, runtimeBackend).map(
+        (runtime) => runtime.harness,
+      ),
+    ),
+  ];
+}
+
+function resolveConfiguredAgents(
+  config: LoadedProjectConfig["config"],
+  agentRegistry: AgentRegistry | null,
+  presetRegistry: PresetRegistry | null,
+): AgentDefinition[] | null {
+  if (!agentRegistry) {
+    return null;
+  }
+
+  if (config.agents) {
+    return resolveAgents(config.agents, agentRegistry);
+  }
+
+  if (config.preset && presetRegistry) {
+    try {
+      return resolveAgents(
+        presetRegistry.getPreset(config.preset).agents,
+        agentRegistry,
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 function resolveAgents(

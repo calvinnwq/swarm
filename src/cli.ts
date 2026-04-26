@@ -2,19 +2,25 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { Command, InvalidArgumentError } from "commander";
 import {
-  assertAgentBackendsMatch,
+  assertResolvedRuntimesAvailable,
   buildConfig,
   formatDoctorReport,
   loadAgentRegistry,
   loadPresetRegistry,
   loadProjectConfig,
+  resolveAgentRuntimes,
   resolvePresetByName,
   runDoctor,
   runSwarm,
   SwarmCommandError,
   type AgentSelectionSource,
 } from "./lib/index.js";
-import { createBackendAdapter } from "./backends/index.js";
+import {
+  buildHarnessAdapterRegistry,
+  createAgentAdapterResolver,
+  createAgentRuntimeResolver,
+  createBackendAdapter,
+} from "./backends/index.js";
 
 const packageVersion = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
@@ -136,10 +142,27 @@ program
         });
         const registry = await loadAgentRegistry();
         const agents = config.agents.map((name) => registry.getAgent(name));
-        assertAgentBackendsMatch(config.backend, agents);
+        const runtimeBackend =
+          resolvedBackend === undefined ? undefined : config.backend;
+        const resolved = resolveAgentRuntimes(agents, runtimeBackend);
+        assertResolvedRuntimesAvailable(resolved);
+        const harnessRegistry = buildHarnessAdapterRegistry(resolved);
+        const resolveBackend = createAgentAdapterResolver(
+          resolved,
+          harnessRegistry,
+        );
+        const resolveRuntime = createAgentRuntimeResolver(resolved);
         const backend = createBackendAdapter(config.backend);
         const ui = options.quiet === true ? "quiet" : undefined;
-        const exitCode = await runSwarm({ config, agents, backend, ui });
+        const exitCode = await runSwarm({
+          config,
+          agents,
+          backend,
+          ui,
+          resolveBackend,
+          resolveRuntime,
+          agentRuntimes: resolved,
+        });
         process.exit(exitCode);
       } catch (err) {
         if (err instanceof SwarmCommandError) {
@@ -154,7 +177,7 @@ program
 program
   .command("doctor")
   .description(
-    "Diagnose swarm setup: config, agents, presets, and backend capability",
+    "Diagnose swarm setup: config, agents, presets, and harness capability",
   )
   .action(async () => {
     try {

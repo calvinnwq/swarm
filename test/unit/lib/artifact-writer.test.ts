@@ -248,6 +248,57 @@ describe("renderAgentMarkdown", () => {
 
     expect(md).toContain("## Changes From Prior Round\n\n- Revised estimate");
   });
+
+  it("emits Harness and Model header lines when runtime is stamped", () => {
+    const result = makeAgentResult("product-manager", 1);
+    result.runtime = {
+      agentName: "product-manager",
+      harness: "codex",
+      model: "gpt-5",
+      source: { harness: "agent.harness", model: "agent.model" },
+    };
+    const md = renderAgentMarkdown(result, 1, "codex-cli");
+
+    expect(md).toContain("Harness: codex");
+    expect(md).toContain("Model: gpt-5");
+  });
+
+  it("falls back to harness-default Model line when model is null", () => {
+    const result = makeAgentResult("principal-engineer", 1);
+    result.runtime = {
+      agentName: "principal-engineer",
+      harness: "claude",
+      model: null,
+      source: { harness: "agent.backend", model: "harness-default" },
+    };
+    const md = renderAgentMarkdown(result, 1);
+
+    expect(md).toContain("Harness: claude");
+    expect(md).toContain("Model: harness-default");
+  });
+
+  it("omits Harness and Model lines when no runtime is stamped", () => {
+    const result = makeAgentResult("product-manager", 1);
+    const md = renderAgentMarkdown(result, 1);
+
+    expect(md).not.toContain("Harness:");
+    expect(md).not.toContain("Model:");
+  });
+
+  it("derives Wrapper from runtime.harness when stamped, overriding the run-level wrapperName", () => {
+    const result = makeAgentResult("principal-engineer", 1);
+    result.runtime = {
+      agentName: "principal-engineer",
+      harness: "codex",
+      model: "gpt-5",
+      source: { harness: "agent.harness", model: "agent.model" },
+    };
+    const md = renderAgentMarkdown(result, 1, "claude-cli");
+
+    expect(md).toContain("Wrapper: codex-cli");
+    expect(md).toContain("Harness: codex");
+    expect(md).toContain("Model: gpt-5");
+  });
 });
 
 describe("ArtifactWriter", () => {

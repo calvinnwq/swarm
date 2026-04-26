@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { BackendIdSchema, type BackendId } from "./backend-id.js";
+import { HarnessIdSchema } from "./harness-id.js";
 
 export const AgentBackendSchema = BackendIdSchema;
 export type AgentBackend = BackendId;
@@ -10,6 +11,8 @@ const PromptRefSchema = z.union([
 ]);
 export type AgentPromptRef = z.infer<typeof PromptRefSchema>;
 
+// `harness` and `model` capture the agent's *requested* execution surface;
+// the runtime resolution policy (M7-02b) decides what is actually used.
 export const AgentDefinitionSchema = z
   .object({
     name: z
@@ -22,6 +25,8 @@ export const AgentDefinitionSchema = z
     persona: z.string(),
     prompt: PromptRefSchema,
     backend: AgentBackendSchema.default("claude"),
+    harness: HarnessIdSchema.optional(),
+    model: z.string().trim().min(1).optional(),
   })
   .passthrough();
 

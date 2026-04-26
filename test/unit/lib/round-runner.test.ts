@@ -5518,3 +5518,195 @@ describe("startRound resume option", () => {
     expect(schedulerDecisions[0]?.selected).toEqual(["alpha"]);
   });
 });
+
+describe("createRoundRunner per-agent backend resolution", () => {
+  it("dispatches each agent through the resolver-returned adapter", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const fallback = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+    const alphaBackend = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+    const betaBackend = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+
+    const { run } = createRoundRunner({
+      config,
+      agents,
+      backend: fallback,
+      resolveBackend: (agent) =>
+        agent.name === "alpha" ? alphaBackend : betaBackend,
+    });
+
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    expect(
+      (alphaBackend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(1);
+    expect(
+      (betaBackend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(1);
+    expect(
+      (fallback.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(0);
+  });
+
+  it("falls back to the default backend when no resolver is given", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    await run();
+
+    expect(
+      (backend.dispatch as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+
+  it("uses each adapter's extractOutputJson and formatFailure during validation", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const alphaExtract = vi.fn((raw: string) => {
+      // Custom format: "ALPHA::<agent>"
+      const name = raw.split("::")[1] ?? "unknown";
+      return makeAgentOutput(name, 1);
+    });
+    const alphaBackend: BackendAdapter = {
+      wrapperName: "alpha-wrapper",
+      dispatch: vi.fn(async (_prompt, agent) => ({
+        ok: true,
+        exitCode: 0,
+        stdout: `ALPHA::${agent.name}`,
+        stderr: "",
+        timedOut: false,
+        durationMs: 10,
+      })),
+      extractOutputJson: alphaExtract,
+    };
+
+    const betaBackend = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+
+    const { run } = createRoundRunner({
+      config,
+      agents,
+      backend: betaBackend,
+      resolveBackend: (agent) =>
+        agent.name === "alpha" ? alphaBackend : betaBackend,
+    });
+
+    const result = await run();
+
+    expect(result.ok).toBe(true);
+    expect(alphaExtract).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("createRoundRunner per-agent runtime stamping", () => {
+  it("stamps the resolved runtime onto each AgentResult on success", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+
+    const runtimes = {
+      alpha: {
+        agentName: "alpha",
+        harness: "claude" as const,
+        model: "sonnet-4-7",
+        source: {
+          harness: "agent.harness" as const,
+          model: "agent.model" as const,
+        },
+      },
+      beta: {
+        agentName: "beta",
+        harness: "codex" as const,
+        model: null,
+        source: {
+          harness: "agent.harness" as const,
+          model: "harness-default" as const,
+        },
+      },
+    };
+
+    const { run } = createRoundRunner({
+      config,
+      agents,
+      backend,
+      resolveRuntime: (agent) =>
+        runtimes[agent.name as "alpha" | "beta"] ?? undefined,
+    });
+
+    const result = await run();
+    expect(result.ok).toBe(true);
+    const round1 = result.rounds[0]!;
+    const alphaResult = round1.agentResults.find((r) => r.agent === "alpha")!;
+    const betaResult = round1.agentResults.find((r) => r.agent === "beta")!;
+    expect(alphaResult.runtime).toEqual(runtimes.alpha);
+    expect(betaResult.runtime).toEqual(runtimes.beta);
+  });
+
+  it("stamps the resolved runtime even when dispatch fails", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha", "beta"] });
+    const agents = ["alpha", "beta"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) =>
+      agent.name === "alpha"
+        ? makeFailResponse()
+        : makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+
+    const alphaRuntime = {
+      agentName: "alpha",
+      harness: "claude" as const,
+      model: null,
+      source: {
+        harness: "agent.backend" as const,
+        model: "harness-default" as const,
+      },
+    };
+
+    const { run } = createRoundRunner({
+      config,
+      agents,
+      backend,
+      resolveRuntime: (agent) =>
+        agent.name === "alpha" ? alphaRuntime : undefined,
+    });
+
+    const result = await run();
+    const alphaResult = result.rounds[0]!.agentResults.find(
+      (r) => r.agent === "alpha",
+    )!;
+    expect(alphaResult.ok).toBe(false);
+    expect(alphaResult.runtime).toEqual(alphaRuntime);
+  });
+
+  it("leaves runtime unset when no resolver is provided", async () => {
+    const config = makeConfig({ rounds: 1, agents: ["alpha"] });
+    const agents = ["alpha"].map(makeAgent);
+
+    const backend = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+
+    const { run } = createRoundRunner({ config, agents, backend });
+    const result = await run();
+    const alphaResult = result.rounds[0]!.agentResults[0]!;
+    expect(alphaResult.runtime).toBeUndefined();
+  });
+});

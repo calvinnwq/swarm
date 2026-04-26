@@ -21,3 +21,10 @@ export interface BackendAdapter {
 }
 
 export { createBackendAdapter } from "./factory.js";
+export {
+  createHarnessAdapter,
+  buildHarnessAdapterRegistry,
+  createAgentAdapterResolver,
+  createAgentRuntimeResolver,
+  HarnessAdapterRegistry,
+} from "./harness-adapter.js";

@@ -138,33 +138,34 @@ export class CodexCliAdapter implements BackendAdapter {
     const workdir = await ensureCodexWorkdir();
     const prompt = composeCodexPrompt(agent.persona, promptBody, brief);
 
+    const args = [
+      "exec",
+      "--ephemeral",
+      "--ignore-rules",
+      "--skip-git-repo-check",
+      "-C",
+      workdir,
+      "-c",
+      'reasoning_effort="none"',
+      "--sandbox",
+      "read-only",
+      "--color",
+      "never",
+      "--output-schema",
+      schemaPath,
+    ];
+    if (typeof agent.model === "string" && agent.model.length > 0) {
+      args.push("-m", agent.model);
+    }
+    args.push("-");
+
     const start = performance.now();
     try {
-      const result = await execa(
-        "codex",
-        [
-          "exec",
-          "--ephemeral",
-          "--ignore-rules",
-          "--skip-git-repo-check",
-          "-C",
-          workdir,
-          "-c",
-          'reasoning_effort="none"',
-          "--sandbox",
-          "read-only",
-          "--color",
-          "never",
-          "--output-schema",
-          schemaPath,
-          "-",
-        ],
-        {
-          input: prompt,
-          timeout: opts.timeoutMs,
-          reject: false,
-        },
-      );
+      const result = await execa("codex", args, {
+        input: prompt,
+        timeout: opts.timeoutMs,
+        reject: false,
+      });
       const durationMs = Math.round(performance.now() - start);
 
       return {

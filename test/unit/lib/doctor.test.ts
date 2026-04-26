@@ -120,7 +120,7 @@ describe("runDoctor", () => {
     expect(config?.status).toBe("ok");
     expect(config?.message).toContain("no .swarm/config.yml");
     expect(
-      report.checks.find((c) => c.name === "backend capability"),
+      report.checks.find((c) => c.name === "harness capability"),
     ).toBeUndefined();
   });
 
@@ -136,7 +136,7 @@ describe("runDoctor", () => {
       report.checks.find((c) => c.name === "preset registry")?.status,
     ).toBe("fail");
     expect(
-      report.checks.find((c) => c.name === "backend capability"),
+      report.checks.find((c) => c.name === "harness capability"),
     ).toBeUndefined();
   });
 
@@ -176,7 +176,7 @@ describe("runDoctor", () => {
     expect(check?.status).toBe("fail");
     expect(check?.message).toContain("unknown preset");
     expect(
-      report.checks.find((c) => c.name === "backend capability")?.status,
+      report.checks.find((c) => c.name === "harness capability")?.status,
     ).toBe("ok");
   });
 
@@ -190,7 +190,7 @@ describe("runDoctor", () => {
     expect(check?.message).toContain("invalid .swarm/config.yml");
     expect(check?.message).toContain("rounds");
     expect(
-      report.checks.find((c) => c.name === "backend capability"),
+      report.checks.find((c) => c.name === "harness capability"),
     ).toBeUndefined();
   });
 
@@ -230,7 +230,7 @@ describe("runDoctor", () => {
     expect(check?.status).toBe("ok");
     expect(check?.message).toContain("product-decision");
     expect(
-      report.checks.find((c) => c.name === "backend capability")?.status,
+      report.checks.find((c) => c.name === "harness capability")?.status,
     ).toBe("ok");
   });
 
@@ -278,7 +278,7 @@ describe("runDoctor", () => {
       report.checks.find((c) => c.name === "config preset"),
     ).toBeUndefined();
     expect(
-      report.checks.find((c) => c.name === "backend capability")?.status,
+      report.checks.find((c) => c.name === "harness capability")?.status,
     ).toBe("ok");
   });
 });

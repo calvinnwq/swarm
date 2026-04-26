@@ -116,14 +116,36 @@ async function installCodexLoginStub(
   ]);
 }
 
-function agentYaml(name: string, backend = "claude"): string {
-  return [
+async function installOpenCodeAuthStub(binDir: string): Promise<void> {
+  await writeExecutable(binDir, "opencode", [
+    'if (process.argv[2] === "auth" && process.argv[3] === "list") {',
+    '  process.stdout.write("github\\n");',
+    "  process.exit(0);",
+    "}",
+    'if (process.argv[2] === "run" && process.argv[3] === "--help") {',
+    '  process.stdout.write("Usage: opencode run\\n");',
+    "  process.exit(0);",
+    "}",
+    'process.stderr.write("unexpected opencode invocation\\n");',
+    "process.exit(1);",
+  ]);
+}
+
+function agentYaml(
+  name: string,
+  options: { backend?: string; harness?: string } = {},
+): string {
+  const lines = [
     `name: ${name}`,
     "description: test agent",
     "persona: test persona",
     "prompt: test prompt body",
-    `backend: ${backend}`,
-  ].join("\n");
+    `backend: ${options.backend ?? "claude"}`,
+  ];
+  if (options.harness) {
+    lines.push(`harness: ${options.harness}`);
+  }
+  return lines.join("\n");
 }
 
 describe("runDoctor backend checks", () => {
@@ -167,13 +189,102 @@ describe("runDoctor backend checks", () => {
       (entry) => entry.name === "config backend",
     );
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(check?.status).toBe("ok");
     expect(check?.message).toContain("claude");
     expect(capability?.status).toBe("ok");
     expect(capability?.message).toContain("installed and authenticated");
+    expect(capability?.message).toContain('harness "claude"');
     expect(report.ok).toBe(true);
+  });
+
+  it("probes each harness requested by configured agents", async () => {
+    const roots = await makeIsolatedRoots();
+    await installClaudeAuthStub(roots.binDir);
+    await installOpenCodeAuthStub(roots.binDir);
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-opencode.yml",
+      agentYaml("principal-engineer-opencode", { harness: "opencode" }),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "backend: claude",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer-opencode",
+      ].join("\n"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer-opencode",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const capabilities = report.checks.filter(
+      (entry) => entry.name === "harness capability",
+    );
+    expect(capabilities.map((entry) => entry.message)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('harness "claude"'),
+        expect.stringContaining('harness "opencode"'),
+      ]),
+    );
+    expect(report.ok).toBe(true);
+  });
+
+  it("does not report backend mismatch for agents with explicit harnesses", async () => {
+    const roots = await makeIsolatedRoots();
+    await installClaudeAuthStub(roots.binDir);
+    await installOpenCodeAuthStub(roots.binDir);
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-opencode.yml",
+      agentYaml("principal-engineer-opencode", {
+        backend: "codex",
+        harness: "opencode",
+      }),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager", { backend: "claude" }),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "backend: claude",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer-opencode",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const check = report.checks.find(
+      (entry) => entry.name === "config backend",
+    );
+    expect(check?.status).toBe("ok");
+    expect(check?.message).toContain(
+      'backend "claude" matches all 2 config agent(s)',
+    );
   });
 
   it("reports Codex backend selection as healthy when the preset resolves to Codex agents", async () => {
@@ -182,12 +293,12 @@ describe("runDoctor backend checks", () => {
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager-codex.yml",
-      agentYaml("product-manager-codex", "codex"),
+      agentYaml("product-manager-codex", { backend: "codex" }),
     );
     await writeFileUnder(
       roots.bundledAgentsDir,
       "principal-engineer-codex.yml",
-      agentYaml("principal-engineer-codex", "codex"),
+      agentYaml("principal-engineer-codex", { backend: "codex" }),
     );
     await writeFileUnder(
       roots.cwd,
@@ -211,12 +322,59 @@ describe("runDoctor backend checks", () => {
       (entry) => entry.name === "config backend",
     );
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(check?.status).toBe("ok");
     expect(check?.message).toContain('backend "codex" matches preset');
     expect(capability?.status).toBe("ok");
-    expect(capability?.message).toContain('backend "codex"');
+    expect(capability?.message).toContain('harness "codex"');
+    expect(report.ok).toBe(true);
+  });
+
+  it("uses agent backends for harness checks when config backend is omitted", async () => {
+    const roots = await makeIsolatedRoots();
+    await installCodexLoginStub(roots.binDir);
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager-codex.yml",
+      agentYaml("product-manager-codex", { backend: "codex" }),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-codex.yml",
+      agentYaml("principal-engineer-codex", { backend: "codex" }),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "agents:",
+        "  - product-manager-codex",
+        "  - principal-engineer-codex",
+      ].join("\n"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision-codex.yml",
+      [
+        "name: product-decision-codex",
+        "agents:",
+        "  - product-manager-codex",
+        "  - principal-engineer-codex",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const check = report.checks.find(
+      (entry) => entry.name === "config backend",
+    );
+    const capability = report.checks.find(
+      (entry) => entry.name === "harness capability",
+    );
+    expect(check).toBeUndefined();
+    expect(capability?.status).toBe("ok");
+    expect(capability?.message).toContain('harness "codex"');
     expect(report.ok).toBe(true);
   });
 
@@ -229,12 +387,12 @@ describe("runDoctor backend checks", () => {
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager-codex.yml",
-      agentYaml("product-manager-codex", "codex"),
+      agentYaml("product-manager-codex", { backend: "codex" }),
     );
     await writeFileUnder(
       roots.bundledAgentsDir,
       "principal-engineer-codex.yml",
-      agentYaml("principal-engineer-codex", "codex"),
+      agentYaml("principal-engineer-codex", { backend: "codex" }),
     );
     await writeFileUnder(
       roots.cwd,
@@ -255,7 +413,7 @@ describe("runDoctor backend checks", () => {
     const report = await runDoctor(roots);
 
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(capability?.status).toBe("fail");
     expect(capability?.message).toContain(
@@ -270,12 +428,12 @@ describe("runDoctor backend checks", () => {
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager.yml",
-      agentYaml("product-manager", "claude"),
+      agentYaml("product-manager", { backend: "claude" }),
     );
     await writeFileUnder(
       roots.bundledAgentsDir,
       "principal-engineer.yml",
-      agentYaml("principal-engineer", "claude"),
+      agentYaml("principal-engineer", { backend: "claude" }),
     );
     await writeFileUnder(
       roots.cwd,
@@ -299,7 +457,7 @@ describe("runDoctor backend checks", () => {
       (entry) => entry.name === "config backend",
     );
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(check?.status).toBe("fail");
     expect(check?.message).toContain("product-manager (claude)");
@@ -308,7 +466,7 @@ describe("runDoctor backend checks", () => {
     expect(report.ok).toBe(false);
   });
 
-  it("skips backend capability checks when there is no config", async () => {
+  it("skips harness capability checks when there is no config", async () => {
     const roots = await makeIsolatedRoots();
     await writeFileUnder(
       roots.bundledAgentsDir,
@@ -334,13 +492,13 @@ describe("runDoctor backend checks", () => {
     const report = await runDoctor(roots);
 
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(capability).toBeUndefined();
     expect(report.ok).toBe(true);
   });
 
-  it("does not fail backend capability when no config backend is available", async () => {
+  it("does not fail harness capability when no config backend is available", async () => {
     const roots = await makeIsolatedRoots();
     await writeFileUnder(
       roots.bundledAgentsDir,
@@ -366,7 +524,7 @@ describe("runDoctor backend checks", () => {
     const report = await runDoctor(roots);
 
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(capability).toBeUndefined();
     expect(report.ok).toBe(true);
@@ -409,7 +567,7 @@ describe("runDoctor backend checks", () => {
     const report = await runDoctor(roots);
 
     const capability = report.checks.find(
-      (entry) => entry.name === "backend capability",
+      (entry) => entry.name === "harness capability",
     );
     expect(capability?.status).toBe("fail");
     expect(capability?.message).toContain("claude auth login");

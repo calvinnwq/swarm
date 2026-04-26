@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
   AgentDefinition,
+  ResolvedAgentRuntime,
   RunManifest,
   RunEvent,
   RoundPacket,
@@ -10,7 +11,11 @@ import type {
 import type { BackendAdapter } from "../backends/index.js";
 import type { SwarmRunConfig } from "./config.js";
 import { createRoundRunner } from "./round-runner.js";
-import type { RoundResult } from "./round-runner.js";
+import type {
+  AgentRuntimeResolver,
+  BackendAdapterResolver,
+  RoundResult,
+} from "./round-runner.js";
 import {
   selectAgentsForRound,
   type SchedulerDecision,
@@ -42,6 +47,22 @@ export interface ResumeSwarmOpts {
   ui?: SwarmUiMode;
   additionalTargets?: OutputTarget[];
   schedulerPolicy?: SchedulerPolicy;
+  /**
+   * Per-agent adapter resolver. When provided, each agent dispatches via
+   * the adapter returned for it; `backend` is the default fallback and is
+   * still used for run-level metadata such as wrapperName.
+   */
+  resolveBackend?: BackendAdapterResolver;
+  /**
+   * Per-agent runtime resolver. Returns the ResolvedAgentRuntime for each
+   * agent so artifacts can record what actually ran (harness + model).
+   */
+  resolveRuntime?: AgentRuntimeResolver;
+  /**
+   * Resolved runtimes captured for the run. Persisted to manifest.json so
+   * post-hoc tooling can inspect what harness/model each agent ran with.
+   */
+  agentRuntimes?: readonly ResolvedAgentRuntime[];
 }
 
 export interface RunSwarmOpts {
@@ -69,6 +90,22 @@ export interface RunSwarmOpts {
    * agents that successfully responded in the prior round.
    */
   schedulerPolicy?: SchedulerPolicy;
+  /**
+   * Per-agent adapter resolver. When provided, each agent dispatches via
+   * the adapter returned for it; `backend` is the default fallback and is
+   * still used for run-level metadata such as wrapperName.
+   */
+  resolveBackend?: BackendAdapterResolver;
+  /**
+   * Per-agent runtime resolver. Returns the ResolvedAgentRuntime for each
+   * agent so artifacts can record what actually ran (harness + model).
+   */
+  resolveRuntime?: AgentRuntimeResolver;
+  /**
+   * Resolved runtimes captured for the run. Persisted to manifest.json so
+   * post-hoc tooling can inspect what harness/model each agent ran with.
+   */
+  agentRuntimes?: readonly ResolvedAgentRuntime[];
 }
 
 function didRoundSucceed(agentResults: RoundResult["agentResults"]): boolean {
@@ -136,6 +173,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     goal: config.goal,
     decision: config.decision,
     agents: config.agents,
+    ...(opts.agentRuntimes ? { agentRuntimes: [...opts.agentRuntimes] } : {}),
     resolveMode: config.resolveMode,
     startedAt: startedAtIso,
     runDir,
@@ -245,6 +283,8 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     backend,
     betweenRounds,
     schedulerPolicy: opts.schedulerPolicy,
+    resolveBackend: opts.resolveBackend,
+    resolveRuntime: opts.resolveRuntime,
   });
 
   const uiMode: SwarmUiMode =
@@ -454,6 +494,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     goal: config.goal,
     decision: config.decision,
     agents: config.agents,
+    ...(opts.agentRuntimes ? { agentRuntimes: [...opts.agentRuntimes] } : {}),
     resolveMode: config.resolveMode,
     startedAt,
     runDir,
@@ -582,6 +623,8 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     backend,
     betweenRounds,
     schedulerPolicy: opts.schedulerPolicy,
+    resolveBackend: opts.resolveBackend,
+    resolveRuntime: opts.resolveRuntime,
     startRound,
     initialPriorPacket: priorPacket,
     initialOrchestratorDirective: orchestratorDirective,

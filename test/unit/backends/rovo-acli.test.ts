@@ -1,0 +1,166 @@
+import { describe, expect, it, vi, beforeEach } from "vitest";
+
+vi.mock("execa", () => ({
+  execa: vi.fn(),
+}));
+
+import { execa } from "execa";
+import {
+  RovoAcliAdapter,
+  composeRovoPrompt,
+  normalizeRovoStderr,
+} from "../../../src/backends/rovo-acli.js";
+import type { AgentDefinition } from "../../../src/schemas/index.js";
+
+describe("composeRovoPrompt", () => {
+  it("embeds persona, prompt body, and the swarm brief into one prompt", () => {
+    const prompt = composeRovoPrompt(
+      "You are a rigorous staff engineer.",
+      "Return only the swarm JSON contract.",
+      "Topic: Should we adopt Rovo Dev?",
+    );
+
+    expect(prompt).toContain("You are a rigorous staff engineer.");
+    expect(prompt).toContain("Return only the swarm JSON contract.");
+    expect(prompt).toContain("Topic: Should we adopt Rovo Dev?");
+    expect(prompt).toContain("Do not modify files, run commands, or use tools");
+  });
+});
+
+describe("normalizeRovoStderr", () => {
+  it("strips rovo banner noise and keeps actionable failure detail", () => {
+    const stderr = [
+      "Atlassian acli v1.2.3",
+      "Rovo Dev session starting",
+      "session: 1234abcd",
+      "workspace: /tmp/x",
+      "model: rovo-default",
+      "provider: atlassian",
+      "Error: provider rate limited",
+      "tokens used: 1234",
+    ].join("\n");
+
+    expect(normalizeRovoStderr(stderr)).toBe("Error: provider rate limited");
+  });
+
+  it("returns the trimmed stderr when nothing actionable remains", () => {
+    expect(normalizeRovoStderr("Atlassian acli v1.2.3\n")).toBe(
+      "Atlassian acli v1.2.3",
+    );
+  });
+});
+
+describe("RovoAcliAdapter", () => {
+  const agent: AgentDefinition = {
+    name: "staff-engineer-rovo",
+    description: "Engineering-focused Rovo Dev agent",
+    persona: "You are a rigorous staff engineer.",
+    prompt: "Return only the swarm JSON contract.",
+    backend: "claude",
+    harness: "rovo",
+  };
+
+  beforeEach(() => {
+    vi.mocked(execa).mockReset();
+  });
+
+  it("dispatches through `acli rovodev run` with shadow + auto-yes flags and the prompt on stdin", async () => {
+    vi.mocked(execa).mockResolvedValueOnce({
+      exitCode: 0,
+      stdout:
+        '{"agent":"staff-engineer-rovo","round":1,"stance":"Adopt","recommendation":"Use Rovo","reasoning":[],"objections":[],"risks":[],"changesFromPriorRound":[],"confidence":"high","openQuestions":[]}',
+      stderr: "",
+      timedOut: false,
+    } as Awaited<ReturnType<typeof execa>>);
+
+    const adapter = new RovoAcliAdapter();
+    await adapter.dispatch("Topic: Should we adopt Rovo Dev?", agent, {
+      timeoutMs: 5_000,
+    });
+
+    expect(vi.mocked(execa)).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(execa).mock.calls[0] as unknown[] | undefined;
+    expect(call).toBeDefined();
+    const command = call?.[0];
+    const args = call?.[1] as string[];
+    const options = call?.[2];
+
+    expect(command).toBe("acli");
+    expect(args.slice(0, 4)).toEqual(["rovodev", "run", "--shadow", "-y"]);
+    expect(args).not.toContain("--model");
+    expect(args).toEqual(["rovodev", "run", "--shadow", "-y"]);
+    expect(options).toMatchObject({
+      cwd: expect.stringContaining("swarm-rovo-workdir-"),
+      input: expect.stringContaining(agent.persona),
+      reject: false,
+      timeout: 5_000,
+    });
+    expect(options).toMatchObject({
+      input: expect.stringContaining("Topic: Should we adopt Rovo Dev?"),
+    });
+  });
+
+  it("forwards agent.model as --model when set", async () => {
+    vi.mocked(execa).mockResolvedValueOnce({
+      exitCode: 0,
+      stdout:
+        '{"agent":"staff-engineer-rovo","round":1,"stance":"Adopt","recommendation":"x","reasoning":[],"objections":[],"risks":[],"changesFromPriorRound":[],"confidence":"high","openQuestions":[]}',
+      stderr: "",
+      timedOut: false,
+    } as Awaited<ReturnType<typeof execa>>);
+
+    const adapter = new RovoAcliAdapter();
+    await adapter.dispatch(
+      "brief",
+      { ...agent, model: "rovo-pro" },
+      {
+        timeoutMs: 5_000,
+      },
+    );
+
+    const args = vi.mocked(execa).mock.calls[0]?.[1] as string[];
+    const flagIndex = args.indexOf("--model");
+    expect(flagIndex).toBeGreaterThan(-1);
+    expect(args[flagIndex + 1]).toBe("rovo-pro");
+  });
+
+  it("formats failure output using normalized stderr", () => {
+    const adapter = new RovoAcliAdapter();
+    const formatted = adapter.formatFailure({
+      ok: false,
+      exitCode: 1,
+      stdout: "",
+      stderr: [
+        "Atlassian acli v1.2.3",
+        "session: abc",
+        "Error: model overloaded",
+      ].join("\n"),
+      timedOut: false,
+      durationMs: 250,
+    });
+
+    expect(formatted).toContain("Agent exited with code 1");
+    expect(formatted).toContain("Error: model overloaded");
+    expect(formatted).not.toContain("session: abc");
+  });
+
+  it("formats timeout failures with the duration", () => {
+    const adapter = new RovoAcliAdapter();
+    const formatted = adapter.formatFailure({
+      ok: false,
+      exitCode: 124,
+      stdout: "",
+      stderr: "",
+      timedOut: true,
+      durationMs: 9_999,
+    });
+    expect(formatted).toBe("Agent timed out after 9999ms");
+  });
+
+  it("extracts JSON from raw output via the shared extractor", () => {
+    const adapter = new RovoAcliAdapter();
+    const raw = `Here you go:\n{"agent":"a","round":1,"stance":"s","recommendation":"r","reasoning":[],"objections":[],"risks":[],"changesFromPriorRound":[],"confidence":"low","openQuestions":[]}`;
+    const json = adapter.extractOutputJson(raw) as { agent: string };
+    expect(json.agent).toBe("a");
+  });
+});

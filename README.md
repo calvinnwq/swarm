@@ -55,7 +55,7 @@ Options:
 
 Commands:
   run [options] <rounds> <topic...>  Run a swarm
-  doctor                             Diagnose swarm setup: config, agents, presets, backend selection, and backend capability
+  doctor                             Diagnose swarm setup: config, agents, presets, backend selection, and harness capability
   help [command]                     display help for command
 ```
 
@@ -142,7 +142,7 @@ Preset names must use lowercase letters, numbers, `-`, or `_`, and `agents` must
 
 ### `swarm doctor`
 
-Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, that any agents or preset referenced in the project config actually resolve, that any configured backend is supported and matches the resolved config agents or preset agents, and, when a project config resolves an effective backend, that the backend CLI is installed and authenticated. For Codex projects, that probe also verifies the installed CLI supports `codex exec`. Without `.swarm/config.yml`, `swarm doctor` skips backend capability checks. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
+Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/config.yml` parses cleanly, that the agent and preset registries load, that any agents or preset referenced in the project config actually resolve, that any configured backend is supported and matches config agents that do not pin `harness`, and, when a project config is loaded, that the configured agents' resolved harness CLIs are runnable. Claude, Codex, and OpenCode probes verify authentication; Codex also verifies `codex exec` support; Rovo verifies `acli rovodev` is installed and runnable. Without `.swarm/config.yml`, `swarm doctor` skips harness capability checks. The command exits `0` when everything is ready, `1` when any check fails (with actionable per-check messages), and `2` on an internal command error.
 
 ```bash
 swarm doctor
@@ -223,6 +223,46 @@ Evaluate the topic from a technical architecture lens. Consider
 system complexity, operational burden, and migration risk.
 ```
 
+### Harness and model selection
+
+Each agent can pin the runtime harness and model it dispatches through, independent of the run-level `--backend`. Two optional fields are recognized on every agent definition (YAML or Markdown frontmatter):
+
+| Field      | Values                                 | Default                                    |
+| ---------- | -------------------------------------- | ------------------------------------------ |
+| `harness`  | `claude`, `codex`, `opencode`, `rovo`  | Falls back to the run-level backend, then the agent's `backend` |
+| `model`    | Any non-empty string                   | Harness default (the harness chooses)      |
+
+Resolution order per agent (first wins): `agent.harness` → explicit run-level `--backend` or project `backend` → `agent.backend`. If no run-level backend is configured, the agent's `backend` field continues to select its harness. The resolved (`harness`, `model`) pair is captured in `manifest.json` under `agentRuntimes` and rendered into each agent's per-round markdown header (`Harness:` / `Model:`).
+
+This unlocks **mixed-harness swarms**: a single run can route one agent through Claude and another through Codex (or OpenCode / Rovo Dev), as long as each harness's CLI is installed and passes its capability probe. Claude, Codex, and OpenCode must be authenticated; Rovo requires `acli` with the `rovodev` plugin to be runnable. Example agent overrides for a mixed run:
+
+```yaml
+# .swarm/agents/pm-mixed.yml — claude harness with a pinned model
+name: pm-mixed
+description: Product manager dispatched via Claude
+persona: You are a rigorous product manager.
+prompt: Evaluate the topic and return the swarm JSON contract.
+harness: claude
+model: claude-sonnet-4-5
+```
+
+```yaml
+# .swarm/agents/pe-mixed.yml — codex harness, harness-default model
+name: pe-mixed
+description: Principal engineer dispatched via Codex
+persona: You are a principal engineer.
+prompt: Evaluate the topic and return the swarm JSON contract.
+harness: codex
+```
+
+```bash
+swarm run 1 "Should we adopt mixed-harness swarms" \
+  --agents pm-mixed,pe-mixed \
+  --resolve off
+```
+
+`swarm doctor` probes the configured agents' resolved harnesses when it can load them, otherwise it probes the run-level backend's harness. At run start, the CLI additionally fails fast if any agent requests an unimplemented harness, listing the harnesses currently available. When `agent.model` is set, every harness adapter forwards it to its CLI: `claude --model <model>`, `codex -m <model>`, `opencode --model <model>`, and `acli rovodev run --model <model>`. Omitting `agent.model` lets the harness pick its own default.
+
 ### Agent output schema
 
 Each agent returns structured JSON:
@@ -248,7 +288,7 @@ Each run produces a self-contained directory under `.swarm/runs/`:
 
 ```
 .swarm/runs/20260419-121439-should-we-adopt-server-components/
-├── manifest.json          # Run metadata (run ID, status, topic, goal, decision, rounds, backend, agents, timestamps)
+├── manifest.json          # Run metadata (run ID, status, topic, goal, decision, rounds, backend, agents, agentRuntimes, timestamps)
 ├── checkpoint.json        # Durable recovery checkpoint after completed rounds
 ├── events.jsonl           # Append-only orchestration event ledger
 ├── messages.jsonl         # Append-only staged/committed message ledger
@@ -266,6 +306,8 @@ Each run produces a self-contained directory under `.swarm/runs/`:
 ├── synthesis.json         # Deterministic synthesis output
 └── synthesis.md           # Human-readable synthesis report
 ```
+
+When agent runtimes are resolved, `manifest.json` includes `agentRuntimes`, and per-agent markdown files include `Harness:` and `Model:` header fields.
 
 ### Synthesis
 
@@ -305,10 +347,16 @@ src/
 ├── backends/
 │   ├── claude-cli.ts      # Claude CLI backend adapter
 │   ├── codex-cli.ts       # Codex CLI backend adapter
+│   ├── harness-adapter.ts # Runtime harness adapter bridge
+│   ├── opencode-cli.ts    # OpenCode CLI harness adapter
+│   ├── rovo-acli.ts       # Rovo Dev acli harness adapter
 │   └── factory.ts         # Backend adapter selection
 ├── lib/
 │   ├── backend-selection.ts # Backend/config compatibility checks
 │   ├── brief-generator.ts # Seed + round brief generation
+│   ├── harness-capability.ts # Harness CLI capability probes
+│   ├── harness-registry.ts # Harness descriptors and availability
+│   ├── harness-resolution.ts # Per-agent harness/model resolution
 │   ├── round-runner.ts    # Concurrent agent dispatch with events
 │   ├── synthesis.ts       # Deterministic synthesis engine
 │   ├── artifact-writer.ts # Incremental disk persistence
@@ -321,7 +369,9 @@ src/
 │   └── config.ts          # SwarmRunConfig types
 ├── schemas/               # Zod schemas for all data contracts
 │   ├── backend-id.ts      # Shared backend identifier schema
+│   ├── harness-id.ts      # Shared harness identifier schema
 │   ├── message.ts         # Durable message envelope schema
+│   ├── resolved-agent-runtime.ts # Per-agent runtime metadata schema
 │   ├── run-checkpoint.ts  # Recovery checkpoint schema
 │   └── run-event.ts       # Orchestration event schema
 └── ui/                    # Terminal rendering (live + quiet)
