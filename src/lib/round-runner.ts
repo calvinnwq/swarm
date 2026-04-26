@@ -10,6 +10,7 @@ import type { AgentResponse, BackendAdapter } from "../backends/index.js";
 import { extractAgentOutputJson } from "../backends/json-output.js";
 import type { SwarmRunConfig } from "./config.js";
 import { buildSeedBrief, buildRoundBrief } from "./brief-generator.js";
+import type { CarryForwardDocPacket } from "./doc-inputs.js";
 import {
   selectAgentsForRound,
   type SchedulerPolicy,
@@ -98,6 +99,8 @@ export interface RoundRunnerOpts {
   initialPriorPacket?: RoundPacket | null;
   /** Orchestrator directive carried over from the last completed round (resume path). */
   initialOrchestratorDirective?: string;
+  /** Materialized carry-forward docs to inject into briefs dispatched to agents. */
+  carryForwardDocPackets?: readonly CarryForwardDocPacket[];
   betweenRounds?: (args: {
     round: number;
     packet: RoundPacket;
@@ -363,7 +366,7 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
 
   async function run(): Promise<RunResult> {
     const roundResults: RoundResult[] = [];
-    const seedBrief = buildSeedBrief(config);
+    const seedBrief = buildSeedBrief(config, opts.carryForwardDocPackets);
     let priorPacket: RoundPacket | null = opts.initialPriorPacket ?? null;
     let orchestratorDirective: string | undefined =
       opts.initialOrchestratorDirective;

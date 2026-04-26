@@ -180,6 +180,17 @@ describe("runSwarm backend manifest", () => {
         }),
       ],
     });
+    expect(createRoundRunnerArgs[0]).toMatchObject({
+      carryForwardDocPackets: [
+        expect.objectContaining({
+          path: docPath,
+          content: "alpha beta gamma",
+          provenance: expect.objectContaining({
+            absolutePath: docPath,
+          }),
+        }),
+      ],
+    });
   });
 
   it("forwards a per-agent resolveBackend through to createRoundRunner", async () => {

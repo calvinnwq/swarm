@@ -8,6 +8,7 @@ import type {
   BackendAdapter,
 } from "../../../src/backends/index.js";
 import type { SwarmRunConfig } from "../../../src/lib/config.js";
+import type { CarryForwardDocPacket } from "../../../src/lib/doc-inputs.js";
 import {
   createRoundRunner,
   runWithConcurrency,
@@ -120,6 +121,55 @@ describe("runWithConcurrency", () => {
 });
 
 describe("createRoundRunner", () => {
+  it("includes carry-forward doc excerpts in dispatched round briefs", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta"],
+      docs: ["docs/context.md"],
+    });
+    const agents = ["alpha", "beta"].map(makeAgent);
+    const prompts: string[] = [];
+    const packet: CarryForwardDocPacket = {
+      path: "docs/context.md",
+      content: "# Context\n\nImportant prior context.",
+      originalCharCount: 34,
+      includedCharCount: 34,
+      truncated: false,
+      provenance: {
+        absolutePath: "/repo/docs/context.md",
+        excerptStart: 0,
+        excerptEnd: 34,
+        sha256:
+          "4b121dc7b2bf33d116671cb681e46d66281a92fcdd43c93bca98b4cf051f70b5",
+        mtimeMs: 1234,
+      },
+    };
+
+    const backend = makeStubBackend((prompt, agent) => {
+      prompts.push(prompt);
+      return makeSuccessResponse(makeAgentOutput(agent.name, 1));
+    });
+
+    const { run } = createRoundRunner({
+      config,
+      agents,
+      backend,
+      carryForwardDocPackets: [packet],
+    });
+
+    await run();
+
+    expect(prompts).toHaveLength(2);
+    for (const prompt of prompts) {
+      expect(prompt).toContain("## Carry-forward doc excerpts");
+      expect(prompt).toContain("### docs/context.md");
+      expect(prompt).toContain("# Context\n\nImportant prior context.");
+      expect(prompt).toContain(
+        "SHA-256: 4b121dc7b2bf33d116671cb681e46d66281a92fcdd43c93bca98b4cf051f70b5",
+      );
+    }
+  });
+
   it("runs 2 rounds × 3 agents to completion", async () => {
     const config = makeConfig({ rounds: 2 });
     const agents = ["alpha", "beta", "gamma"].map(makeAgent);

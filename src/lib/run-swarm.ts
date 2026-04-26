@@ -180,11 +180,11 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     runDir,
   };
 
-  const seedBrief = buildSeedBrief(config);
   const carryForwardDocPackets =
     config.docs.length > 0
       ? await materializeCarryForwardDocPackets(config.docs)
       : [];
+  const seedBrief = buildSeedBrief(config, carryForwardDocPackets);
 
   const writer = new ArtifactWriter({
     baseDir,
@@ -291,6 +291,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     schedulerPolicy: opts.schedulerPolicy,
     resolveBackend: opts.resolveBackend,
     resolveRuntime: opts.resolveRuntime,
+    carryForwardDocPackets,
   });
 
   const uiMode: SwarmUiMode =
