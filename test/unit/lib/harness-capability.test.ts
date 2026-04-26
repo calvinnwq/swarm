@@ -274,7 +274,7 @@ describe("checkHarnessCapability", () => {
     expect(result).toEqual({
       name: "harness capability",
       status: "ok",
-      message: 'harness "rovo" is installed and authenticated',
+      message: 'harness "rovo" is installed and runnable',
     });
     expect(vi.mocked(execa)).toHaveBeenNthCalledWith(
       1,
@@ -316,7 +316,7 @@ describe("checkHarnessCapability", () => {
       name: "harness capability",
       status: "fail",
       message:
-        'harness "rovo" is not authenticated: run `acli rovodev auth login` and retry',
+        'harness "rovo" is not runnable: installed CLI rejected the capability probe',
       detail: "plugin not installed",
     });
   });

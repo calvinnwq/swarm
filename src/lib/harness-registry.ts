@@ -9,6 +9,7 @@ export interface HarnessCommandMapping {
 export interface HarnessCapabilityProbe {
   readonly authProbeArgs: readonly string[];
   readonly runtimeProbeArgs?: readonly string[];
+  readonly verifiesAuth?: boolean;
   readonly missingBinHint: string;
   readonly missingAuthHint: string;
 }
@@ -98,6 +99,7 @@ const HARNESS_DESCRIPTORS: Readonly<Record<HarnessId, HarnessDescriptor>> = {
     capability: {
       authProbeArgs: ["rovodev", "--help"],
       runtimeProbeArgs: ["rovodev", "run", "--help"],
+      verifiesAuth: false,
       missingBinHint:
         "install Atlassian acli with the rovodev plugin and ensure `acli` is available on PATH",
       missingAuthHint: "run `acli rovodev auth login` and retry",

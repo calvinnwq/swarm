@@ -166,6 +166,15 @@ async function checkRegistryDrivenHarness(
   }
 
   if (authResult.exitCode !== 0) {
+    if (descriptor.capability.verifiesAuth === false) {
+      return {
+        name: "harness capability",
+        status: "fail",
+        message: `harness "${descriptor.id}" is not runnable: installed CLI rejected the capability probe`,
+        detail: formatProbeDetail(authResult.stdout, authResult.stderr),
+      };
+    }
+
     return notAuthenticated(descriptor, authResult);
   }
 
@@ -263,10 +272,15 @@ async function runProbe(
 }
 
 function ok(descriptor: HarnessDescriptor): HarnessCapabilityCheck {
+  const status =
+    descriptor.capability.verifiesAuth === false
+      ? "is installed and runnable"
+      : "is installed and authenticated";
+
   return {
     name: "harness capability",
     status: "ok",
-    message: `harness "${descriptor.id}" is installed and authenticated`,
+    message: `harness "${descriptor.id}" ${status}`,
   };
 }
 
