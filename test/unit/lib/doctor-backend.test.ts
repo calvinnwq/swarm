@@ -331,6 +331,53 @@ describe("runDoctor backend checks", () => {
     expect(report.ok).toBe(true);
   });
 
+  it("uses agent backends for harness checks when config backend is omitted", async () => {
+    const roots = await makeIsolatedRoots();
+    await installCodexLoginStub(roots.binDir);
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager-codex.yml",
+      agentYaml("product-manager-codex", { backend: "codex" }),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-codex.yml",
+      agentYaml("principal-engineer-codex", { backend: "codex" }),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "agents:",
+        "  - product-manager-codex",
+        "  - principal-engineer-codex",
+      ].join("\n"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision-codex.yml",
+      [
+        "name: product-decision-codex",
+        "agents:",
+        "  - product-manager-codex",
+        "  - principal-engineer-codex",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const check = report.checks.find(
+      (entry) => entry.name === "config backend",
+    );
+    const capability = report.checks.find(
+      (entry) => entry.name === "harness capability",
+    );
+    expect(check).toBeUndefined();
+    expect(capability?.status).toBe("ok");
+    expect(capability?.message).toContain('harness "codex"');
+    expect(report.ok).toBe(true);
+  });
+
   it("fails when Codex is logged in but lacks exec runtime support", async () => {
     const roots = await makeIsolatedRoots();
     await installCodexLoginStub(roots.binDir, {

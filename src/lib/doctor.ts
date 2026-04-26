@@ -296,7 +296,10 @@ function checkConfigBackend(
   agentRegistry: AgentRegistry,
   presetRegistry: PresetRegistry | null,
 ): DoctorCheck | null {
-  const backend = config.backend ?? "claude";
+  if (!config.backend) {
+    return null;
+  }
+  const backend = config.backend;
 
   if (config.agents) {
     const agents = resolveAgents(config.agents, agentRegistry);
@@ -373,6 +376,7 @@ function resolveDoctorHarnesses(
   presetRegistry: PresetRegistry | null,
 ): HarnessId[] {
   const backend = config.backend ?? "claude";
+  const runtimeBackend = config.backend === undefined ? undefined : backend;
   const agents = resolveConfiguredAgents(config, agentRegistry, presetRegistry);
   if (!agents) {
     return [backendToHarness(backend)];
@@ -380,7 +384,9 @@ function resolveDoctorHarnesses(
 
   return [
     ...new Set(
-      resolveAgentRuntimes(agents, backend).map((runtime) => runtime.harness),
+      resolveAgentRuntimes(agents, runtimeBackend).map(
+        (runtime) => runtime.harness,
+      ),
     ),
   ];
 }
