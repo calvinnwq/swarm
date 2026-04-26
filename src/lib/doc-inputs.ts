@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, stat } from "node:fs/promises";
+import { access, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { SwarmCommandError, dedupeKeepOrder } from "./parse-command.js";
@@ -12,6 +12,53 @@ export async function resolveCarryForwardDocs(
   docs: readonly string[],
   options: ResolveCarryForwardDocsOptions = {},
 ): Promise<string[]> {
+  const resolvedDocs = await resolveCarryForwardDocPaths(docs, options);
+  return resolvedDocs.map((doc) => doc.displayPath);
+}
+
+export interface MaterializeCarryForwardDocPacketsOptions extends ResolveCarryForwardDocsOptions {
+  maxCharsPerDoc?: number;
+}
+
+export interface CarryForwardDocPacket {
+  path: string;
+  content: string;
+  originalCharCount: number;
+  includedCharCount: number;
+  truncated: boolean;
+}
+
+export async function materializeCarryForwardDocPackets(
+  docs: readonly string[],
+  options: MaterializeCarryForwardDocPacketsOptions = {},
+): Promise<CarryForwardDocPacket[]> {
+  const maxCharsPerDoc = options.maxCharsPerDoc ?? 4_000;
+  if (!Number.isInteger(maxCharsPerDoc) || maxCharsPerDoc < 1) {
+    throw new SwarmCommandError(
+      "carry-forward doc packet size must be a positive integer",
+    );
+  }
+
+  const resolvedDocs = await resolveCarryForwardDocPaths(docs, options);
+  return Promise.all(
+    resolvedDocs.map(async (doc) => {
+      const content = await readFile(doc.absolutePath, "utf-8");
+      const excerpt = content.slice(0, maxCharsPerDoc);
+      return {
+        path: doc.displayPath,
+        content: excerpt,
+        originalCharCount: content.length,
+        includedCharCount: excerpt.length,
+        truncated: excerpt.length < content.length,
+      };
+    }),
+  );
+}
+
+async function resolveCarryForwardDocPaths(
+  docs: readonly string[],
+  options: ResolveCarryForwardDocsOptions = {},
+): Promise<ResolvedDocPath[]> {
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const resolved = docs
     .map((doc) => resolveDocPath(doc, cwd))
@@ -35,7 +82,7 @@ export async function resolveCarryForwardDocs(
     await validateDocPath(doc);
   }
 
-  return deduped.map((doc) => doc.displayPath);
+  return deduped;
 }
 
 interface ResolvedDocPath {
