@@ -303,6 +303,75 @@ describe("e2e: mixed-harness swarm run", () => {
     expect(peMd).toContain("pe-mixed dispatched via codex harness model=");
   });
 
+  it("uses agent backends when no run backend is configured", () => {
+    writeAgent(baseDir, "pm-backend", {
+      name: "pm-backend",
+      description: "PM routed via claude backend",
+      persona: "AGENT-NAME:pm-backend You are a rigorous product manager.",
+      prompt: "Evaluate the topic and return the swarm JSON contract.",
+      backend: "claude",
+    });
+    writeAgent(baseDir, "pe-backend", {
+      name: "pe-backend",
+      description: "PE routed via codex backend",
+      persona: "AGENT-NAME:pe-backend You are a principal engineer.",
+      prompt: "Evaluate the topic and return the swarm JSON contract.",
+      backend: "codex",
+    });
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should agent backends select harnesses",
+        "--agents",
+        "pm-backend,pe-backend",
+        "--resolve",
+        "off",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ""}` },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("[run] complete rounds=1");
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const [entry] = readdirSync(runsDir);
+    expect(entry).toBeTruthy();
+    const runDir = join(runsDir, entry);
+
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
+    expect(manifest.agentRuntimes).toEqual([
+      {
+        agentName: "pm-backend",
+        harness: "claude",
+        model: null,
+        source: { harness: "agent.backend", model: "harness-default" },
+      },
+      {
+        agentName: "pe-backend",
+        harness: "codex",
+        model: null,
+        source: { harness: "agent.backend", model: "harness-default" },
+      },
+    ]);
+
+    const peMd = readFileSync(
+      join(runDir, "round-01", "agents", "pe-backend.md"),
+      "utf-8",
+    );
+    expect(peMd).toContain("Wrapper: codex-cli");
+    expect(peMd).toContain("Harness: codex");
+  });
+
   it("dispatches one agent through opencode and one through rovo in the same round", () => {
     writeAgent(baseDir, "pm-oc", {
       name: "pm-oc",

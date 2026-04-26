@@ -348,7 +348,10 @@ function buildConfigBackendCheck(
   agents: AgentDefinition[],
   messages: { okMessage: string; mismatchPrefix: string },
 ): DoctorCheck {
-  const mismatches = collectAgentBackendMismatches(backend, agents);
+  const mismatches = collectAgentBackendMismatches(
+    backend,
+    agents.filter((agent) => agent.harness === undefined),
+  );
   if (mismatches.length > 0) {
     return {
       name: "config backend",

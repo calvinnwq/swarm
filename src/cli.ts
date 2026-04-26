@@ -142,7 +142,9 @@ program
         });
         const registry = await loadAgentRegistry();
         const agents = config.agents.map((name) => registry.getAgent(name));
-        const resolved = resolveAgentRuntimes(agents, config.backend);
+        const runtimeBackend =
+          resolvedBackend === undefined ? undefined : config.backend;
+        const resolved = resolveAgentRuntimes(agents, runtimeBackend);
         assertResolvedRuntimesAvailable(resolved);
         const harnessRegistry = buildHarnessAdapterRegistry(resolved);
         const resolveBackend = createAgentAdapterResolver(

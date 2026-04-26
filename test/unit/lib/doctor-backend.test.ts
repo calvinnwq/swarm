@@ -248,6 +248,45 @@ describe("runDoctor backend checks", () => {
     expect(report.ok).toBe(true);
   });
 
+  it("does not report backend mismatch for agents with explicit harnesses", async () => {
+    const roots = await makeIsolatedRoots();
+    await installClaudeAuthStub(roots.binDir);
+    await installOpenCodeAuthStub(roots.binDir);
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-opencode.yml",
+      agentYaml("principal-engineer-opencode", {
+        backend: "codex",
+        harness: "opencode",
+      }),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager", { backend: "claude" }),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "backend: claude",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer-opencode",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const check = report.checks.find(
+      (entry) => entry.name === "config backend",
+    );
+    expect(check?.status).toBe("ok");
+    expect(check?.message).toContain(
+      'backend "claude" matches all 2 config agent(s)',
+    );
+  });
+
   it("reports Codex backend selection as healthy when the preset resolves to Codex agents", async () => {
     const roots = await makeIsolatedRoots();
     await installCodexLoginStub(roots.binDir);
