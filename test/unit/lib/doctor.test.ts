@@ -194,6 +194,40 @@ describe("runDoctor", () => {
     ).toBeUndefined();
   });
 
+  it("reports FAIL when config docs reference a missing carry-forward path", async () => {
+    const roots = await makeIsolatedRoots();
+    await installLoggedInClaudeStub(roots.binDir);
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+      ].join("\n"),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      ["docs:", "  - docs/missing.md"].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    expect(report.ok).toBe(false);
+    const check = report.checks.find((c) => c.name === "config docs");
+    expect(check?.status).toBe("fail");
+    expect(check?.message).toContain(
+      "carry-forward doc not found: docs/missing.md",
+    );
+  });
+
   it("reports OK when config preset resolves and its agents exist", async () => {
     const roots = await makeIsolatedRoots();
     await installLoggedInClaudeStub(roots.binDir);
