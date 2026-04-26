@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { access, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { z } from "zod";
 import { SwarmCommandError, dedupeKeepOrder } from "./parse-command.js";
 
 export interface ResolveCarryForwardDocsOptions {
@@ -38,6 +39,26 @@ export interface CarryForwardDocProvenance {
   mtimeMs: number;
 }
 
+const CarryForwardDocSnapshotManifestSchema = z.object({
+  docs: z.array(
+    z.object({
+      index: z.number().int().positive(),
+      path: z.string(),
+      snapshotPath: z.string(),
+      originalCharCount: z.number().int().nonnegative(),
+      includedCharCount: z.number().int().nonnegative(),
+      truncated: z.boolean(),
+      provenance: z.object({
+        absolutePath: z.string(),
+        excerptStart: z.number().int().nonnegative(),
+        excerptEnd: z.number().int().nonnegative(),
+        sha256: z.string(),
+        mtimeMs: z.number(),
+      }),
+    }),
+  ),
+});
+
 export async function materializeCarryForwardDocPackets(
   docs: readonly string[],
   options: MaterializeCarryForwardDocPacketsOptions = {},
@@ -68,6 +89,67 @@ export async function materializeCarryForwardDocPackets(
           sha256: createHash("sha256").update(content).digest("hex"),
           mtimeMs: info.mtimeMs,
         },
+      };
+    }),
+  );
+}
+
+export async function loadCarryForwardDocSnapshots(
+  runDir: string,
+): Promise<CarryForwardDocPacket[]> {
+  const snapshotDir = path.join(runDir, "carry-forward-docs");
+  const manifestPath = path.join(snapshotDir, "manifest.json");
+
+  let content: string;
+  try {
+    content = await readFile(manifestPath, "utf-8");
+  } catch (error) {
+    if (isMissingFile(error)) {
+      return [];
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    throw new SwarmCommandError(
+      `carry-forward doc snapshot manifest is not readable: ${message}`,
+    );
+  }
+
+  let manifestJson: unknown;
+  try {
+    manifestJson = JSON.parse(content);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new SwarmCommandError(
+      `carry-forward doc snapshot manifest is invalid JSON: ${message}`,
+    );
+  }
+
+  const parsed = CarryForwardDocSnapshotManifestSchema.safeParse(manifestJson);
+  if (!parsed.success) {
+    throw new SwarmCommandError(
+      `carry-forward doc snapshot manifest is invalid: ${parsed.error.message}`,
+    );
+  }
+
+  return Promise.all(
+    parsed.data.docs.map(async (doc) => {
+      const snapshotPath = resolveSnapshotPath(snapshotDir, doc.snapshotPath);
+      let snapshotContent: string;
+      try {
+        snapshotContent = await readFile(snapshotPath, "utf-8");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new SwarmCommandError(
+          `carry-forward doc snapshot is not readable: ${doc.snapshotPath}: ${message}`,
+        );
+      }
+
+      return {
+        path: doc.path,
+        content: snapshotContent,
+        originalCharCount: doc.originalCharCount,
+        includedCharCount: doc.includedCharCount,
+        truncated: doc.truncated,
+        provenance: doc.provenance,
       };
     }),
   );
@@ -135,6 +217,28 @@ function displayPathFor(absolutePath: string, cwd: string): string {
 
 function normalizeSeparators(filePath: string): string {
   return filePath.split(path.sep).join("/");
+}
+
+function resolveSnapshotPath(
+  snapshotDir: string,
+  snapshotPath: string,
+): string {
+  const absoluteSnapshotDir = path.resolve(snapshotDir);
+  const absoluteSnapshotPath = path.resolve(absoluteSnapshotDir, snapshotPath);
+  const relativeSnapshotPath = path.relative(
+    absoluteSnapshotDir,
+    absoluteSnapshotPath,
+  );
+  if (
+    !relativeSnapshotPath ||
+    relativeSnapshotPath.startsWith("..") ||
+    path.isAbsolute(relativeSnapshotPath)
+  ) {
+    throw new SwarmCommandError(
+      `carry-forward doc snapshot path escapes snapshot directory: ${snapshotPath}`,
+    );
+  }
+  return absoluteSnapshotPath;
 }
 
 async function validateDocPath(doc: ResolvedDocPath): Promise<void> {

@@ -35,7 +35,10 @@ import type { OutputTarget } from "./output-router.js";
 import { LedgerWriter } from "./ledger-writer.js";
 import { InboxManager } from "./inbox-manager.js";
 import { CheckpointWriter } from "./checkpoint-writer.js";
-import { materializeCarryForwardDocPackets } from "./doc-inputs.js";
+import {
+  loadCarryForwardDocSnapshots,
+  materializeCarryForwardDocPackets,
+} from "./doc-inputs.js";
 
 export type SwarmUiMode = "live" | "quiet" | "silent";
 
@@ -507,13 +510,15 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     runDir,
   };
 
-  const seedBrief = buildSeedBrief(config);
+  const carryForwardDocPackets = await loadCarryForwardDocSnapshots(runDir);
+  const seedBrief = buildSeedBrief(config, carryForwardDocPackets);
 
   const writer = new ArtifactWriter({
     baseDir: runDir,
     manifest,
     seedBrief,
     wrapperName: backend.wrapperName ?? `${config.backend}-cli`,
+    carryForwardDocPackets,
   });
   const checkpoint = checkpointWriter;
   const router = new OutputRouter([
@@ -635,6 +640,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     startRound,
     initialPriorPacket: priorPacket,
     initialOrchestratorDirective: orchestratorDirective,
+    carryForwardDocPackets,
   });
 
   const uiMode: SwarmUiMode =
