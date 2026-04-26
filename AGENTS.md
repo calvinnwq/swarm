@@ -28,6 +28,19 @@ The `.no-mistakes.yaml` workflow runs `pnpm test` for tests and `pnpm lint && pn
 
 After build, `pnpm link --global` exposes the `swarm` bin. The bin is `dist/cli.mjs`; bundled agent/preset YAML files must be copied into `dist/agents/bundled/` and `dist/presets/bundled/` (the `build` script does this — don't edit `dist/` by hand).
 
+## Releases
+
+Release Please manages GitHub releases from Conventional Commits on `main`. Use
+release-driving commit types such as `feat:`, `fix:`, and `deps:` for changes
+that should appear in the next release. Non-release work can use types such as
+`docs:`, `test:`, `refactor:`, `chore:`, or the existing project-specific
+scopes.
+
+The `.github/workflows/release-please.yml` workflow opens or updates a Release
+Please PR. Merging that PR updates `package.json`, writes `CHANGELOG.md`,
+creates a git tag, and creates the GitHub Release. npm publishing is not part of
+the current release workflow.
+
 ## Architecture
 
 ### Pipeline (src/lib/run-swarm.ts)
@@ -55,11 +68,11 @@ After build, `pnpm link --global` exposes the `swarm` bin. The bin is `dist/cli.
 
 `AgentRegistry` (`src/lib/agent-registry.ts`) and `PresetRegistry` (`src/lib/preset-registry.ts`) load from three roots, first match wins:
 
-| Scope         | Agents                                           | Presets                |
-| ------------- | ------------------------------------------------ | ---------------------- |
-| Project       | `.swarm/agents/*.yml` / `.md`                    | `.swarm/presets/*.yml` |
-| User          | `~/.swarm/agents/*.yml` / `.md`                  | `~/.swarm/presets/*.yml` |
-| Bundled       | `src/agents/bundled/` (copied to `dist/`)        | `src/presets/bundled/` |
+| Scope   | Agents                                    | Presets                  |
+| ------- | ----------------------------------------- | ------------------------ |
+| Project | `.swarm/agents/*.yml` / `.md`             | `.swarm/presets/*.yml`   |
+| User    | `~/.swarm/agents/*.yml` / `.md`           | `~/.swarm/presets/*.yml` |
+| Bundled | `src/agents/bundled/` (copied to `dist/`) | `src/presets/bundled/`   |
 
 Same-name override across scopes is allowed; duplicates inside one scope are an error. Markdown agents use YAML frontmatter validated against the same Zod schema as `.yml` agents.
 
