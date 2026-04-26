@@ -39,6 +39,8 @@ export interface CarryForwardDocProvenance {
   mtimeMs: number;
 }
 
+export const DEFAULT_CARRY_FORWARD_DOC_MAX_CHARS = 4_000;
+
 const CarryForwardDocSnapshotManifestSchema = z.object({
   docs: z.array(
     z.object({
@@ -63,7 +65,8 @@ export async function materializeCarryForwardDocPackets(
   docs: readonly string[],
   options: MaterializeCarryForwardDocPacketsOptions = {},
 ): Promise<CarryForwardDocPacket[]> {
-  const maxCharsPerDoc = options.maxCharsPerDoc ?? 4_000;
+  const maxCharsPerDoc =
+    options.maxCharsPerDoc ?? DEFAULT_CARRY_FORWARD_DOC_MAX_CHARS;
   if (!Number.isInteger(maxCharsPerDoc) || maxCharsPerDoc < 1) {
     throw new SwarmCommandError(
       "carry-forward doc packet size must be a positive integer",

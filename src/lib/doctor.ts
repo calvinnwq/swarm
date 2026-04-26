@@ -9,7 +9,10 @@ import {
   backendToHarness,
   resolveAgentRuntimes,
 } from "./harness-resolution.js";
-import { resolveCarryForwardDocs } from "./doc-inputs.js";
+import {
+  DEFAULT_CARRY_FORWARD_DOC_MAX_CHARS,
+  materializeCarryForwardDocPackets,
+} from "./doc-inputs.js";
 import {
   loadPresetRegistry,
   type LoadPresetRegistryOptions,
@@ -264,12 +267,17 @@ async function checkConfigDocs(
   options: { cwd?: string },
 ): Promise<DoctorCheck> {
   try {
-    const resolvedDocs = await resolveCarryForwardDocs(docs, options);
+    const packets = await materializeCarryForwardDocPackets(docs, options);
+    const truncatedCount = packets.filter((packet) => packet.truncated).length;
+    const message =
+      truncatedCount > 0
+        ? `all ${packets.length} carry-forward doc(s) resolve; ${truncatedCount} will be truncated to ${DEFAULT_CARRY_FORWARD_DOC_MAX_CHARS} chars`
+        : `all ${packets.length} carry-forward doc(s) resolve`;
     return {
       name: "config docs",
-      status: "ok",
-      message: `all ${resolvedDocs.length} carry-forward doc(s) resolve`,
-      detail: resolvedDocs.join("\n"),
+      status: truncatedCount > 0 ? "warn" : "ok",
+      message,
+      detail: packets.map(formatConfigDocPacket).join("\n"),
     };
   } catch (error) {
     return {
@@ -278,6 +286,13 @@ async function checkConfigDocs(
       message: errorMessage(error),
     };
   }
+}
+
+function formatConfigDocPacket(
+  packet: Awaited<ReturnType<typeof materializeCarryForwardDocPackets>>[number],
+): string {
+  const truncation = packet.truncated ? " (truncated)" : "";
+  return `${packet.path}: ${packet.includedCharCount}/${packet.originalCharCount} chars${truncation}`;
 }
 
 function checkConfigPreset(

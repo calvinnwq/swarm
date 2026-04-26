@@ -228,6 +228,56 @@ describe("runDoctor", () => {
     );
   });
 
+  it("warns when config docs exceed the carry-forward packet budget", async () => {
+    const roots = await makeIsolatedRoots();
+    await installLoggedInClaudeStub(roots.binDir);
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer.yml",
+      agentYaml("principal-engineer"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+      ].join("\n"),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "preset: product-decision",
+        "docs:",
+        "  - docs/brief.md",
+        "  - docs/oversized.md",
+      ].join("\n"),
+    );
+    await writeFileUnder(roots.cwd, "docs/brief.md", "short context\n");
+    await writeFileUnder(roots.cwd, "docs/oversized.md", "x".repeat(4_005));
+
+    const report = await runDoctor(roots);
+
+    expect(report.ok).toBe(true);
+    const check = report.checks.find((c) => c.name === "config docs");
+    expect(check?.status).toBe("warn");
+    expect(check?.message).toBe(
+      "all 2 carry-forward doc(s) resolve; 1 will be truncated to 4000 chars",
+    );
+    expect(check?.detail).toContain("docs/brief.md: 14/14 chars");
+    expect(check?.detail).toContain(
+      "docs/oversized.md: 4000/4005 chars (truncated)",
+    );
+  });
+
   it("reports OK when config preset resolves and its agents exist", async () => {
     const roots = await makeIsolatedRoots();
     await installLoggedInClaudeStub(roots.binDir);
