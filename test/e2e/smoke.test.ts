@@ -100,6 +100,24 @@ process.stdout.write(
   chmodSync(scriptPath, 0o755);
 }
 
+function writeDocFixtures(baseDir: string): void {
+  const docsDir = join(baseDir, "docs");
+  mkdirSync(docsDir, { recursive: true });
+  for (const name of [
+    "architecture.md",
+    "decision-log.md",
+    "from-config.md",
+    "from-cli-a.md",
+    "from-cli-b.md",
+  ]) {
+    writeFileSync(
+      join(docsDir, name),
+      `# ${name}\n\nSmoke test carry-forward fixture.\n`,
+      "utf-8",
+    );
+  }
+}
+
 describe("smoke: README golden path", () => {
   let baseDir: string;
   let binDir: string;
@@ -109,6 +127,7 @@ describe("smoke: README golden path", () => {
     baseDir = join(tmpdir(), `swarm-smoke-${randomUUID()}`);
     binDir = join(baseDir, "bin");
     installClaudeStub(binDir);
+    writeDocFixtures(baseDir);
     originalPath = process.env.PATH;
     process.env.PATH = `${binDir}:${originalPath ?? ""}`;
   });
@@ -2936,6 +2955,35 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("- docs/architecture.md");
     expect(seedBrief).toContain("- docs/decision-log.md");
     expect(seedBrief).not.toContain("docs/from-config.md");
+  });
+
+  it("fails clearly when a carry-forward doc path does not exist", () => {
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+        "--doc",
+        "docs/missing.md",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(
+      "swarm: carry-forward doc not found: docs/missing.md",
+    );
   });
 
   it("config explicit-agent runs ignore preset names but retain other config defaults", () => {
