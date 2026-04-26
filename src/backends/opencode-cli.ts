@@ -4,6 +4,12 @@ import type { AgentResponse, BackendAdapter } from "./index.js";
 import { extractAgentOutputJson } from "./json-output.js";
 import { joinPromptSections, resolveAgentPrompt } from "./shared.js";
 
+const OPENCODE_NO_TOOLS_CONFIG = JSON.stringify({
+  permission: {
+    "*": "deny",
+  },
+});
+
 const OPENCODE_BANNER_PREFIXES = [
   "opencode v",
   "OpenCode v",
@@ -80,6 +86,10 @@ export class OpenCodeCliAdapter implements BackendAdapter {
     }
     const start = performance.now();
     const result = await execa("opencode", args, {
+      env: {
+        ...process.env,
+        OPENCODE_CONFIG_CONTENT: OPENCODE_NO_TOOLS_CONFIG,
+      },
       input: prompt,
       timeout: opts.timeoutMs,
       reject: false,

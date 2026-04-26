@@ -92,6 +92,13 @@ describe("OpenCodeCliAdapter", () => {
     expect(args).not.toContain("--model");
     expect(args).toEqual(["run"]);
     expect(options).toMatchObject({
+      env: expect.objectContaining({
+        OPENCODE_CONFIG_CONTENT: JSON.stringify({
+          permission: {
+            "*": "deny",
+          },
+        }),
+      }),
       input: expect.stringContaining(agent.persona),
       reject: false,
       timeout: 5_000,
