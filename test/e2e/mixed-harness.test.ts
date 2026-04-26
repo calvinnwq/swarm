@@ -111,7 +111,9 @@ function installOpenCodeStub(binDir: string): void {
   writeFileSync(
     scriptPath,
     `#!/usr/bin/env node
-const prompt = process.argv[process.argv.length - 1] ?? "";
+const fs = require("node:fs");
+
+const prompt = fs.readFileSync(0, "utf8");
 const match = prompt.match(/AGENT-NAME:(\\S+)/);
 const agent = match ? match[1] : "unknown-opencode-agent";
 const modelIdx = process.argv.indexOf("--model");
@@ -141,7 +143,9 @@ function installAcliStub(binDir: string): void {
   writeFileSync(
     scriptPath,
     `#!/usr/bin/env node
-const prompt = process.argv[process.argv.length - 1] ?? "";
+const fs = require("node:fs");
+
+const prompt = fs.readFileSync(0, "utf8");
 const match = prompt.match(/AGENT-NAME:(\\S+)/);
 const agent = match ? match[1] : "unknown-rovo-agent";
 const modelIdx = process.argv.indexOf("--model");
