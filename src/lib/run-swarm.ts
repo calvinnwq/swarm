@@ -35,6 +35,7 @@ import type { OutputTarget } from "./output-router.js";
 import { LedgerWriter } from "./ledger-writer.js";
 import { InboxManager } from "./inbox-manager.js";
 import { CheckpointWriter } from "./checkpoint-writer.js";
+import { materializeCarryForwardDocPackets } from "./doc-inputs.js";
 
 export type SwarmUiMode = "live" | "quiet" | "silent";
 
@@ -180,12 +181,17 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   };
 
   const seedBrief = buildSeedBrief(config);
+  const carryForwardDocPackets =
+    config.docs.length > 0
+      ? await materializeCarryForwardDocPackets(config.docs)
+      : [];
 
   const writer = new ArtifactWriter({
     baseDir,
     manifest,
     seedBrief,
     wrapperName: backend.wrapperName ?? `${config.backend}-cli`,
+    carryForwardDocPackets,
   });
   const ledger = new LedgerWriter(runDir);
   const checkpoint = new CheckpointWriter(runDir);

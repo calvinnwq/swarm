@@ -330,6 +330,64 @@ describe("ArtifactWriter", () => {
       const seedBrief = readFileSync(join(runDir, "seed-brief.md"), "utf-8");
       expect(seedBrief).toBe("# Seed Brief\n\nTopic: TypeScript");
     });
+
+    it("snapshots carry-forward doc packets with provenance", () => {
+      const runDir = join(testDir, "run-doc-snapshots");
+      const manifest = makeManifest(runDir);
+      const writer = createArtifactWriter({
+        baseDir: testDir,
+        manifest,
+        seedBrief: "seed",
+        carryForwardDocPackets: [
+          {
+            path: "docs/brief.md",
+            content: "First line\nSecond",
+            originalCharCount: 33,
+            includedCharCount: 17,
+            truncated: true,
+            provenance: {
+              absolutePath: join(testDir, "docs", "brief.md"),
+              excerptStart: 0,
+              excerptEnd: 17,
+              sha256:
+                "0ebc0f611f8b7aa265384ff56773b65148e0cc9c19374a89216c2f2055d9d43d",
+              mtimeMs: 1777170000000,
+            },
+          },
+        ],
+      });
+
+      writer.init();
+
+      const snapshotDir = join(runDir, "carry-forward-docs");
+      expect(readFileSync(join(snapshotDir, "doc-01.md"), "utf-8")).toBe(
+        "First line\nSecond",
+      );
+
+      const manifestJson = JSON.parse(
+        readFileSync(join(snapshotDir, "manifest.json"), "utf-8"),
+      );
+      expect(manifestJson).toEqual({
+        docs: [
+          {
+            index: 1,
+            path: "docs/brief.md",
+            snapshotPath: "doc-01.md",
+            originalCharCount: 33,
+            includedCharCount: 17,
+            truncated: true,
+            provenance: {
+              absolutePath: join(testDir, "docs", "brief.md"),
+              excerptStart: 0,
+              excerptEnd: 17,
+              sha256:
+                "0ebc0f611f8b7aa265384ff56773b65148e0cc9c19374a89216c2f2055d9d43d",
+              mtimeMs: 1777170000000,
+            },
+          },
+        ],
+      });
+    });
   });
 
   describe("writeRound", () => {

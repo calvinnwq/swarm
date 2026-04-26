@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -66,6 +67,29 @@ describe("resolveCarryForwardDocs", () => {
 });
 
 describe("materializeCarryForwardDocPackets", () => {
+  it("records provenance for the excerpt that was included", async () => {
+    const cwd = await makeTempCwd();
+    await mkdir(path.join(cwd, "docs"), { recursive: true });
+    const content = "First line\nSecond line\nThird line";
+    await writeFile(path.join(cwd, "docs", "brief.md"), content, "utf-8");
+
+    const [packet] = await materializeCarryForwardDocPackets(
+      ["docs/brief.md"],
+      {
+        cwd,
+        maxCharsPerDoc: 17,
+      },
+    );
+
+    expect(packet.provenance).toEqual({
+      absolutePath: path.join(cwd, "docs", "brief.md"),
+      excerptStart: 0,
+      excerptEnd: 17,
+      sha256: createHash("sha256").update(content).digest("hex"),
+      mtimeMs: expect.any(Number),
+    });
+  });
+
   it("reads resolved docs into bounded context packets", async () => {
     const cwd = await makeTempCwd();
     await mkdir(path.join(cwd, "docs"), { recursive: true });
@@ -87,6 +111,15 @@ describe("materializeCarryForwardDocPackets", () => {
         originalCharCount: 33,
         includedCharCount: 17,
         truncated: true,
+        provenance: {
+          absolutePath: path.join(cwd, "docs", "brief.md"),
+          excerptStart: 0,
+          excerptEnd: 17,
+          sha256: createHash("sha256")
+            .update("First line\nSecond line\nThird line")
+            .digest("hex"),
+          mtimeMs: expect.any(Number),
+        },
       },
     ]);
   });
@@ -109,6 +142,13 @@ describe("materializeCarryForwardDocPackets", () => {
         originalCharCount: 5,
         includedCharCount: 5,
         truncated: false,
+        provenance: {
+          absolutePath: path.join(cwd, "docs", "a.md"),
+          excerptStart: 0,
+          excerptEnd: 5,
+          sha256: createHash("sha256").update("alpha").digest("hex"),
+          mtimeMs: expect.any(Number),
+        },
       },
       {
         path: "docs/b.md",
@@ -116,6 +156,13 @@ describe("materializeCarryForwardDocPackets", () => {
         originalCharCount: 4,
         includedCharCount: 4,
         truncated: false,
+        provenance: {
+          absolutePath: path.join(cwd, "docs", "b.md"),
+          excerptStart: 0,
+          excerptEnd: 4,
+          sha256: createHash("sha256").update("beta").digest("hex"),
+          mtimeMs: expect.any(Number),
+        },
       },
     ]);
   });

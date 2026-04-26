@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentOutput, RunManifest, RunStatus } from "../schemas/index.js";
+import type { CarryForwardDocPacket } from "./doc-inputs.js";
 import { getHarnessDescriptor } from "./harness-registry.js";
 import type { AgentResult, RoundResult } from "./round-runner.js";
 import type { SynthesisResult } from "./synthesis.js";
@@ -186,6 +187,8 @@ export interface ArtifactWriterOpts {
   seedBrief: string;
   /** Human-readable backend wrapper label for per-agent artifacts */
   wrapperName?: string;
+  /** Carry-forward document packets to snapshot with provenance */
+  carryForwardDocPackets?: readonly CarryForwardDocPacket[];
 }
 
 /**
@@ -211,6 +214,37 @@ export class ArtifactWriter implements OutputTarget {
       JSON.stringify(this.opts.manifest, null, 2) + "\n",
     );
     writeFileSync(join(this.runDir, "seed-brief.md"), this.opts.seedBrief);
+    this.writeCarryForwardDocSnapshots();
+  }
+
+  private writeCarryForwardDocSnapshots(): void {
+    const packets = this.opts.carryForwardDocPackets ?? [];
+    if (packets.length === 0) {
+      return;
+    }
+
+    const snapshotDir = join(this.runDir, "carry-forward-docs");
+    mkdirSync(snapshotDir, { recursive: true });
+
+    const docs = packets.map((packet, index) => {
+      const snapshotPath = `doc-${String(index + 1).padStart(2, "0")}.md`;
+      writeFileSync(join(snapshotDir, snapshotPath), packet.content);
+
+      return {
+        index: index + 1,
+        path: packet.path,
+        snapshotPath,
+        originalCharCount: packet.originalCharCount,
+        includedCharCount: packet.includedCharCount,
+        truncated: packet.truncated,
+        provenance: packet.provenance,
+      };
+    });
+
+    writeFileSync(
+      join(snapshotDir, "manifest.json"),
+      JSON.stringify({ docs }, null, 2) + "\n",
+    );
   }
 
   /**

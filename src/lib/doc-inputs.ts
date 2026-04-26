@@ -1,4 +1,5 @@
 import { constants } from "node:fs";
+import { createHash } from "node:crypto";
 import { access, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -26,6 +27,15 @@ export interface CarryForwardDocPacket {
   originalCharCount: number;
   includedCharCount: number;
   truncated: boolean;
+  provenance: CarryForwardDocProvenance;
+}
+
+export interface CarryForwardDocProvenance {
+  absolutePath: string;
+  excerptStart: number;
+  excerptEnd: number;
+  sha256: string;
+  mtimeMs: number;
 }
 
 export async function materializeCarryForwardDocPackets(
@@ -43,6 +53,7 @@ export async function materializeCarryForwardDocPackets(
   return Promise.all(
     resolvedDocs.map(async (doc) => {
       const content = await readFile(doc.absolutePath, "utf-8");
+      const info = await stat(doc.absolutePath);
       const excerpt = content.slice(0, maxCharsPerDoc);
       return {
         path: doc.displayPath,
@@ -50,6 +61,13 @@ export async function materializeCarryForwardDocPackets(
         originalCharCount: content.length,
         includedCharCount: excerpt.length,
         truncated: excerpt.length < content.length,
+        provenance: {
+          absolutePath: doc.absolutePath,
+          excerptStart: 0,
+          excerptEnd: excerpt.length,
+          sha256: createHash("sha256").update(content).digest("hex"),
+          mtimeMs: info.mtimeMs,
+        },
       };
     }),
   );
