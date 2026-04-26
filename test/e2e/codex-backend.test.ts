@@ -30,6 +30,11 @@ if (process.argv[2] === "login" && process.argv[3] === "status") {
   process.exit(0);
 }
 
+if (process.argv[2] === "exec" && process.argv.includes("--help")) {
+  process.stdout.write("Usage: codex exec [options]\\n");
+  process.exit(0);
+}
+
 const prompt = fs.readFileSync(0, "utf8");
 const statePath = path.join(path.dirname(process.argv[1]), ".codex-state.json");
 
