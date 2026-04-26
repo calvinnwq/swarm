@@ -229,10 +229,10 @@ Each agent can pin the runtime harness and model it dispatches through, independ
 
 | Field      | Values                                 | Default                                    |
 | ---------- | -------------------------------------- | ------------------------------------------ |
-| `harness`  | `claude`, `codex`, `opencode`, `rovo`  | Falls back to the agent's `backend`        |
+| `harness`  | `claude`, `codex`, `opencode`, `rovo`  | Falls back to the run-level backend, then the agent's `backend` |
 | `model`    | Any non-empty string                   | Harness default (the harness chooses)      |
 
-Resolution order per agent (first wins): `agent.harness` → `agent.backend` → run-level `--backend` (claude). The resolved (`harness`, `model`) pair is captured in `manifest.json` under `agentRuntimes` and rendered into each agent's per-round markdown header (`Harness:` / `Model:`).
+Resolution order per agent (first wins): `agent.harness` → explicit run-level `--backend` or project `backend` → `agent.backend`. If no run-level backend is configured, the agent's `backend` field continues to select its harness. The resolved (`harness`, `model`) pair is captured in `manifest.json` under `agentRuntimes` and rendered into each agent's per-round markdown header (`Harness:` / `Model:`).
 
 This unlocks **mixed-harness swarms**: a single run can route one agent through Claude and another through Codex (or OpenCode / Rovo Dev), as long as each harness's CLI is installed and authenticated. Example agent overrides for a mixed run:
 
@@ -261,7 +261,7 @@ swarm run 1 "Should we adopt mixed-harness swarms" \
   --resolve off
 ```
 
-`swarm doctor` probes the run-level backend's harness (whichever the project config or `--backend` selects). At run start, the CLI additionally fails fast if any agent requests an unimplemented harness, listing the harnesses currently available. When `agent.model` is set, every harness adapter forwards it to its CLI: `claude --model <model>`, `codex -m <model>`, `opencode --model <model>`, and `acli rovodev run --model <model>`. Omitting `agent.model` lets the harness pick its own default.
+`swarm doctor` probes the configured agents' resolved harnesses when it can load them, otherwise it probes the run-level backend's harness. At run start, the CLI additionally fails fast if any agent requests an unimplemented harness, listing the harnesses currently available. When `agent.model` is set, every harness adapter forwards it to its CLI: `claude --model <model>`, `codex -m <model>`, `opencode --model <model>`, and `acli rovodev run --model <model>`. Omitting `agent.model` lets the harness pick its own default.
 
 ### Agent output schema
 
