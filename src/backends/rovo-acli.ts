@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { execa } from "execa";
 import type { AgentDefinition } from "../schemas/index.js";
 import type { AgentResponse, BackendAdapter } from "./index.js";
@@ -24,6 +27,10 @@ const ROVO_BANNER_PREFIXES = [
   "Shadow mode",
   "shadow mode",
 ];
+
+async function ensureRovoWorkdir(): Promise<string> {
+  return await mkdtemp(join(tmpdir(), "swarm-rovo-workdir-"));
+}
 
 export function composeRovoPrompt(
   persona: string,
@@ -81,26 +88,32 @@ export class RovoAcliAdapter implements BackendAdapter {
   ): Promise<AgentResponse> {
     const promptBody = await resolveAgentPrompt(agent);
     const prompt = composeRovoPrompt(agent.persona, promptBody, brief);
+    const workdir = await ensureRovoWorkdir();
 
     const args: string[] = ["rovodev", "run", "--shadow", "-y"];
     if (typeof agent.model === "string" && agent.model.length > 0) {
       args.push("--model", agent.model);
     }
     const start = performance.now();
-    const result = await execa("acli", args, {
-      input: prompt,
-      timeout: opts.timeoutMs,
-      reject: false,
-    });
-    const durationMs = Math.round(performance.now() - start);
+    try {
+      const result = await execa("acli", args, {
+        cwd: workdir,
+        input: prompt,
+        timeout: opts.timeoutMs,
+        reject: false,
+      });
+      const durationMs = Math.round(performance.now() - start);
 
-    return {
-      ok: result.exitCode === 0,
-      exitCode: result.exitCode ?? 1,
-      stdout: result.stdout,
-      stderr: result.stderr,
-      timedOut: result.timedOut,
-      durationMs,
-    };
+      return {
+        ok: result.exitCode === 0,
+        exitCode: result.exitCode ?? 1,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        timedOut: result.timedOut,
+        durationMs,
+      };
+    } finally {
+      await rm(workdir, { recursive: true, force: true });
+    }
   }
 }

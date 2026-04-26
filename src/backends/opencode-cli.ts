@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { execa } from "execa";
 import type { AgentDefinition } from "../schemas/index.js";
 import type { AgentResponse, BackendAdapter } from "./index.js";
@@ -21,6 +24,10 @@ const OPENCODE_BANNER_PREFIXES = [
   "tokens used",
   "share url",
 ];
+
+async function ensureOpenCodeWorkdir(): Promise<string> {
+  return await mkdtemp(join(tmpdir(), "swarm-opencode-workdir-"));
+}
 
 export function composeOpenCodePrompt(
   persona: string,
@@ -79,30 +86,36 @@ export class OpenCodeCliAdapter implements BackendAdapter {
   ): Promise<AgentResponse> {
     const promptBody = await resolveAgentPrompt(agent);
     const prompt = composeOpenCodePrompt(agent.persona, promptBody, brief);
+    const workdir = await ensureOpenCodeWorkdir();
 
     const args: string[] = ["run"];
     if (typeof agent.model === "string" && agent.model.length > 0) {
       args.push("--model", agent.model);
     }
     const start = performance.now();
-    const result = await execa("opencode", args, {
-      env: {
-        ...process.env,
-        OPENCODE_CONFIG_CONTENT: OPENCODE_NO_TOOLS_CONFIG,
-      },
-      input: prompt,
-      timeout: opts.timeoutMs,
-      reject: false,
-    });
-    const durationMs = Math.round(performance.now() - start);
+    try {
+      const result = await execa("opencode", args, {
+        cwd: workdir,
+        env: {
+          ...process.env,
+          OPENCODE_CONFIG_CONTENT: OPENCODE_NO_TOOLS_CONFIG,
+        },
+        input: prompt,
+        timeout: opts.timeoutMs,
+        reject: false,
+      });
+      const durationMs = Math.round(performance.now() - start);
 
-    return {
-      ok: result.exitCode === 0,
-      exitCode: result.exitCode ?? 1,
-      stdout: result.stdout,
-      stderr: result.stderr,
-      timedOut: result.timedOut,
-      durationMs,
-    };
+      return {
+        ok: result.exitCode === 0,
+        exitCode: result.exitCode ?? 1,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        timedOut: result.timedOut,
+        durationMs,
+      };
+    } finally {
+      await rm(workdir, { recursive: true, force: true });
+    }
   }
 }

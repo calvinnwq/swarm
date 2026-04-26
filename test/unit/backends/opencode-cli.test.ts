@@ -99,6 +99,7 @@ describe("OpenCodeCliAdapter", () => {
           },
         }),
       }),
+      cwd: expect.stringContaining("swarm-opencode-workdir-"),
       input: expect.stringContaining(agent.persona),
       reject: false,
       timeout: 5_000,

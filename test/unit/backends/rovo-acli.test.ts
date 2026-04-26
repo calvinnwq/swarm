@@ -90,6 +90,7 @@ describe("RovoAcliAdapter", () => {
     expect(args).not.toContain("--model");
     expect(args).toEqual(["rovodev", "run", "--shadow", "-y"]);
     expect(options).toMatchObject({
+      cwd: expect.stringContaining("swarm-rovo-workdir-"),
       input: expect.stringContaining(agent.persona),
       reject: false,
       timeout: 5_000,
