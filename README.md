@@ -25,6 +25,15 @@ pnpm link --global
 > nvm/Homebrew) and works fine against a pnpm-installed dep tree because
 > `bin` entries are standard.
 
+## Releases
+
+GitHub releases are managed by Release Please. After release-driving
+Conventional Commits such as `feat:`, `fix:`, or `deps:` land on `main`, the
+release workflow opens or updates a Release Please PR with the next version and
+`CHANGELOG.md` entry. Merging that PR creates the git tag and GitHub Release.
+
+npm publishing is not automated yet.
+
 ## Quickstart (golden path)
 
 The supported alpha flow uses the bundled `product-decision` preset, which pairs the bundled `product-manager` and `principal-engineer` agents — no config or custom agent definitions required.
@@ -89,11 +98,11 @@ Options:
 
 Swarm ships with three opinionated built-in presets:
 
-| Preset                    | Agents                                                          | Resolve        | Best for                                                                             |
-| ------------------------- | --------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
-| `product-decision`        | `product-manager`, `principal-engineer`                         | `orchestrator` | Framing a product decision with paired user-value and engineering-feasibility lenses |
-| `product-decision-codex`  | `product-manager-codex`, `principal-engineer-codex`             | `orchestrator` | Running the same product-decision flow through Codex out of the box                  |
-| `triad`                   | `product-manager`, `principal-engineer`, `product-designer`     | `orchestrator` | Full product triad: value, feasibility, and UX perspective together                  |
+| Preset                   | Agents                                                      | Resolve        | Best for                                                                             |
+| ------------------------ | ----------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
+| `product-decision`       | `product-manager`, `principal-engineer`                     | `orchestrator` | Framing a product decision with paired user-value and engineering-feasibility lenses |
+| `product-decision-codex` | `product-manager-codex`, `principal-engineer-codex`         | `orchestrator` | Running the same product-decision flow through Codex out of the box                  |
+| `triad`                  | `product-manager`, `principal-engineer`, `product-designer` | `orchestrator` | Full product triad: value, feasibility, and UX perspective together                  |
 
 Invoke it by name — no `--agents` required:
 
@@ -107,11 +116,11 @@ CLI flags still win over preset defaults, so you can override `--resolve`, `--go
 
 Presets are resolved from three roots in priority order — the first match wins:
 
-| Source                                | Path                         | Scope         |
-| ------------------------------------- | ---------------------------- | ------------- |
-| Project-local                         | `.swarm/presets/*.yml`       | This repo     |
-| User-global                           | `~/.swarm/presets/*.yml`     | Your machine  |
-| Bundled                               | _(ships with swarm)_         | Always present |
+| Source        | Path                     | Scope          |
+| ------------- | ------------------------ | -------------- |
+| Project-local | `.swarm/presets/*.yml`   | This repo      |
+| User-global   | `~/.swarm/presets/*.yml` | Your machine   |
+| Bundled       | _(ships with swarm)_     | Always present |
 
 A project-local preset with the same `name` as a bundled preset fully replaces it for that project. A user-global preset with the same name overrides the bundled version machine-wide but yields to any project-local definition. Duplicate `name` values within the same root (two files in `.swarm/presets/` declaring the same name) are an error. Drop a YAML file into `.swarm/presets/<name>.yml` (project) or `~/.swarm/presets/<name>.yml` (global) to define your own.
 
@@ -187,7 +196,7 @@ Swarm ships with six bundled agents:
 | `product-designer`         | UX, usability, and user-journey perspective                     |
 | `product-manager-codex`    | Codex-backed product decision framing                           |
 | `principal-engineer-codex` | Codex-backed engineering feasibility                            |
-| `orchestrator`             | Coordinator persona for between-round context and resolve modes  |
+| `orchestrator`             | Coordinator persona for between-round context and resolve modes |
 
 A project-local agent with the same `name` as a bundled agent fully replaces it for that project. A user-global agent overrides the bundled version machine-wide but yields to any project-local definition. Duplicate `name` values within the same root are an error.
 
@@ -227,10 +236,10 @@ system complexity, operational burden, and migration risk.
 
 Each agent can pin the runtime harness and model it dispatches through, independent of the run-level `--backend`. Two optional fields are recognized on every agent definition (YAML or Markdown frontmatter):
 
-| Field      | Values                                 | Default                                    |
-| ---------- | -------------------------------------- | ------------------------------------------ |
-| `harness`  | `claude`, `codex`, `opencode`, `rovo`  | Falls back to the run-level backend, then the agent's `backend` |
-| `model`    | Any non-empty string                   | Harness default (the harness chooses)      |
+| Field     | Values                                | Default                                                         |
+| --------- | ------------------------------------- | --------------------------------------------------------------- |
+| `harness` | `claude`, `codex`, `opencode`, `rovo` | Falls back to the run-level backend, then the agent's `backend` |
+| `model`   | Any non-empty string                  | Harness default (the harness chooses)                           |
 
 Resolution order per agent (first wins): `agent.harness` → explicit run-level `--backend` or project `backend` → `agent.backend`. If no run-level backend is configured, the agent's `backend` field continues to select its harness. The resolved (`harness`, `model`) pair is captured in `manifest.json` under `agentRuntimes` and rendered into each agent's per-round markdown header (`Harness:` / `Model:`).
 
