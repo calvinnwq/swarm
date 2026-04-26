@@ -29,12 +29,16 @@ export function backendToHarness(backend: BackendId): HarnessId {
 
 export function resolveAgentRuntime(
   agent: AgentDefinition,
+  runBackend?: BackendId,
 ): ResolvedAgentRuntime {
   let harness: HarnessId;
   let harnessSource: HarnessResolutionSource;
   if (agent.harness !== undefined) {
     harness = agent.harness;
     harnessSource = "agent.harness";
+  } else if (runBackend !== undefined) {
+    harness = backendToHarness(runBackend);
+    harnessSource = "run.backend";
   } else {
     harness = backendToHarness(agent.backend);
     harnessSource = "agent.backend";
@@ -54,8 +58,9 @@ export function resolveAgentRuntime(
 
 export function resolveAgentRuntimes(
   agents: readonly AgentDefinition[],
+  runBackend?: BackendId,
 ): ResolvedAgentRuntime[] {
-  return agents.map((agent) => resolveAgentRuntime(agent));
+  return agents.map((agent) => resolveAgentRuntime(agent, runBackend));
 }
 
 export interface HarnessAvailabilityIssue {

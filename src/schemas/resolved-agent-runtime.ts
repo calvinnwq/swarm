@@ -4,6 +4,7 @@ import { HarnessIdSchema } from "./harness-id.js";
 export const HarnessResolutionSourceSchema = z.enum([
   "agent.harness",
   "agent.backend",
+  "run.backend",
 ]);
 export type HarnessResolutionSource = z.infer<
   typeof HarnessResolutionSourceSchema

@@ -36,9 +36,16 @@ describe("harness-resolution", () => {
     expect(resolved.source.model).toBe("harness-default");
   });
 
+  it("uses the run backend when provided and harness is not set", () => {
+    const agent = makeAgent();
+    const resolved = resolveAgentRuntime(agent, "codex");
+    expect(resolved.harness).toBe("codex");
+    expect(resolved.source.harness).toBe("run.backend");
+  });
+
   it("prefers explicit harness over backend", () => {
     const agent = makeAgent({ backend: "claude", harness: "codex" });
-    const resolved = resolveAgentRuntime(agent);
+    const resolved = resolveAgentRuntime(agent, "claude");
     expect(resolved.harness).toBe("codex");
     expect(resolved.source.harness).toBe("agent.harness");
   });
@@ -67,7 +74,7 @@ describe("harness-resolution", () => {
       makeAgent({ name: "third", harness: "opencode" }),
       makeAgent({ name: "fourth", harness: "rovo" }),
     ];
-    const resolved = resolveAgentRuntimes(agents);
+    const resolved = resolveAgentRuntimes(agents, "claude");
     expect(resolved.map((r) => r.agentName)).toEqual([
       "first",
       "second",

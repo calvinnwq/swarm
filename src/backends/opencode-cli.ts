@@ -78,10 +78,9 @@ export class OpenCodeCliAdapter implements BackendAdapter {
     if (typeof agent.model === "string" && agent.model.length > 0) {
       args.push("--model", agent.model);
     }
-    args.push(prompt);
-
     const start = performance.now();
     const result = await execa("opencode", args, {
+      input: prompt,
       timeout: opts.timeoutMs,
       reject: false,
     });

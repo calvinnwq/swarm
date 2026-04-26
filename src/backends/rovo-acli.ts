@@ -86,10 +86,9 @@ export class RovoAcliAdapter implements BackendAdapter {
     if (typeof agent.model === "string" && agent.model.length > 0) {
       args.push("--model", agent.model);
     }
-    args.push(prompt);
-
     const start = performance.now();
     const result = await execa("acli", args, {
+      input: prompt,
       timeout: opts.timeoutMs,
       reject: false,
     });

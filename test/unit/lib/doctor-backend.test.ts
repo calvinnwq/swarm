@@ -116,14 +116,36 @@ async function installCodexLoginStub(
   ]);
 }
 
-function agentYaml(name: string, backend = "claude"): string {
-  return [
+async function installOpenCodeAuthStub(binDir: string): Promise<void> {
+  await writeExecutable(binDir, "opencode", [
+    'if (process.argv[2] === "auth" && process.argv[3] === "list") {',
+    '  process.stdout.write("github\\n");',
+    "  process.exit(0);",
+    "}",
+    'if (process.argv[2] === "run" && process.argv[3] === "--help") {',
+    '  process.stdout.write("Usage: opencode run\\n");',
+    "  process.exit(0);",
+    "}",
+    'process.stderr.write("unexpected opencode invocation\\n");',
+    "process.exit(1);",
+  ]);
+}
+
+function agentYaml(
+  name: string,
+  options: { backend?: string; harness?: string } = {},
+): string {
+  const lines = [
     `name: ${name}`,
     "description: test agent",
     "persona: test persona",
     "prompt: test prompt body",
-    `backend: ${backend}`,
-  ].join("\n");
+    `backend: ${options.backend ?? "claude"}`,
+  ];
+  if (options.harness) {
+    lines.push(`harness: ${options.harness}`);
+  }
+  return lines.join("\n");
 }
 
 describe("runDoctor backend checks", () => {
@@ -177,18 +199,67 @@ describe("runDoctor backend checks", () => {
     expect(report.ok).toBe(true);
   });
 
+  it("probes each harness requested by configured agents", async () => {
+    const roots = await makeIsolatedRoots();
+    await installClaudeAuthStub(roots.binDir);
+    await installOpenCodeAuthStub(roots.binDir);
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-opencode.yml",
+      agentYaml("principal-engineer-opencode", { harness: "opencode" }),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "backend: claude",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer-opencode",
+      ].join("\n"),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "product-decision.yml",
+      [
+        "name: product-decision",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer-opencode",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const capabilities = report.checks.filter(
+      (entry) => entry.name === "harness capability",
+    );
+    expect(capabilities.map((entry) => entry.message)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('harness "claude"'),
+        expect.stringContaining('harness "opencode"'),
+      ]),
+    );
+    expect(report.ok).toBe(true);
+  });
+
   it("reports Codex backend selection as healthy when the preset resolves to Codex agents", async () => {
     const roots = await makeIsolatedRoots();
     await installCodexLoginStub(roots.binDir);
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager-codex.yml",
-      agentYaml("product-manager-codex", "codex"),
+      agentYaml("product-manager-codex", { backend: "codex" }),
     );
     await writeFileUnder(
       roots.bundledAgentsDir,
       "principal-engineer-codex.yml",
-      agentYaml("principal-engineer-codex", "codex"),
+      agentYaml("principal-engineer-codex", { backend: "codex" }),
     );
     await writeFileUnder(
       roots.cwd,
@@ -230,12 +301,12 @@ describe("runDoctor backend checks", () => {
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager-codex.yml",
-      agentYaml("product-manager-codex", "codex"),
+      agentYaml("product-manager-codex", { backend: "codex" }),
     );
     await writeFileUnder(
       roots.bundledAgentsDir,
       "principal-engineer-codex.yml",
-      agentYaml("principal-engineer-codex", "codex"),
+      agentYaml("principal-engineer-codex", { backend: "codex" }),
     );
     await writeFileUnder(
       roots.cwd,
@@ -271,12 +342,12 @@ describe("runDoctor backend checks", () => {
     await writeFileUnder(
       roots.bundledAgentsDir,
       "product-manager.yml",
-      agentYaml("product-manager", "claude"),
+      agentYaml("product-manager", { backend: "claude" }),
     );
     await writeFileUnder(
       roots.bundledAgentsDir,
       "principal-engineer.yml",
-      agentYaml("principal-engineer", "claude"),
+      agentYaml("principal-engineer", { backend: "claude" }),
     );
     await writeFileUnder(
       roots.cwd,

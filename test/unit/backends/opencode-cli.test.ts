@@ -66,7 +66,7 @@ describe("OpenCodeCliAdapter", () => {
     vi.mocked(execa).mockReset();
   });
 
-  it("dispatches through opencode run with the prompt as a positional argument", async () => {
+  it("dispatches through opencode run with the prompt on stdin", async () => {
     vi.mocked(execa).mockResolvedValueOnce({
       exitCode: 0,
       stdout:
@@ -90,13 +90,14 @@ describe("OpenCodeCliAdapter", () => {
     expect(command).toBe("opencode");
     expect(args[0]).toBe("run");
     expect(args).not.toContain("--model");
-    const positional = args.at(-1)!;
-    expect(positional).toContain(agent.persona);
-    expect(positional).toContain("Return only the swarm JSON contract.");
-    expect(positional).toContain("Topic: Should we adopt OpenCode?");
+    expect(args).toEqual(["run"]);
     expect(options).toMatchObject({
+      input: expect.stringContaining(agent.persona),
       reject: false,
       timeout: 5_000,
+    });
+    expect(options).toMatchObject({
+      input: expect.stringContaining("Topic: Should we adopt OpenCode?"),
     });
   });
 

@@ -64,7 +64,7 @@ describe("RovoAcliAdapter", () => {
     vi.mocked(execa).mockReset();
   });
 
-  it("dispatches through `acli rovodev run` with shadow + auto-yes flags and the prompt as the trailing positional", async () => {
+  it("dispatches through `acli rovodev run` with shadow + auto-yes flags and the prompt on stdin", async () => {
     vi.mocked(execa).mockResolvedValueOnce({
       exitCode: 0,
       stdout:
@@ -88,13 +88,14 @@ describe("RovoAcliAdapter", () => {
     expect(command).toBe("acli");
     expect(args.slice(0, 4)).toEqual(["rovodev", "run", "--shadow", "-y"]);
     expect(args).not.toContain("--model");
-    const positional = args.at(-1)!;
-    expect(positional).toContain(agent.persona);
-    expect(positional).toContain("Return only the swarm JSON contract.");
-    expect(positional).toContain("Topic: Should we adopt Rovo Dev?");
+    expect(args).toEqual(["rovodev", "run", "--shadow", "-y"]);
     expect(options).toMatchObject({
+      input: expect.stringContaining(agent.persona),
       reject: false,
       timeout: 5_000,
+    });
+    expect(options).toMatchObject({
+      input: expect.stringContaining("Topic: Should we adopt Rovo Dev?"),
     });
   });
 

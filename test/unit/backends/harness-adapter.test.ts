@@ -146,7 +146,9 @@ describe("createAgentAdapterResolver", () => {
       backend: "codex",
       harness: "codex",
     });
-    const resolved = [claudeAgent, codexAgent].map(resolveAgentRuntime);
+    const resolved = [claudeAgent, codexAgent].map((agent) =>
+      resolveAgentRuntime(agent),
+    );
     const registry = buildHarnessAdapterRegistry(resolved);
     const resolve = createAgentAdapterResolver(resolved, registry);
 
@@ -160,7 +162,7 @@ describe("createAgentAdapterResolver", () => {
       backend: "claude",
       harness: "claude",
     });
-    const resolved = [agent].map(resolveAgentRuntime);
+    const resolved = [agent].map((entry) => resolveAgentRuntime(entry));
     const registry = buildHarnessAdapterRegistry(resolved);
     const resolve = createAgentAdapterResolver(resolved, registry);
     expect(resolve(agent)).toBe(resolve(agent));
@@ -173,7 +175,7 @@ describe("createAgentAdapterResolver", () => {
       harness: "claude",
     });
     const unknown = makeAgent({ name: "ghost" });
-    const resolved = [known].map(resolveAgentRuntime);
+    const resolved = [known].map((agent) => resolveAgentRuntime(agent));
     const registry = buildHarnessAdapterRegistry(resolved);
     const resolve = createAgentAdapterResolver(resolved, registry);
     expect(() => resolve(unknown)).toThrow(SwarmCommandError);
@@ -193,7 +195,9 @@ describe("createAgentRuntimeResolver", () => {
       backend: "codex",
       harness: "codex",
     });
-    const resolved = [claudeAgent, codexAgent].map(resolveAgentRuntime);
+    const resolved = [claudeAgent, codexAgent].map((agent) =>
+      resolveAgentRuntime(agent),
+    );
     const resolve = createAgentRuntimeResolver(resolved);
 
     expect(resolve(claudeAgent)).toEqual(
@@ -217,7 +221,7 @@ describe("createAgentRuntimeResolver", () => {
   it("returns undefined for agents not present in the resolved list", () => {
     const known = makeAgent({ name: "alpha" });
     const unknown = makeAgent({ name: "ghost" });
-    const resolved = [known].map(resolveAgentRuntime);
+    const resolved = [known].map((agent) => resolveAgentRuntime(agent));
     const resolve = createAgentRuntimeResolver(resolved);
 
     expect(resolve(known)).toBeDefined();
@@ -226,7 +230,7 @@ describe("createAgentRuntimeResolver", () => {
 
   it("returns identical runtime objects on repeated lookups", () => {
     const agent = makeAgent({ name: "alpha" });
-    const resolved = [agent].map(resolveAgentRuntime);
+    const resolved = [agent].map((entry) => resolveAgentRuntime(entry));
     const resolve = createAgentRuntimeResolver(resolved);
     expect(resolve(agent)).toBe(resolve(agent));
   });
