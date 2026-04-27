@@ -1,0 +1,47 @@
+{
+  "round": 1,
+  "directive": "Round 2 must converge on the rollout window for option B and explicitly address the shared concurrency risk before considering optional observability work.",
+  "questionResolutions": [
+    {
+      "question": "Should the slice include observability hooks, or is logging sufficient for the first cut?",
+      "status": "consensus",
+      "answer": "Ship structured logging only in the first cut; defer tracing hooks until after the first integration soak.",
+      "basis": "All round-1 agents agreed logging is enough; tracing was flagged as nice-to-have only.",
+      "confidence": "high",
+      "askedBy": ["alpha"],
+      "supportingAgents": ["alpha", "beta", "gamma"],
+      "supportingReasoning": [
+        "Logging covers the failure modes that matter for the slice.",
+        "Tracing adds infra burden that is not justified pre-soak."
+      ],
+      "relatedObjections": [],
+      "relatedRisks": [
+        "Concurrency limits on the shared dependency may bottleneck the slice under realistic load."
+      ],
+      "blockingScore": 2
+    },
+    {
+      "question": "What is the rollback plan if the slice exposes a contract issue after release?",
+      "status": "directional",
+      "answer": "Single-command revert backed by a feature flag; document a 15-minute rollback runbook before cutover.",
+      "basis": "Beta and gamma converged on flag-gated cutover; alpha did not push back.",
+      "confidence": "medium",
+      "askedBy": ["alpha"],
+      "supportingAgents": ["beta", "gamma"],
+      "supportingReasoning": [
+        "Feature flag avoids re-deploy during incident.",
+        "A timed runbook prevents ad-hoc panic rollbacks."
+      ],
+      "relatedObjections": [
+        "The vertical slice approach defers performance work that may be hard to retrofit."
+      ],
+      "relatedRisks": [],
+      "blockingScore": 3
+    }
+  ],
+  "questionResolutionLimit": 3,
+  "deferredQuestions": [
+    "Should the data layer be decoupled from the transport before round 3, or after the slice is live?"
+  ],
+  "confidence": "medium"
+}
