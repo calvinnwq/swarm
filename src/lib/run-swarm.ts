@@ -283,6 +283,9 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
         );
       }
       directive = result.output.directive;
+      packet.questionResolutions = result.output.questionResolutions;
+      packet.questionResolutionLimit = result.output.questionResolutionLimit;
+      packet.deferredQuestions = result.output.deferredQuestions;
     }
     orchestratorDirective = directive;
 
@@ -662,6 +665,9 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
         );
       }
       directive = result.output.directive;
+      packet.questionResolutions = result.output.questionResolutions;
+      packet.questionResolutionLimit = result.output.questionResolutionLimit;
+      packet.deferredQuestions = result.output.deferredQuestions;
     }
     currentOrchestratorDirective = directive;
 

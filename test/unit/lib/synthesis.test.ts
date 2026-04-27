@@ -295,6 +295,43 @@ describe("buildOrchestratorSynthesis — disagreement", () => {
   });
 });
 
+describe("buildOrchestratorSynthesis — deferredQuestions aggregation", () => {
+  it("aggregates deferredQuestions across all rounds with dedup", () => {
+    const round1 = makeRoundResult(1, [r1pm, r1eng]);
+    round1.packet.deferredQuestions = [
+      "What is the latency budget for cross-service calls?",
+      "Who owns the gateway?",
+    ];
+    const round2 = makeRoundResult(2, [r2pm, r2eng]);
+    round2.packet.deferredQuestions = [
+      "Who owns the gateway?",
+      "Rollback plan?",
+    ];
+
+    const result = buildOrchestratorSynthesis(baseManifest, [round1, round2]);
+
+    expect(result.json.deferredQuestions).toEqual([
+      "What is the latency budget for cross-service calls?",
+      "Who owns the gateway?",
+      "Rollback plan?",
+    ]);
+  });
+
+  it("renders deferred questions section in markdown when any round has them", () => {
+    const round1 = makeRoundResult(1, [r1pm, r1eng]);
+    round1.packet.deferredQuestions = ["Latency budget?"];
+    const round2 = makeRoundResult(2, [r2pm, r2eng]);
+    // round 2 has no deferred questions but synthesis should still surface
+    // the round-1 deferral from real packet state.
+    round2.packet.deferredQuestions = [];
+
+    const result = buildOrchestratorSynthesis(baseManifest, [round1, round2]);
+
+    expect(result.markdown).toContain("## Deferred Questions");
+    expect(result.markdown).toContain("- Latency budget?");
+  });
+});
+
 describe("buildOrchestratorSynthesis — single round", () => {
   const singleRoundManifest: RunManifest = {
     ...baseManifest,

@@ -753,6 +753,110 @@ describe("runSwarm", () => {
       ).toBe(true);
     });
 
+    it("populates the packet's question resolutions from a successful orchestrator pass", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+      const resolution = {
+        question: "Which DB?",
+        status: "consensus" as const,
+        answer: "Postgres",
+        basis: "Most agents agreed",
+        confidence: "high" as const,
+        askedBy: ["alpha"],
+        supportingAgents: ["alpha", "beta"],
+        supportingReasoning: ["maturity", "ecosystem"],
+        relatedObjections: [],
+        relatedRisks: [],
+        blockingScore: 5,
+      };
+      dispatchOrchestratorPassMock.mockResolvedValue({
+        ok: true,
+        output: {
+          round: 2,
+          directive: "llm-derived directive",
+          questionResolutions: [resolution],
+          questionResolutionLimit: 3,
+          deferredQuestions: ["When will the team be ready?"],
+          confidence: "high",
+        },
+        raw: null,
+      });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("orchestrator"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      checkpointWriteMock.mockReset();
+      const mutablePacket: RoundPacket = {
+        round: 1,
+        agents: ["alpha"],
+        summaries: [],
+        keyObjections: [],
+        sharedRisks: [],
+        openQuestions: ["Which DB?"],
+        questionResolutions: [],
+        questionResolutionLimit: 0,
+        deferredQuestions: [],
+      };
+      await opts.betweenRounds?.({ round: 1, packet: mutablePacket });
+
+      expect(mutablePacket.questionResolutions).toEqual([resolution]);
+      expect(mutablePacket.questionResolutionLimit).toBe(3);
+      expect(mutablePacket.deferredQuestions).toEqual([
+        "When will the team be ready?",
+      ]);
+      expect(checkpointWriteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          priorPacket: expect.objectContaining({
+            questionResolutions: [resolution],
+            questionResolutionLimit: 3,
+            deferredQuestions: ["When will the team be ready?"],
+          }),
+        }),
+      );
+    });
+
+    it("does not mutate packet resolution fields when resolveMode is off", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("off"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      const mutablePacket: RoundPacket = {
+        round: 1,
+        agents: ["alpha"],
+        summaries: [],
+        keyObjections: [],
+        sharedRisks: [],
+        openQuestions: [],
+        questionResolutions: [],
+        questionResolutionLimit: 0,
+        deferredQuestions: [],
+      };
+      const snapshot = JSON.parse(JSON.stringify(mutablePacket));
+      await opts.betweenRounds?.({ round: 1, packet: mutablePacket });
+
+      expect(mutablePacket).toEqual(snapshot);
+    });
+
     it("throws an OrchestratorDispatchError out of betweenRounds when dispatch returns ok:false", async () => {
       runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
       dispatchOrchestratorPassMock.mockResolvedValue({
