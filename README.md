@@ -94,6 +94,8 @@ Options:
 
 > **Heads up — `--resolve` behavior is limited for alpha.** The value is accepted, persisted in the run manifest, and carried through synthesis. A between-round orchestrator pass now feeds later round briefs, but resolve modes do not yet change question-resolution behavior.
 
+Carry-forward docs from `--doc` are resolved before the run, deduplicated by path, and must be readable files. Their first 4,000 characters are packed into the seed brief with provenance, so agents receive bounded source context rather than path-only metadata.
+
 ### Bundled presets
 
 Swarm ships with three opinionated built-in presets:
@@ -174,6 +176,8 @@ docs:
 ```
 
 Precedence: **CLI flags > config values > preset defaults**. The file is optional — when missing, CLI flags alone fully describe the run. Validation errors (unknown keys, wrong types) are reported by `swarm doctor` and at run start.
+
+Configured `docs` use the same carry-forward behavior as repeated `--doc` flags: paths are normalized, readable files are required, and each document contributes at most 4,000 characters to the run context.
 
 Supported fields: `preset`, `agents` (2–5 names), `backend`, `resolve`, `goal`, `decision`, `docs`. The `rounds` key is reserved but not yet applied — pass `<rounds>` on the CLI.
 
@@ -302,6 +306,9 @@ Each run produces a self-contained directory under `.swarm/runs/`:
 ├── events.jsonl           # Append-only orchestration event ledger
 ├── messages.jsonl         # Append-only staged/committed message ledger
 ├── seed-brief.md          # Initial brief sent to all agents in round 1
+├── carry-forward-docs/    # Optional doc excerpts with provenance snapshots
+│   ├── manifest.json
+│   └── doc-01.md
 ├── round-01/
 │   ├── brief.md           # Round brief (same as seed-brief for round 1)
 │   └── agents/
@@ -363,6 +370,7 @@ src/
 ├── lib/
 │   ├── backend-selection.ts # Backend/config compatibility checks
 │   ├── brief-generator.ts # Seed + round brief generation
+│   ├── doc-inputs.ts      # Carry-forward doc validation and snapshots
 │   ├── harness-capability.ts # Harness CLI capability probes
 │   ├── harness-registry.ts # Harness descriptors and availability
 │   ├── harness-resolution.ts # Per-agent harness/model resolution
