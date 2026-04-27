@@ -9,6 +9,7 @@ import {
   AgentOutputSchema,
   type RoundPacket,
 } from "../../../src/schemas/index.js";
+import type { CarryForwardDocPacket } from "../../../src/lib/doc-inputs.js";
 
 function configWith(overrides: Partial<SwarmRunConfig> = {}): SwarmRunConfig {
   return {
@@ -65,6 +66,58 @@ describe("buildSeedBrief", () => {
     expect(out).toContain("Goal: ship the slice");
     expect(out).toContain("Decision target: pick option B");
     expect(out).toContain("Preset: default");
+  });
+
+  it("embeds materialized carry-forward doc excerpts with provenance", () => {
+    const packet: CarryForwardDocPacket = {
+      path: "docs/context.md",
+      content: "# Context\n\nImportant prior context.",
+      originalCharCount: 128,
+      includedCharCount: 34,
+      truncated: true,
+      provenance: {
+        absolutePath: "/repo/docs/context.md",
+        excerptStart: 0,
+        excerptEnd: 34,
+        sha256:
+          "4b121dc7b2bf33d116671cb681e46d66281a92fcdd43c93bca98b4cf051f70b5",
+        mtimeMs: 1234,
+      },
+    };
+
+    const out = buildSeedBrief(configWith({ docs: [packet.path] }), [packet]);
+
+    expect(out).toContain("## Carry-forward doc excerpts");
+    expect(out).toContain("### docs/context.md");
+    expect(out).toContain("# Context\n\nImportant prior context.");
+    expect(out).toContain("Included chars: 34/128 (truncated)");
+    expect(out).toContain(
+      "SHA-256: 4b121dc7b2bf33d116671cb681e46d66281a92fcdd43c93bca98b4cf051f70b5",
+    );
+    expect(out).toContain("Excerpt range: 0-34");
+  });
+
+  it("uses a fence that cannot be closed by carry-forward doc content", () => {
+    const packet: CarryForwardDocPacket = {
+      path: "docs/context.md",
+      content: "# Context\n\n```ts\nconst x = 1;\n```\n````\nmore context",
+      originalCharCount: 55,
+      includedCharCount: 55,
+      truncated: false,
+      provenance: {
+        absolutePath: "/repo/docs/context.md",
+        excerptStart: 0,
+        excerptEnd: 55,
+        sha256:
+          "4b121dc7b2bf33d116671cb681e46d66281a92fcdd43c93bca98b4cf051f70b5",
+        mtimeMs: 1234,
+      },
+    };
+
+    const out = buildSeedBrief(configWith({ docs: [packet.path] }), [packet]);
+
+    expect(out).toContain("`````text\n# Context");
+    expect(out).toContain("more context\n`````\n\n## Output contract");
   });
 
   it("records resolveMode as metadata without promising a between-round sub-pass (orchestrator)", () => {

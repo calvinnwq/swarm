@@ -8,6 +8,7 @@ import {
   loadAgentRegistry,
   loadPresetRegistry,
   loadProjectConfig,
+  resolveCarryForwardDocs,
   resolveAgentRuntimes,
   resolvePresetByName,
   runDoctor,
@@ -124,6 +125,10 @@ program
           resolvedDecision = resolvedDecision ?? preset.decision;
         }
 
+        const selectedDocs =
+          cliDocs && cliDocs.length > 0 ? cliDocs : (projectConfig.docs ?? []);
+        const resolvedDocs = await resolveCarryForwardDocs(selectedDocs);
+
         const config = buildConfig({
           rounds,
           topic,
@@ -132,10 +137,7 @@ program
           resolve: resolvedResolve,
           goal: resolvedGoal,
           decision: resolvedDecision,
-          docs:
-            cliDocs && cliDocs.length > 0
-              ? cliDocs
-              : (projectConfig.docs ?? []),
+          docs: resolvedDocs,
           preset: resolvedPresetName,
           selectionSource,
           commandText: process.argv.slice(2).join(" "),

@@ -35,6 +35,10 @@ import type { OutputTarget } from "./output-router.js";
 import { LedgerWriter } from "./ledger-writer.js";
 import { InboxManager } from "./inbox-manager.js";
 import { CheckpointWriter } from "./checkpoint-writer.js";
+import {
+  loadCarryForwardDocSnapshots,
+  materializeCarryForwardDocPackets,
+} from "./doc-inputs.js";
 
 export type SwarmUiMode = "live" | "quiet" | "silent";
 
@@ -179,13 +183,18 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     runDir,
   };
 
-  const seedBrief = buildSeedBrief(config);
+  const carryForwardDocPackets =
+    config.docs.length > 0
+      ? await materializeCarryForwardDocPackets(config.docs)
+      : [];
+  const seedBrief = buildSeedBrief(config, carryForwardDocPackets);
 
   const writer = new ArtifactWriter({
     baseDir,
     manifest,
     seedBrief,
     wrapperName: backend.wrapperName ?? `${config.backend}-cli`,
+    carryForwardDocPackets,
   });
   const ledger = new LedgerWriter(runDir);
   const checkpoint = new CheckpointWriter(runDir);
@@ -285,6 +294,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     schedulerPolicy: opts.schedulerPolicy,
     resolveBackend: opts.resolveBackend,
     resolveRuntime: opts.resolveRuntime,
+    carryForwardDocPackets,
   });
 
   const uiMode: SwarmUiMode =
@@ -500,13 +510,15 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     runDir,
   };
 
-  const seedBrief = buildSeedBrief(config);
+  const carryForwardDocPackets = await loadCarryForwardDocSnapshots(runDir);
+  const seedBrief = buildSeedBrief(config, carryForwardDocPackets);
 
   const writer = new ArtifactWriter({
     baseDir: runDir,
     manifest,
     seedBrief,
     wrapperName: backend.wrapperName ?? `${config.backend}-cli`,
+    carryForwardDocPackets,
   });
   const checkpoint = checkpointWriter;
   const router = new OutputRouter([
@@ -628,6 +640,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     startRound,
     initialPriorPacket: priorPacket,
     initialOrchestratorDirective: orchestratorDirective,
+    carryForwardDocPackets,
   });
 
   const uiMode: SwarmUiMode =

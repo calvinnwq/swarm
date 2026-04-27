@@ -10,6 +10,10 @@ import {
   resolveAgentRuntimes,
 } from "./harness-resolution.js";
 import {
+  DEFAULT_CARRY_FORWARD_DOC_MAX_CHARS,
+  materializeCarryForwardDocPackets,
+} from "./doc-inputs.js";
+import {
   loadPresetRegistry,
   type LoadPresetRegistryOptions,
   type PresetRegistry,
@@ -101,6 +105,14 @@ export async function runDoctor(
     if (configBackendCheck) {
       checks.push(configBackendCheck);
     }
+  }
+
+  if (loadedConfig?.config.docs && loadedConfig.config.docs.length > 0) {
+    checks.push(
+      await checkConfigDocs(loadedConfig.config.docs, {
+        cwd: options.cwd,
+      }),
+    );
   }
 
   if (loadedConfig) {
@@ -248,6 +260,39 @@ function checkConfigAgents(
     status: "ok",
     message: `all ${agents.length} config agent(s) resolve`,
   };
+}
+
+async function checkConfigDocs(
+  docs: string[],
+  options: { cwd?: string },
+): Promise<DoctorCheck> {
+  try {
+    const packets = await materializeCarryForwardDocPackets(docs, options);
+    const truncatedCount = packets.filter((packet) => packet.truncated).length;
+    const message =
+      truncatedCount > 0
+        ? `all ${packets.length} carry-forward doc(s) resolve; ${truncatedCount} will be truncated to ${DEFAULT_CARRY_FORWARD_DOC_MAX_CHARS} chars`
+        : `all ${packets.length} carry-forward doc(s) resolve`;
+    return {
+      name: "config docs",
+      status: truncatedCount > 0 ? "warn" : "ok",
+      message,
+      detail: packets.map(formatConfigDocPacket).join("\n"),
+    };
+  } catch (error) {
+    return {
+      name: "config docs",
+      status: "fail",
+      message: errorMessage(error),
+    };
+  }
+}
+
+function formatConfigDocPacket(
+  packet: Awaited<ReturnType<typeof materializeCarryForwardDocPackets>>[number],
+): string {
+  const truncation = packet.truncated ? " (truncated)" : "";
+  return `${packet.path}: ${packet.includedCharCount}/${packet.originalCharCount} chars${truncation}`;
 }
 
 function checkConfigPreset(

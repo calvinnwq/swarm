@@ -1,5 +1,6 @@
 import type { RoundPacket } from "../schemas/index.js";
 import type { SwarmRunConfig } from "./config.js";
+import type { CarryForwardDocPacket } from "./doc-inputs.js";
 
 const OUTPUT_CONTRACT_BLOCK = [
   "Return a single JSON object matching this exact shape (no extra fields):",
@@ -30,7 +31,10 @@ const ROUND_BRIEF_INSTRUCTIONS = [
   "If this is not the final round, respond to the prior packet rather than restating the seed brief.",
 ];
 
-export function buildSeedBrief(config: SwarmRunConfig): string {
+export function buildSeedBrief(
+  config: SwarmRunConfig,
+  carryForwardDocPackets: readonly CarryForwardDocPacket[] = [],
+): string {
   const lines: string[] = [
     "# Swarm Brief",
     "",
@@ -55,6 +59,29 @@ export function buildSeedBrief(config: SwarmRunConfig): string {
     );
   }
 
+  if (carryForwardDocPackets.length > 0) {
+    lines.push(
+      "",
+      "## Carry-forward doc excerpts",
+      "These bounded excerpts are the packed carry-forward context for this run. Use the provenance to distinguish source context from generated round output.",
+    );
+    for (const packet of carryForwardDocPackets) {
+      const truncation = packet.truncated ? " (truncated)" : "";
+      const fence = markdownFenceFor(packet.content);
+      lines.push(
+        "",
+        `### ${packet.path}`,
+        `Included chars: ${packet.includedCharCount}/${packet.originalCharCount}${truncation}`,
+        `Excerpt range: ${packet.provenance.excerptStart}-${packet.provenance.excerptEnd}`,
+        `SHA-256: ${packet.provenance.sha256}`,
+        "",
+        `${fence}text`,
+        packet.content,
+        fence,
+      );
+    }
+  }
+
   if (config.goal || config.decision) {
     lines.push(
       "",
@@ -75,6 +102,14 @@ export function buildSeedBrief(config: SwarmRunConfig): string {
   );
 
   return lines.join("\n").trim() + "\n";
+}
+
+function markdownFenceFor(content: string): string {
+  const longestBacktickRun = Math.max(
+    2,
+    ...Array.from(content.matchAll(/`+/g), (match) => match[0].length),
+  );
+  return "`".repeat(longestBacktickRun + 1);
 }
 
 export interface BuildRoundBriefArgs {

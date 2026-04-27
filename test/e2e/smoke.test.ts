@@ -11,13 +11,14 @@
  * The only stand-in is the external `claude` binary, replaced here with a
  * fixture executable on PATH.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -100,6 +101,24 @@ process.stdout.write(
   chmodSync(scriptPath, 0o755);
 }
 
+function writeDocFixtures(baseDir: string): void {
+  const docsDir = join(baseDir, "docs");
+  mkdirSync(docsDir, { recursive: true });
+  for (const name of [
+    "architecture.md",
+    "decision-log.md",
+    "from-config.md",
+    "from-cli-a.md",
+    "from-cli-b.md",
+  ]) {
+    writeFileSync(
+      join(docsDir, name),
+      `# ${name}\n\nSmoke test carry-forward fixture.\n`,
+      "utf-8",
+    );
+  }
+}
+
 describe("smoke: README golden path", () => {
   let baseDir: string;
   let binDir: string;
@@ -109,6 +128,7 @@ describe("smoke: README golden path", () => {
     baseDir = join(tmpdir(), `swarm-smoke-${randomUUID()}`);
     binDir = join(baseDir, "bin");
     installClaudeStub(binDir);
+    writeDocFixtures(baseDir);
     originalPath = process.env.PATH;
     process.env.PATH = `${binDir}:${originalPath ?? ""}`;
   });
@@ -2936,6 +2956,107 @@ describe("smoke: README golden path", () => {
     expect(seedBrief).toContain("- docs/architecture.md");
     expect(seedBrief).toContain("- docs/decision-log.md");
     expect(seedBrief).not.toContain("docs/from-config.md");
+  });
+
+  it("doc-backed runs persist packed excerpts and provenance snapshots", () => {
+    const docPath = join(baseDir, "docs", "architecture.md");
+    const canonicalDocPath = realpathSync(docPath);
+    const docContent = readFileSync(docPath, "utf-8");
+
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+        "--doc",
+        "docs/architecture.md",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const runDir = join(runsDir, readdirSync(runsDir)[0]);
+    const seedBrief = readFileSync(join(runDir, "seed-brief.md"), "utf-8");
+    const roundBrief = readFileSync(
+      join(runDir, "round-01", "brief.md"),
+      "utf-8",
+    );
+    const snapshot = readFileSync(
+      join(runDir, "carry-forward-docs", "doc-01.md"),
+      "utf-8",
+    );
+    const snapshotManifest = JSON.parse(
+      readFileSync(
+        join(runDir, "carry-forward-docs", "manifest.json"),
+        "utf-8",
+      ),
+    );
+
+    expect(seedBrief).toContain("## Carry-forward doc excerpts");
+    expect(seedBrief).toContain("### docs/architecture.md");
+    expect(seedBrief).toContain(docContent.trim());
+    expect(roundBrief).toContain("## Carry-forward doc excerpts");
+    expect(roundBrief).toContain(docContent.trim());
+    expect(snapshot).toBe(docContent);
+    expect(snapshotManifest.docs).toEqual([
+      {
+        index: 1,
+        path: "docs/architecture.md",
+        snapshotPath: "doc-01.md",
+        originalCharCount: docContent.length,
+        includedCharCount: docContent.length,
+        truncated: false,
+        provenance: {
+          absolutePath: canonicalDocPath,
+          excerptStart: 0,
+          excerptEnd: docContent.length,
+          sha256: createHash("sha256").update(docContent).digest("hex"),
+          mtimeMs: expect.any(Number),
+        },
+      },
+    ]);
+  });
+
+  it("fails clearly when a carry-forward doc path does not exist", () => {
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "1",
+        "Should we adopt server components?",
+        "--preset",
+        "product-decision",
+        "--doc",
+        "docs/missing.md",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain(
+      "swarm: carry-forward doc not found: docs/missing.md",
+    );
   });
 
   it("config explicit-agent runs ignore preset names but retain other config defaults", () => {

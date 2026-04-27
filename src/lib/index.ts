@@ -6,6 +6,7 @@ export * from "./artifact-writer.js";
 export * from "./brief-generator.js";
 export * from "./config.js";
 export * from "./doctor.js";
+export * from "./doc-inputs.js";
 export * from "./harness-capability.js";
 export * from "./harness-registry.js";
 export * from "./harness-resolution.js";

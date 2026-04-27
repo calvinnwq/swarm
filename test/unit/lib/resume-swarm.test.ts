@@ -1,4 +1,7 @@
 import { EventEmitter } from "node:events";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AgentDefinition,
@@ -351,6 +354,89 @@ describe("resumeSwarm", () => {
         initialOrchestratorDirective: "focus on risks",
       }),
     );
+  });
+
+  it("rehydrates carry-forward doc snapshots into resumed round briefs", async () => {
+    const runDir = await mkdtemp(join(tmpdir(), "swarm-resume-docs-"));
+    try {
+      await mkdir(join(runDir, "carry-forward-docs"));
+      await writeFile(
+        join(runDir, "carry-forward-docs", "doc-01.md"),
+        "snapshotted context",
+        "utf-8",
+      );
+      await writeFile(
+        join(runDir, "carry-forward-docs", "manifest.json"),
+        JSON.stringify(
+          {
+            docs: [
+              {
+                index: 1,
+                path: "docs/context.md",
+                snapshotPath: "doc-01.md",
+                originalCharCount: 27,
+                includedCharCount: 19,
+                truncated: true,
+                provenance: {
+                  absolutePath: "/repo/docs/context.md",
+                  excerptStart: 0,
+                  excerptEnd: 19,
+                  sha256:
+                    "1f8b940029ca3ff8e8f2668de3479de531e6ce193fcb43774cd873f40d0fb3d1",
+                  mtimeMs: 1777170000000,
+                },
+              },
+            ],
+          },
+          null,
+          2,
+        ) + "\n",
+        "utf-8",
+      );
+
+      checkpointReadMock.mockReturnValue(checkpoint);
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+
+      const { buildSeedBrief } =
+        await import("../../../src/lib/brief-generator.js");
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+      await resumeSwarm({
+        config: { ...config, docs: ["docs/context.md"] },
+        agents,
+        backend,
+        runDir,
+        ui: "silent",
+      });
+
+      const expectedPacket = expect.objectContaining({
+        path: "docs/context.md",
+        content: "snapshotted context",
+        originalCharCount: 27,
+        includedCharCount: 19,
+        truncated: true,
+        provenance: expect.objectContaining({
+          absolutePath: "/repo/docs/context.md",
+          excerptStart: 0,
+          excerptEnd: 19,
+          sha256:
+            "1f8b940029ca3ff8e8f2668de3479de531e6ce193fcb43774cd873f40d0fb3d1",
+          mtimeMs: 1777170000000,
+        }),
+      });
+      expect(buildSeedBrief).toHaveBeenLastCalledWith(
+        expect.objectContaining({ docs: ["docs/context.md"] }),
+        [expectedPacket],
+      );
+      expect(createRoundRunner).toHaveBeenCalledWith(
+        expect.objectContaining({
+          carryForwardDocPackets: [expectedPacket],
+        }),
+      );
+    } finally {
+      await rm(runDir, { recursive: true, force: true });
+    }
   });
 
   it("uses the stored runId from the checkpoint (not a fresh UUID)", async () => {
