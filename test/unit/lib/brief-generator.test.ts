@@ -97,6 +97,29 @@ describe("buildSeedBrief", () => {
     expect(out).toContain("Excerpt range: 0-34");
   });
 
+  it("uses a fence that cannot be closed by carry-forward doc content", () => {
+    const packet: CarryForwardDocPacket = {
+      path: "docs/context.md",
+      content: "# Context\n\n```ts\nconst x = 1;\n```\n````\nmore context",
+      originalCharCount: 55,
+      includedCharCount: 55,
+      truncated: false,
+      provenance: {
+        absolutePath: "/repo/docs/context.md",
+        excerptStart: 0,
+        excerptEnd: 55,
+        sha256:
+          "4b121dc7b2bf33d116671cb681e46d66281a92fcdd43c93bca98b4cf051f70b5",
+        mtimeMs: 1234,
+      },
+    };
+
+    const out = buildSeedBrief(configWith({ docs: [packet.path] }), [packet]);
+
+    expect(out).toContain("`````text\n# Context");
+    expect(out).toContain("more context\n`````\n\n## Output contract");
+  });
+
   it("records resolveMode as metadata without promising a between-round sub-pass (orchestrator)", () => {
     const out = buildSeedBrief(configWith({ resolveMode: "orchestrator" }));
     expect(out).toContain("Resolution mode: orchestrator");

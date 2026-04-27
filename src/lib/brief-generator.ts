@@ -67,6 +67,7 @@ export function buildSeedBrief(
     );
     for (const packet of carryForwardDocPackets) {
       const truncation = packet.truncated ? " (truncated)" : "";
+      const fence = markdownFenceFor(packet.content);
       lines.push(
         "",
         `### ${packet.path}`,
@@ -74,9 +75,9 @@ export function buildSeedBrief(
         `Excerpt range: ${packet.provenance.excerptStart}-${packet.provenance.excerptEnd}`,
         `SHA-256: ${packet.provenance.sha256}`,
         "",
-        "```text",
+        `${fence}text`,
         packet.content,
-        "```",
+        fence,
       );
     }
   }
@@ -101,6 +102,14 @@ export function buildSeedBrief(
   );
 
   return lines.join("\n").trim() + "\n";
+}
+
+function markdownFenceFor(content: string): string {
+  const longestBacktickRun = Math.max(
+    2,
+    ...Array.from(content.matchAll(/`+/g), (match) => match[0].length),
+  );
+  return "`".repeat(longestBacktickRun + 1);
 }
 
 export interface BuildRoundBriefArgs {
