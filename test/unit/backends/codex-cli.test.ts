@@ -134,7 +134,53 @@ describe("CodexCliAdapter", () => {
         readFile(outputSchemaPath, "utf8"),
       ),
     ) as { additionalProperties?: boolean };
-    expect(schema.additionalProperties).toBeUndefined();
+    expect(schema.additionalProperties).toBe(false);
+  });
+
+  it("emits a Codex-compatible strict schema (additionalProperties: false on root)", async () => {
+    vi.mocked(execa).mockResolvedValueOnce({
+      exitCode: 0,
+      stdout:
+        '{"agent":"product-manager-codex","round":1,"stance":"Adopt","recommendation":"x","reasoning":[],"objections":[],"risks":[],"changesFromPriorRound":[],"confidence":"high","openQuestions":[]}',
+      stderr: "",
+      timedOut: false,
+    } as Awaited<ReturnType<typeof execa>>);
+
+    const adapter = new CodexCliAdapter();
+    await adapter.dispatch("brief", agent, { timeoutMs: 5_000 });
+
+    const args = vi.mocked(execa).mock.calls[0]?.[1] as string[];
+    const outputSchemaPath = args[args.indexOf("--output-schema") + 1];
+    const schema = JSON.parse(
+      await import("node:fs/promises").then(({ readFile }) =>
+        readFile(outputSchemaPath, "utf8"),
+      ),
+    ) as {
+      type?: string;
+      additionalProperties?: boolean;
+      required?: string[];
+      properties?: Record<string, unknown>;
+    };
+
+    expect(schema.type).toBe("object");
+    expect(schema.additionalProperties).toBe(false);
+    expect(schema.required).toEqual(
+      expect.arrayContaining([
+        "agent",
+        "round",
+        "stance",
+        "recommendation",
+        "reasoning",
+        "objections",
+        "risks",
+        "changesFromPriorRound",
+        "confidence",
+        "openQuestions",
+      ]),
+    );
+    expect(Object.keys(schema.properties ?? {}).sort()).toEqual(
+      [...(schema.required ?? [])].sort(),
+    );
   });
 
   it("creates an isolated workdir for each dispatch", async () => {

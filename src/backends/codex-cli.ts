@@ -10,6 +10,7 @@ import { joinPromptSections, resolveAgentPrompt } from "./shared.js";
 const AGENT_OUTPUT_JSON_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   type: "object",
+  additionalProperties: false,
   required: [
     "agent",
     "round",
