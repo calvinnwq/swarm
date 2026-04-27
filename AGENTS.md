@@ -55,7 +55,7 @@ the current release workflow.
 6. **Persistence.** Three append-only writers fan out from `OutputRouter`: `ArtifactWriter` (round folders + manifest), `LedgerWriter` (`events.jsonl` + `messages.jsonl`), `CheckpointWriter` (`checkpoint.json`). Round writes happen on `round:done` and are awaited in `betweenRounds` so checkpoint ordering is deterministic.
 7. **Synthesis.** `buildOrchestratorSynthesis` is fully deterministic (no LLM call) — consensus, stance tally, top recommendation by confidence with alphabetical tie-break, shared risks (≥2 agents), rounded average confidence.
 
-`resumeSwarm` rehydrates from `checkpoint.json` + the message ledger, reuses the same `runDir`/`runId`, skips `ArtifactWriter.init()` (would clobber `manifest.json`/`seed-brief.md`), and restarts from `lastCompletedRound + 1`. Synthesis on resume concatenates `resumedRoundResults` with `result.rounds`.
+`resumeSwarm` rehydrates from `checkpoint.json` + the message ledger, reloads optional carry-forward doc snapshots, reuses the same `runDir`/`runId`, skips `ArtifactWriter.init()` (would clobber `manifest.json`/`seed-brief.md`), and restarts from `lastCompletedRound + 1`. Synthesis on resume concatenates `resumedRoundResults` with `result.rounds`.
 
 ### Backend & harness layering (src/backends/)
 
