@@ -86,7 +86,7 @@ All cross-boundary contracts are Zod schemas (no hand-rolled types). Important o
 
 ### Run artifacts (`.swarm/runs/<ts>-<slug>/`)
 
-`manifest.json`, `checkpoint.json`, `events.jsonl`, `messages.jsonl`, `seed-brief.md`, `round-NN/{brief.md,agents/<name>.md}`, `synthesis.json`, `synthesis.md`. Per-agent markdown headers include `Harness:` / `Model:` when `agentRuntimes` is present in the manifest.
+`manifest.json`, `checkpoint.json`, `events.jsonl`, `messages.jsonl`, `seed-brief.md`, optional `carry-forward-docs/{manifest.json,doc-NN.md}` snapshots, `round-NN/{brief.md,agents/<name>.md}`, `synthesis.json`, `synthesis.md`. Per-agent markdown headers include `Harness:` / `Model:` when `agentRuntimes` is present in the manifest.
 
 ### Terminal UI (src/ui/)
 
@@ -99,4 +99,4 @@ All cross-boundary contracts are Zod schemas (no hand-rolled types). Important o
 - **No new error-handling for impossible states.** Validation lives at boundaries (CLI parsing, schema decode, harness probe) — internal callers can trust resolved values.
 - **Don't edit `dist/`.** Always rebuild via `pnpm build`. The build step also copies `src/agents/bundled/*` and `src/presets/bundled/*` — adding a new bundled agent/preset means adding the YAML, no code wiring needed.
 - **Tests are split.** Unit tests under `test/unit/` mirror `src/` layout and run via `pnpm test`. End-to-end tests under `test/e2e/` build the CLI and shell out to it; they require `pnpm test:e2e` (which builds first). `pnpm smoke` is the minimal e2e subset to run before cutting an alpha release.
-- **`swarm doctor` before claiming a run works.** It validates project config, agent/preset registries, backend compatibility, and probes harness CLIs for auth. Exit codes: `0` ok, `1` checks failed, `2` internal error — match this convention if adding new diagnostics.
+- **`swarm doctor` before claiming a run works.** It validates project config, configured docs, agent/preset registries, backend compatibility, and probes harness CLIs for auth. Exit codes: `0` ok, `1` checks failed, `2` internal error — match this convention if adding new diagnostics.
