@@ -12,6 +12,7 @@ export * from "./harness-registry.js";
 export * from "./harness-resolution.js";
 export * from "./inbox-manager.js";
 export * from "./load-project-config.js";
+export * from "./orchestrator-dispatcher.js";
 export * from "./orchestrator-output.js";
 export * from "./orchestrator-prompt.js";
 export * from "./parse-command.js";

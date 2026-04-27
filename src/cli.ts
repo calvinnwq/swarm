@@ -144,9 +144,19 @@ program
         });
         const registry = await loadAgentRegistry();
         const agents = config.agents.map((name) => registry.getAgent(name));
+        const orchestratorAgent =
+          config.resolveMode === "orchestrator"
+            ? registry.getAgent("orchestrator")
+            : undefined;
         const runtimeBackend =
           resolvedBackend === undefined ? undefined : config.backend;
-        const resolved = resolveAgentRuntimes(agents, runtimeBackend);
+        const resolutionTargets = orchestratorAgent
+          ? [...agents, orchestratorAgent]
+          : agents;
+        const resolved = resolveAgentRuntimes(
+          resolutionTargets,
+          runtimeBackend,
+        );
         assertResolvedRuntimesAvailable(resolved);
         const harnessRegistry = buildHarnessAdapterRegistry(resolved);
         const resolveBackend = createAgentAdapterResolver(
@@ -164,6 +174,7 @@ program
           resolveBackend,
           resolveRuntime,
           agentRuntimes: resolved,
+          orchestratorAgent,
         });
         process.exit(exitCode);
       } catch (err) {

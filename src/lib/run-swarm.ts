@@ -39,6 +39,14 @@ import {
   loadCarryForwardDocSnapshots,
   materializeCarryForwardDocPackets,
 } from "./doc-inputs.js";
+import { dispatchOrchestratorPass } from "./orchestrator-dispatcher.js";
+
+export class OrchestratorDispatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OrchestratorDispatchError";
+  }
+}
 
 export type SwarmUiMode = "live" | "quiet" | "silent";
 
@@ -67,6 +75,12 @@ export interface ResumeSwarmOpts {
    * post-hoc tooling can inspect what harness/model each agent ran with.
    */
   agentRuntimes?: readonly ResolvedAgentRuntime[];
+  /**
+   * Agent definition used for the orchestrator resolution pass when
+   * `config.resolveMode === "orchestrator"`. When omitted, the
+   * deterministic between-round directive is used regardless of mode.
+   */
+  orchestratorAgent?: AgentDefinition;
 }
 
 export interface RunSwarmOpts {
@@ -110,6 +124,12 @@ export interface RunSwarmOpts {
    * post-hoc tooling can inspect what harness/model each agent ran with.
    */
   agentRuntimes?: readonly ResolvedAgentRuntime[];
+  /**
+   * Agent definition used for the orchestrator resolution pass when
+   * `config.resolveMode === "orchestrator"`. When omitted, the
+   * deterministic between-round directive is used regardless of mode.
+   */
+  orchestratorAgent?: AgentDefinition;
 }
 
 function didRoundSucceed(agentResults: RoundResult["agentResults"]): boolean {
@@ -242,7 +262,28 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   }) => {
     await awaitRoundWrite(round);
 
-    const directive = buildOrchestratorPassDirective(packet);
+    let directive = buildOrchestratorPassDirective(packet);
+    if (
+      config.resolveMode === "orchestrator" &&
+      opts.orchestratorAgent !== undefined
+    ) {
+      const orchAgent = opts.orchestratorAgent;
+      const orchBackend = opts.resolveBackend?.(orchAgent) ?? backend;
+      const result = await dispatchOrchestratorPass({
+        backend: orchBackend,
+        agent: orchAgent,
+        packet,
+        goal: config.goal,
+        decision: config.decision,
+        nextRound: round + 1,
+      });
+      if (!result.ok) {
+        throw new OrchestratorDispatchError(
+          `Orchestrator dispatch failed: ${result.error}`,
+        );
+      }
+      directive = result.output.directive;
+    }
     orchestratorDirective = directive;
 
     const directiveRecipients = selectAgentsForRound(
@@ -433,7 +474,20 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   );
 
   try {
-    const result = await run();
+    let result: Awaited<ReturnType<typeof run>>;
+    try {
+      result = await run();
+    } catch (err) {
+      if (err instanceof OrchestratorDispatchError) {
+        await Promise.all(pendingRoundWrites.values());
+        ledger.appendEvent(
+          makeEvent("run:failed", { metadata: { error: err.message } }),
+        );
+        await router.finalize(new Date().toISOString(), "failed");
+        return 1;
+      }
+      throw err;
+    }
     await Promise.all(pendingRoundWrites.values());
 
     if (result.ok) {
@@ -587,7 +641,28 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
   }) => {
     await awaitRoundWrite(round);
 
-    const directive = buildOrchestratorPassDirective(packet);
+    let directive = buildOrchestratorPassDirective(packet);
+    if (
+      config.resolveMode === "orchestrator" &&
+      opts.orchestratorAgent !== undefined
+    ) {
+      const orchAgent = opts.orchestratorAgent;
+      const orchBackend = opts.resolveBackend?.(orchAgent) ?? backend;
+      const result = await dispatchOrchestratorPass({
+        backend: orchBackend,
+        agent: orchAgent,
+        packet,
+        goal: config.goal,
+        decision: config.decision,
+        nextRound: round + 1,
+      });
+      if (!result.ok) {
+        throw new OrchestratorDispatchError(
+          `Orchestrator dispatch failed: ${result.error}`,
+        );
+      }
+      directive = result.output.directive;
+    }
     currentOrchestratorDirective = directive;
 
     const directiveRecipients = selectAgentsForRound(
@@ -779,7 +854,20 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
   );
 
   try {
-    const result = await run();
+    let result: Awaited<ReturnType<typeof run>>;
+    try {
+      result = await run();
+    } catch (err) {
+      if (err instanceof OrchestratorDispatchError) {
+        await Promise.all(pendingRoundWrites.values());
+        ledger.appendEvent(
+          makeEvent("run:failed", { metadata: { error: err.message } }),
+        );
+        await router.finalize(new Date().toISOString(), "failed");
+        return 1;
+      }
+      throw err;
+    }
     await Promise.all(pendingRoundWrites.values());
 
     if (result.ok) {
