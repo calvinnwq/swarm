@@ -48,7 +48,7 @@ the current release workflow.
 
 `runSwarm` is the orchestrator. Lifecycle per run:
 
-1. **Resolve config + agents.** `cli.ts` layers CLI flags > project config (`.swarm/config.yml`) > preset defaults, then loads `AgentRegistry` and resolves each agent's runtime (`resolveAgentRuntimes`).
+1. **Resolve config + agents.** `cli.ts` layers CLI flags > project config (`.swarm/config.yml`) > preset defaults, then loads `AgentRegistry` and resolves each agent's runtime (`resolveAgentRuntimes`). When `resolveMode === "orchestrator"`, it also includes the bundled `orchestrator` agent in runtime resolution; without a run-level backend override, homogeneous selected-agent harnesses are inferred onto that orchestrator agent.
 2. **Resolve harnesses per agent.** Each agent picks a harness in this order: `agent.harness` → run-level `--backend`/`config.backend` → `agent.backend`. Harness ≠ backend: `BackendId` is `claude | codex` (the run-level dial), `HarnessId` is `claude | codex | opencode | rovo` (per-agent dispatch). `assertResolvedRuntimesAvailable` fails fast on unimplemented harnesses.
 3. **Per-agent dispatch.** `createAgentAdapterResolver` returns a `BackendAdapter` per agent based on its resolved harness; `round-runner.ts` calls that adapter (not the run-level `backend`) for the actual CLI shell-out. The run-level `backend` is still used for run metadata (`wrapperName`).
 4. **Round execution.** `createRoundRunner` runs agents in parallel with `DEFAULT_CONCURRENCY = 3`, `DEFAULT_TIMEOUT_MS = 120_000`, and one `MAX_FORMAT_REPAIR_ATTEMPTS` retry when JSON parse fails. Output is validated against `AgentOutputSchema` (Zod).

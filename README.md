@@ -331,7 +331,7 @@ Each agent can pin the runtime harness and model it dispatches through, independ
 | `harness` | `claude`, `codex`, `opencode`, `rovo` | Falls back to the run-level backend, then the agent's `backend` |
 | `model`   | Any non-empty string                  | Harness default (the harness chooses)                           |
 
-Resolution order per agent (first wins): `agent.harness` → explicit run-level `--backend` or project `backend` → `agent.backend`. If no run-level backend is configured, the agent's `backend` field continues to select its harness. The resolved (`harness`, `model`) pair is captured in `manifest.json` under `agentRuntimes` and rendered into each agent's per-round markdown header (`Harness:` / `Model:`).
+Resolution order per agent (first wins): `agent.harness` → explicit run-level `--backend` or project `backend` → `agent.backend`. If no run-level backend is configured, the agent's `backend` field continues to select its harness. When `--resolve orchestrator` is active without a run-level backend override, the bundled orchestrator inherits the selected agents' harness if they all resolve to the same harness; mixed-harness swarms keep the orchestrator's default. The resolved (`harness`, `model`) pair is captured in `manifest.json` under `agentRuntimes` and rendered into each agent's per-round markdown header (`Harness:` / `Model:`).
 
 This unlocks **mixed-harness swarms**: a single run can route one agent through Claude and another through Codex (or OpenCode / Rovo Dev), as long as each harness's CLI is installed and passes its capability probe. Claude, Codex, and OpenCode must be authenticated; Rovo requires `acli` with the `rovodev` plugin to be runnable. Example agent overrides for a mixed run:
 
