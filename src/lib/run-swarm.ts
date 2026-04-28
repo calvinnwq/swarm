@@ -719,15 +719,20 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
   const pendingRoundWrites = new Map<number, Promise<void>>();
   const startRound = lastCompletedRound + 1;
   const activeRoundMessages = new Map<number, Set<string>>();
-  for (const recipient of inbox.stagedRecipients()) {
-    for (const message of inbox.getStaged(recipient)) {
-      if (message.roundNumber === startRound && message.kind === "broadcast") {
-        let activeMessages = activeRoundMessages.get(startRound);
-        if (!activeMessages) {
-          activeMessages = new Set();
-          activeRoundMessages.set(startRound, activeMessages);
+  if (!savedCheckpoint.pendingBetweenRounds) {
+    for (const recipient of inbox.stagedRecipients()) {
+      for (const message of inbox.getStaged(recipient)) {
+        if (
+          message.roundNumber === startRound &&
+          message.kind === "broadcast"
+        ) {
+          let activeMessages = activeRoundMessages.get(startRound);
+          if (!activeMessages) {
+            activeMessages = new Set();
+            activeRoundMessages.set(startRound, activeMessages);
+          }
+          activeMessages.add(message.messageId);
         }
-        activeMessages.add(message.messageId);
       }
     }
   }
@@ -852,10 +857,22 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
   };
 
   if (savedCheckpoint.pendingBetweenRounds) {
-    await betweenRounds({
-      round: lastCompletedRound,
-      packet: currentPriorPacket,
-    });
+    try {
+      await betweenRounds({
+        round: lastCompletedRound,
+        packet: currentPriorPacket,
+      });
+    } catch (err) {
+      if (err instanceof OrchestratorDispatchError) {
+        await Promise.all(pendingRoundWrites.values());
+        ledger.appendEvent(
+          makeEvent("run:failed", { metadata: { error: err.message } }),
+        );
+        await router.finalize(new Date().toISOString(), "failed");
+        return 1;
+      }
+      throw err;
+    }
   }
 
   const { emitter, run } = createRoundRunner({
