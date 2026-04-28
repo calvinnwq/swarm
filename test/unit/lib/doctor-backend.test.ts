@@ -573,4 +573,177 @@ describe("runDoctor backend checks", () => {
     expect(capability?.message).toContain("claude auth login");
     expect(report.ok).toBe(false);
   });
+
+  it("reports actionable install guidance when the claude binary is missing", async () => {
+    const roots = await makeIsolatedRoots();
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer.yml",
+      agentYaml("principal-engineer"),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "backend: claude",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const capability = report.checks.find(
+      (entry) => entry.name === "harness capability",
+    );
+    expect(capability?.status).toBe("fail");
+    expect(capability?.message).toContain("install Claude Code");
+    expect(capability?.message).toContain("PATH");
+    expect(report.ok).toBe(false);
+  });
+
+  it("reports actionable install guidance when the codex binary is missing", async () => {
+    const roots = await makeIsolatedRoots();
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager-codex.yml",
+      agentYaml("product-manager-codex", { backend: "codex" }),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-codex.yml",
+      agentYaml("principal-engineer-codex", { backend: "codex" }),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "backend: codex",
+        "agents:",
+        "  - product-manager-codex",
+        "  - principal-engineer-codex",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const capability = report.checks.find(
+      (entry) => entry.name === "harness capability",
+    );
+    expect(capability?.status).toBe("fail");
+    expect(capability?.message).toContain("install the Codex CLI");
+    expect(capability?.message).toContain("PATH");
+    expect(report.ok).toBe(false);
+  });
+
+  it("reports actionable install guidance when the opencode binary is missing", async () => {
+    const roots = await makeIsolatedRoots();
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-opencode.yml",
+      agentYaml("principal-engineer-opencode", { harness: "opencode" }),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "backend: claude",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer-opencode",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const opencodeCap = report.checks
+      .filter((entry) => entry.name === "harness capability")
+      .find((entry) => entry.message.includes("opencode"));
+    expect(opencodeCap?.status).toBe("fail");
+    expect(opencodeCap?.message).toContain("install OpenCode");
+    expect(opencodeCap?.message).toContain("PATH");
+    expect(report.ok).toBe(false);
+  });
+
+  it("harness capability fail detail names the config agent that requires the failing harness", async () => {
+    const roots = await makeIsolatedRoots();
+    await installClaudeAuthStub(roots.binDir);
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-opencode.yml",
+      agentYaml("principal-engineer-opencode", { harness: "opencode" }),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      [
+        "backend: claude",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer-opencode",
+      ].join("\n"),
+    );
+
+    const report = await runDoctor(roots);
+
+    const opencodeCap = report.checks
+      .filter((entry) => entry.name === "harness capability")
+      .find((entry) => entry.message.includes("opencode"));
+    expect(opencodeCap?.status).toBe("fail");
+    expect(opencodeCap?.detail).toContain("principal-engineer-opencode");
+  });
+
+  it("harness capability fail detail names the preset that requires the failing harness", async () => {
+    const roots = await makeIsolatedRoots();
+    await installClaudeAuthStub(roots.binDir);
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "product-manager.yml",
+      agentYaml("product-manager"),
+    );
+    await writeFileUnder(
+      roots.bundledAgentsDir,
+      "principal-engineer-opencode.yml",
+      agentYaml("principal-engineer-opencode", { harness: "opencode" }),
+    );
+    await writeFileUnder(
+      roots.bundledPresetsDir,
+      "mixed-preset.yml",
+      [
+        "name: mixed-preset",
+        "agents:",
+        "  - product-manager",
+        "  - principal-engineer-opencode",
+      ].join("\n"),
+    );
+    await writeFileUnder(
+      roots.cwd,
+      ".swarm/config.yml",
+      "preset: mixed-preset\n",
+    );
+
+    const report = await runDoctor(roots);
+
+    const opencodeCap = report.checks
+      .filter((entry) => entry.name === "harness capability")
+      .find((entry) => entry.message.includes("opencode"));
+    expect(opencodeCap?.status).toBe("fail");
+    expect(opencodeCap?.detail).toContain("principal-engineer-opencode");
+  });
 });
