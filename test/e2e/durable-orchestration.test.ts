@@ -89,6 +89,7 @@ function makeRoundPacket(round: number, agentNames: string[]): RoundPacket {
 
 class MockBackendAdapter implements BackendAdapter {
   private roundCounter = new Map<string, number>();
+  totalDispatchCalls = 0;
 
   constructor(private outputs: Map<string, AgentOutput[]>) {}
 
@@ -96,6 +97,7 @@ class MockBackendAdapter implements BackendAdapter {
     _prompt: string,
     agent: AgentDefinition,
   ): Promise<AgentResponse> {
+    this.totalDispatchCalls++;
     const roundIdx = this.roundCounter.get(agent.name) ?? 0;
     this.roundCounter.set(agent.name, roundIdx + 1);
 
@@ -426,6 +428,224 @@ describe("e2e: durable outer-loop orchestration", () => {
       true,
     );
     expect(existsSync(join(runDir, "round-02", "agents", "beta.md"))).toBe(
+      true,
+    );
+  });
+
+  it("resumed run dispatches only remaining rounds — completed rounds are not re-executed", async () => {
+    const runDir = deriveRunDir();
+    mkdirSync(runDir, { recursive: true });
+
+    const runId = randomUUID();
+    const manifest = {
+      runId,
+      status: "running",
+      topic: config.topic,
+      rounds: config.rounds,
+      backend: config.backend,
+      preset: config.preset,
+      goal: config.goal,
+      decision: config.decision,
+      agents: config.agents,
+      resolveMode: config.resolveMode,
+      startedAt: startedAt.toISOString(),
+      runDir,
+    };
+    writeFileSync(
+      join(runDir, "manifest.json"),
+      JSON.stringify(manifest, null, 2) + "\n",
+    );
+    writeFileSync(join(runDir, "seed-brief.md"), "# Seed brief\n");
+    mkdirSync(join(runDir, "round-01", "agents"), { recursive: true });
+    writeFileSync(join(runDir, "round-01", "brief.md"), "# Round 1 brief\n");
+    new LedgerWriter(runDir).init();
+
+    const priorPacket = makeRoundPacket(1, ["alpha", "beta"]);
+    new CheckpointWriter(runDir).write({
+      runId,
+      lastCompletedRound: 1,
+      priorPacket,
+      checkpointedAt: new Date().toISOString(),
+      startedAt: startedAt.toISOString(),
+    });
+
+    // Backend only has round-2 outputs (index 0 for each agent)
+    const resumeOutputs = new Map<string, AgentOutput[]>();
+    resumeOutputs.set("alpha", [makeAgentOutput("alpha", 2)]);
+    resumeOutputs.set("beta", [makeAgentOutput("beta", 2)]);
+    const resumeBackend = new MockBackendAdapter(resumeOutputs);
+
+    const exitCode = await resumeSwarm({
+      config,
+      agents,
+      backend: resumeBackend,
+      runDir,
+      ui: "silent",
+    });
+
+    expect(exitCode).toBe(0);
+    // Exactly 2 dispatches: one per agent for round 2 only — round 1 is never re-run
+    expect(resumeBackend.totalDispatchCalls).toBe(2);
+  });
+
+  it("resumed run events.jsonl reflects only the resumed run's agent activity, not re-executed prior rounds", async () => {
+    const runDir = deriveRunDir();
+    mkdirSync(runDir, { recursive: true });
+
+    const runId = randomUUID();
+    const manifest = {
+      runId,
+      status: "running",
+      topic: config.topic,
+      rounds: config.rounds,
+      backend: config.backend,
+      preset: config.preset,
+      goal: config.goal,
+      decision: config.decision,
+      agents: config.agents,
+      resolveMode: config.resolveMode,
+      startedAt: startedAt.toISOString(),
+      runDir,
+    };
+    writeFileSync(
+      join(runDir, "manifest.json"),
+      JSON.stringify(manifest, null, 2) + "\n",
+    );
+    writeFileSync(join(runDir, "seed-brief.md"), "# Seed brief\n");
+    mkdirSync(join(runDir, "round-01", "agents"), { recursive: true });
+    writeFileSync(join(runDir, "round-01", "brief.md"), "# Round 1 brief\n");
+    new LedgerWriter(runDir).init();
+
+    const priorPacket = makeRoundPacket(1, ["alpha", "beta"]);
+    new CheckpointWriter(runDir).write({
+      runId,
+      lastCompletedRound: 1,
+      priorPacket,
+      checkpointedAt: new Date().toISOString(),
+      startedAt: startedAt.toISOString(),
+    });
+
+    const resumeOutputs = new Map<string, AgentOutput[]>();
+    resumeOutputs.set("alpha", [makeAgentOutput("alpha", 2)]);
+    resumeOutputs.set("beta", [makeAgentOutput("beta", 2)]);
+    const resumeBackend = new MockBackendAdapter(resumeOutputs);
+
+    await resumeSwarm({
+      config,
+      agents,
+      backend: resumeBackend,
+      runDir,
+      ui: "silent",
+    });
+
+    const eventsRaw = readFileSync(join(runDir, "events.jsonl"), "utf-8");
+    const events: RunEvent[] = eventsRaw
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as RunEvent);
+
+    // Must have run:resumed and run:completed
+    const kinds = events.map((e) => e.kind);
+    expect(kinds).toContain("run:resumed");
+    expect(kinds).toContain("run:completed");
+
+    // Round-2 agent events must be present
+    const round2AgentStarted = events.filter(
+      (e) => e.kind === "agent:started" && e.roundNumber === 2,
+    );
+    expect(round2AgentStarted.length).toBe(2);
+
+    // No round-1 agent events (those completed before the crash, not re-run)
+    const round1AgentStarted = events.filter(
+      (e) => e.kind === "agent:started" && e.roundNumber === 1,
+    );
+    expect(round1AgentStarted.length).toBe(0);
+  });
+
+  it("3-round run interrupted after round 2 resumes with only round 3 dispatches", async () => {
+    const threeRoundConfig: SwarmRunConfig = { ...config, rounds: 3 };
+    const runDir = join(
+      baseDir,
+      buildRunDirName(startedAt, threeRoundConfig.topic),
+    );
+    mkdirSync(runDir, { recursive: true });
+
+    const runId = randomUUID();
+    const manifest = {
+      runId,
+      status: "running",
+      topic: threeRoundConfig.topic,
+      rounds: threeRoundConfig.rounds,
+      backend: threeRoundConfig.backend,
+      preset: threeRoundConfig.preset,
+      goal: threeRoundConfig.goal,
+      decision: threeRoundConfig.decision,
+      agents: threeRoundConfig.agents,
+      resolveMode: threeRoundConfig.resolveMode,
+      startedAt: startedAt.toISOString(),
+      runDir,
+    };
+    writeFileSync(
+      join(runDir, "manifest.json"),
+      JSON.stringify(manifest, null, 2) + "\n",
+    );
+    writeFileSync(join(runDir, "seed-brief.md"), "# Seed brief\n");
+    for (const r of [1, 2]) {
+      mkdirSync(join(runDir, `round-0${r}`, "agents"), { recursive: true });
+      writeFileSync(
+        join(runDir, `round-0${r}`, "brief.md"),
+        `# Round ${r} brief\n`,
+      );
+    }
+    new LedgerWriter(runDir).init();
+
+    // Checkpoint: rounds 1 and 2 done; priorPacket is round-2 packet
+    const priorPacket = makeRoundPacket(2, ["alpha", "beta"]);
+    new CheckpointWriter(runDir).write({
+      runId,
+      lastCompletedRound: 2,
+      priorPacket,
+      checkpointedAt: new Date().toISOString(),
+      startedAt: startedAt.toISOString(),
+    });
+
+    // Backend has only round-3 outputs
+    const resumeOutputs = new Map<string, AgentOutput[]>();
+    resumeOutputs.set("alpha", [makeAgentOutput("alpha", 3)]);
+    resumeOutputs.set("beta", [makeAgentOutput("beta", 3)]);
+    const resumeBackend = new MockBackendAdapter(resumeOutputs);
+
+    const exitCode = await resumeSwarm({
+      config: threeRoundConfig,
+      agents,
+      backend: resumeBackend,
+      runDir,
+      ui: "silent",
+    });
+
+    expect(exitCode).toBe(0);
+    // Only 2 dispatches: alpha and beta for round 3 only
+    expect(resumeBackend.totalDispatchCalls).toBe(2);
+
+    // Synthesis must exist and reference the topic
+    expect(existsSync(join(runDir, "synthesis.json"))).toBe(true);
+    const synthesis = JSON.parse(
+      readFileSync(join(runDir, "synthesis.json"), "utf-8"),
+    );
+    expect(synthesis.topic).toBe(threeRoundConfig.topic);
+
+    // Checkpoint updated to round 3
+    const finalCheckpoint = JSON.parse(
+      readFileSync(join(runDir, "checkpoint.json"), "utf-8"),
+    );
+    expect(finalCheckpoint.lastCompletedRound).toBe(3);
+    expect(finalCheckpoint.runId).toBe(runId);
+
+    // round-03 artifacts written
+    expect(existsSync(join(runDir, "round-03", "agents", "alpha.md"))).toBe(
+      true,
+    );
+    expect(existsSync(join(runDir, "round-03", "agents", "beta.md"))).toBe(
       true,
     );
   });
