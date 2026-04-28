@@ -242,7 +242,7 @@ Output is a single JSON object on stdout:
 }
 ```
 
-Aggregated `status` is `"ok"` only if every entry in `runs` is `"ok"`. The script exits `0` when `status === "ok"`, exits `1` when any pass failed, and exits `2` on argument-parse errors. Per-pass `failureReason` is one of `harness-binary-missing | swarm-run-nonzero | swarm-run-timeout | artifact-dir-not-found | artifact-validation-failed`. `validatorResult` contains offline artifact validation results for successful runs with an artifact directory and is `null` otherwise.
+Aggregated `status` is `"ok"` only if every entry in `runs` is `"ok"`. The script exits `0` when `status === "ok"`, exits `1` when any pass failed, and exits `2` on argument-parse errors. Per-pass `failureReason` is one of `harness-binary-missing | swarm-run-nonzero | swarm-run-timeout | artifact-dir-not-found | artifact-validation-failed`. `validatorResult` contains offline artifact validation results when the swarm command exits successfully and an artifact directory is found, including validation failures; otherwise it is `null`. Validation errors are `{ "path": string, "message": string }` entries.
 
 ## Project config (`.swarm/config.yml`)
 
@@ -457,6 +457,7 @@ src/
 │   ├── rovo-acli.ts       # Rovo Dev acli harness adapter
 │   └── factory.ts         # Backend adapter selection
 ├── lib/
+│   ├── artifact-validator.ts # Offline run artifact validation
 │   ├── backend-selection.ts # Backend/config compatibility checks
 │   ├── brief-generator.ts # Seed + round brief generation
 │   ├── doc-inputs.ts      # Carry-forward doc validation and snapshots
