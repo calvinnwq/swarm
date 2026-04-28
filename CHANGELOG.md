@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.2.0](https://github.com/calvinnwq/swarm/compare/swarm-v0.1.0...swarm-v0.2.0) (2026-04-28)
+
+
+### Features
+
+* add configurable swarm run timeout ([641feee](https://github.com/calvinnwq/swarm/commit/641feeee289ce3382f13bee5a09462edcc082b79))
+* add LLM-driven orchestrator resolution ([8f3f1fb](https://github.com/calvinnwq/swarm/commit/8f3f1fb4bc89800e3ff137ee1c53dc2437db2dfe))
+* **artifact-validator:** add offline artifact integrity validator (NGX-148) ([185d14a](https://github.com/calvinnwq/swarm/commit/185d14a4f00a5a964bc35bbfa3c2c9ae294a290f))
+* **cli:** add configurable run timeout ([4eb9d74](https://github.com/calvinnwq/swarm/commit/4eb9d74decd06a78d24ee0bf2094da1288de8184))
+* **doctor:** harden doctor with actionable messages for missing-binary and harness attribution (NGX-150) ([695a977](https://github.com/calvinnwq/swarm/commit/695a977b373793bfafd8b546bc0c546ba04516a3))
+* **lib:** add offline artifact validation ([ea9d3d7](https://github.com/calvinnwq/swarm/commit/ea9d3d7cabadd55c382f6fb0ee9d4f36c2c216c3))
+* **orchestrator:** add buildOrchestratorResolutionPrompt (NGX-155) ([628dba1](https://github.com/calvinnwq/swarm/commit/628dba1d680f59f1af217ff9a5cdaca424c033ef))
+* **orchestrator:** add OrchestratorOutputSchema and validation helpers (NGX-154) ([a2195d0](https://github.com/calvinnwq/swarm/commit/a2195d07c12badc500cc7b0172df71055adf7dfb))
+* **orchestrator:** aggregate question resolutions and deferred questions (NGX-157) ([2eae7b3](https://github.com/calvinnwq/swarm/commit/2eae7b3883b0495dd3edd1704096afc292c56f53))
+* **orchestrator:** persist orchestrator passes to checkpoint and ledger (NGX-158) ([c3f26eb](https://github.com/calvinnwq/swarm/commit/c3f26eb02f5de6c7428b1ce7991c28b13f0cd38b))
+* **orchestrator:** wire dispatchOrchestratorPass into between-round resolution (NGX-156) ([39456db](https://github.com/calvinnwq/swarm/commit/39456db6a1ce2b86c163961d6c0a035867188297))
+* **smoke-runner:** manual real-harness smoke gate (NGX-143) ([f276f9e](https://github.com/calvinnwq/swarm/commit/f276f9ecb348f3605aa6bb695941ef0f06005137))
+
+
+### Bug Fixes
+
+* **codex:** set additionalProperties: false on output schema (NGX-142) ([80272d9](https://github.com/calvinnwq/swarm/commit/80272d953022a8bb436db431202b8886d1e718e1))
+
 ## [0.1.0](https://github.com/calvinnwq/swarm/compare/swarm-v0.0.1...swarm-v0.1.0) (2026-04-27)
 
 
