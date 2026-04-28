@@ -264,13 +264,14 @@ backend: claude
 goal: Decide on migration strategy
 decision: Adopt / Defer / Reject
 resolve: off # off | orchestrator | agents — see "Resolution modes" above
+timeoutMs: 300000 # per-agent/orchestrator dispatch timeout in ms; default 120000
 docs:
   - docs/architecture.md
 ```
 
 Precedence: **CLI flags > config values > preset defaults**. The file is optional — when missing, CLI flags alone fully describe the run. Validation errors (unknown keys, wrong types) are reported by `swarm doctor` and at run start.
 
-Configured `docs` use the same carry-forward behavior as repeated `--doc` flags: paths are normalized, readable files are required, and each document contributes at most 4,000 characters to the run context.
+Configured `docs` use the same carry-forward behavior as repeated `--doc` flags: paths are normalized, readable files are required, and each document contributes at most 4,000 characters to the run context. `timeoutMs` accepts a positive integer and matches `--timeout-ms`.
 
 Supported fields: `preset`, `agents` (2–5 names), `backend`, `resolve`, `timeoutMs`, `goal`, `decision`, `docs`. The `rounds` key is reserved but not yet applied — pass `<rounds>` on the CLI.
 

@@ -155,7 +155,7 @@ Result:  all clean
 ### M9-04 Real Claude run
 
 **Issue:** [NGX-145](https://linear.app/ngxcalvin/issue/NGX-145)  
-**Blocker:** No Claude CLI credentials available in this environment. The 120 s per-agent timeout may also require tuning for real workloads; this is documented as an open question in the issue.
+**Blocker:** No Claude CLI credentials available in this environment. Real workload dispatch timeouts can be tuned with `--timeout-ms` or project `timeoutMs`.
 
 ### M9-05 Real OpenCode run
 
