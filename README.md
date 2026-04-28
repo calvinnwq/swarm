@@ -123,13 +123,14 @@ Carry-forward docs from `--doc` are resolved before the run, deduplicated by pat
 
 ### Bundled presets
 
-Swarm ships with three opinionated built-in presets:
+Swarm ships with four opinionated built-in presets:
 
-| Preset                   | Agents                                                      | Resolve        | Best for                                                                             |
-| ------------------------ | ----------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
-| `product-decision`       | `product-manager`, `principal-engineer`                     | `orchestrator` | Framing a product decision with paired user-value and engineering-feasibility lenses |
-| `product-decision-codex` | `product-manager-codex`, `principal-engineer-codex`         | `orchestrator` | Running the same product-decision flow through Codex out of the box                  |
-| `triad`                  | `product-manager`, `principal-engineer`, `product-designer` | `orchestrator` | Full product triad: value, feasibility, and UX perspective together                  |
+| Preset                      | Agents                                                      | Resolve        | Best for                                                                             |
+| --------------------------- | ----------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
+| `product-decision`          | `product-manager`, `principal-engineer`                     | `orchestrator` | Framing a product decision with paired user-value and engineering-feasibility lenses |
+| `product-decision-codex`    | `product-manager-codex`, `principal-engineer-codex`         | `orchestrator` | Running the same product-decision flow through Codex out of the box                  |
+| `product-decision-opencode` | `product-manager-opencode`, `principal-engineer-opencode`   | `orchestrator` | Running the same product-decision flow through OpenCode out of the box               |
+| `triad`                     | `product-manager`, `principal-engineer`, `product-designer` | `orchestrator` | Full product triad: value, feasibility, and UX perspective together                  |
 
 Invoke it by name — no `--agents` required:
 
@@ -266,16 +267,18 @@ Agent definitions are YAML or Markdown files resolved from three roots (first wi
 | `~/.swarm/agents/*.yml` / `~/.swarm/agents/*.md` | Global (user-wide)                |
 | _(bundled)_                                      | Ships with swarm; see table below |
 
-Swarm ships with six bundled agents:
+Swarm ships with eight bundled agents:
 
-| Agent                      | Role                                                            |
-| -------------------------- | --------------------------------------------------------------- |
-| `product-manager`          | User value, scope, and decision framing                         |
-| `principal-engineer`       | System design, feasibility, and operational risk                |
-| `product-designer`         | UX, usability, and user-journey perspective                     |
-| `product-manager-codex`    | Codex-backed product decision framing                           |
-| `principal-engineer-codex` | Codex-backed engineering feasibility                            |
-| `orchestrator`             | Coordinator persona for between-round context and resolve modes |
+| Agent                         | Role                                                            |
+| ----------------------------- | --------------------------------------------------------------- |
+| `product-manager`             | User value, scope, and decision framing                         |
+| `principal-engineer`          | System design, feasibility, and operational risk                |
+| `product-designer`            | UX, usability, and user-journey perspective                     |
+| `product-manager-codex`       | Codex-backed product decision framing                           |
+| `principal-engineer-codex`    | Codex-backed engineering feasibility                            |
+| `product-manager-opencode`    | OpenCode-backed product decision framing                        |
+| `principal-engineer-opencode` | OpenCode-backed engineering feasibility                         |
+| `orchestrator`                | Coordinator persona for between-round context and resolve modes |
 
 A project-local agent with the same `name` as a bundled agent fully replaces it for that project. A user-global agent overrides the bundled version machine-wide but yields to any project-local definition. Duplicate `name` values within the same root are an error.
 
@@ -449,6 +452,10 @@ src/
 │   ├── harness-capability.ts # Harness CLI capability probes
 │   ├── harness-registry.ts # Harness descriptors and availability
 │   ├── harness-resolution.ts # Per-agent harness/model resolution
+│   ├── orchestrator-dispatcher.ts # LLM-driven between-round orchestrator dispatch
+│   ├── orchestrator-output.ts # Orchestrator output normalization and validation
+│   ├── orchestrator-prompt.ts # Orchestrator prompt construction
+│   ├── real-harness-smoke.ts # Real harness smoke gate runner
 │   ├── round-runner.ts    # Concurrent agent dispatch with events
 │   ├── synthesis.ts       # Deterministic synthesis engine
 │   ├── artifact-writer.ts # Incremental disk persistence
@@ -459,10 +466,13 @@ src/
 │   ├── run-swarm.ts       # Pipeline orchestrator
 │   ├── parse-command.ts   # CLI argument parsing/validation
 │   └── config.ts          # SwarmRunConfig types
+├── scripts/
+│   └── real-harness-smoke.ts # CLI wrapper for pnpm smoke:real
 ├── schemas/               # Zod schemas for all data contracts
 │   ├── backend-id.ts      # Shared backend identifier schema
 │   ├── harness-id.ts      # Shared harness identifier schema
 │   ├── message.ts         # Durable message envelope schema
+│   ├── orchestrator-output.ts # Structured LLM orchestrator pass schema
 │   ├── resolved-agent-runtime.ts # Per-agent runtime metadata schema
 │   ├── run-checkpoint.ts  # Recovery checkpoint schema
 │   └── run-event.ts       # Orchestration event schema
