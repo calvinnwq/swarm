@@ -4,8 +4,9 @@ import type { ArtifactValidationResult } from "./artifact-validator.js";
  * Manual real-harness smoke runner core (NGX-143 / M9-02).
  *
  * Pure logic for the manual release gate: probes the selected harness CLI,
- * shells out to the built `swarm` bin, normalizes the outcome, and returns a
- * machine-readable summary. The runner does not own its working directory,
+ * shells out to the built `swarm` bin, validates resolved artifacts for
+ * successful runs, normalizes the outcome, and returns a machine-readable
+ * summary. The runner does not own its working directory,
  * timeouts, or stdio — those are the caller's responsibility — so this
  * function is straightforward to unit-test with stubbed deps.
  */

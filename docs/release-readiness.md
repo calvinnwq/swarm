@@ -63,7 +63,7 @@ Note:    Real harness invocation requires credentials; stub-backed unit tests pr
 
 **Issue:** [NGX-148](https://linear.app/ngxcalvin/issue/NGX-148)
 
-Added `src/lib/artifact-validator.ts` that validates `manifest.json`, `checkpoint.json`, `events.jsonl`, `messages.jsonl`, `seed-brief.md`, per-round `brief.md`, and `synthesis.json` against their Zod schemas, with `synthesis.md` required for completed runs. Cross-checks `runId` consistency between manifest and checkpoint. Integrated into `runRealHarnessSmoke` so real-harness smoke runs automatically validate artifacts.
+Added `src/lib/artifact-validator.ts` that schema-validates `manifest.json`, `checkpoint.json`, `events.jsonl`, `messages.jsonl`, and `synthesis.json`, checks required markdown artifacts (`seed-brief.md`, per-round `brief.md`, per-agent outputs, and completed-run `synthesis.md`) for existence, and cross-checks `runId` consistency between manifest and checkpoint. Integrated into `runRealHarnessSmoke` so real-harness smoke runs automatically validate artifacts.
 
 ```
 Command: pnpm test -- test/unit/lib/artifact-validator.test.ts
