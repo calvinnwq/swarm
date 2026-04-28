@@ -41,6 +41,14 @@ function formatBackendFailure(
   return `Orchestrator exited with code ${response.exitCode}: ${response.stderr}`;
 }
 
+function buildDispatchAgent(agent: AgentDefinition): AgentDefinition {
+  return {
+    ...agent,
+    persona: "",
+    prompt: "",
+  };
+}
+
 export async function dispatchOrchestratorPass(
   args: DispatchOrchestratorPassArgs,
 ): Promise<DispatchOrchestratorPassResult> {
@@ -67,7 +75,7 @@ export async function dispatchOrchestratorPass(
 
   const dispatch = async (input: string): Promise<DispatchAttempt> => {
     try {
-      const response = await backend.dispatch(input, agent, {
+      const response = await backend.dispatch(input, buildDispatchAgent(agent), {
         timeoutMs,
         outputSchema: "orchestrator",
       });

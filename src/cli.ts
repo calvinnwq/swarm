@@ -4,6 +4,7 @@ import { Command, InvalidArgumentError } from "commander";
 import {
   assertResolvedRuntimesAvailable,
   buildConfig,
+  backendToHarness,
   formatDoctorReport,
   loadAgentRegistry,
   loadPresetRegistry,
@@ -51,9 +52,7 @@ function resolveOrchestratorAgent(
 
   const explicitHarnesses = new Set<HarnessId>();
   for (const agent of agents) {
-    if (agent.harness !== undefined) {
-      explicitHarnesses.add(agent.harness);
-    }
+    explicitHarnesses.add(agent.harness ?? backendToHarness(agent.backend));
   }
 
   if (explicitHarnesses.size !== 1) {

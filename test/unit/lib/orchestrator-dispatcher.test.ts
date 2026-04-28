@@ -124,7 +124,7 @@ describe("dispatchOrchestratorPass", () => {
     expect(prompt).toContain("Output contract");
   });
 
-  it("passes the agent definition and timeout through to the backend", async () => {
+  it("passes an orchestrator-only agent definition and timeout through to the backend", async () => {
     const backend = makeBackend([makeResponse(sampleJson)]);
     await dispatchOrchestratorPass({
       backend,
@@ -138,7 +138,11 @@ describe("dispatchOrchestratorPass", () => {
 
     expect(backend.dispatch).toHaveBeenCalledTimes(1);
     const [, agentArg, optsArg] = backend.dispatch.mock.calls[0]!;
-    expect(agentArg).toBe(orchestratorAgent);
+    expect(agentArg).toEqual({
+      ...orchestratorAgent,
+      persona: "",
+      prompt: "",
+    });
     expect(optsArg).toEqual({ timeoutMs: 4242, outputSchema: "orchestrator" });
   });
 

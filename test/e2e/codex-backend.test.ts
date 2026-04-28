@@ -168,6 +168,59 @@ describe("e2e: codex backend", () => {
     expect(synthesis.sharedRisks).toContain("shared codex risk");
   });
 
+  it("runs the bundled Codex preset without a run backend override", () => {
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "2",
+        "Should",
+        "we",
+        "adopt",
+        "Codex",
+        "--preset",
+        "product-decision-codex",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("[run] complete rounds=2");
+    expect(result.stderr).not.toContain("swarm:");
+
+    const runDir = join(baseDir, ".swarm", "runs");
+    const [entry] = existsSync(runDir) ? readdirSync(runDir) : [];
+    expect(entry).toBeTruthy();
+
+    const fullRunDir = join(runDir, entry);
+    const manifest = JSON.parse(
+      readFileSync(join(fullRunDir, "manifest.json"), "utf-8"),
+    );
+    expect(manifest.agentRuntimes).toContainEqual(
+      expect.objectContaining({ agentName: "orchestrator", harness: "codex" }),
+    );
+
+    const events = readFileSync(join(fullRunDir, "events.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(
+      events.some(
+        (event: { kind: string; metadata?: Record<string, unknown> }) =>
+          event.kind === "orchestrator:pass" &&
+          event.metadata?.agentName === "orchestrator",
+      ),
+    ).toBe(true);
+  });
+
   it("reports ready for a configured Codex backend when the CLI is installed and authenticated", () => {
     mkdirSync(join(baseDir, ".swarm"), { recursive: true });
     writeFileSync(
