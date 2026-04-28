@@ -154,10 +154,13 @@ export function validateRunArtifacts(
     const checkpointRound = checkpoint?.completedRoundResults?.find(
       (roundResult) => roundResult.round === r,
     );
+    const checkpointAgentNames = checkpointRound?.agentResults.map(
+      (agentResult) => agentResult.agent,
+    );
     const agentNames =
-      checkpointRound?.agentResults.map((agentResult) => agentResult.agent) ??
-      manifest?.agents ??
-      [];
+      checkpointAgentNames && checkpointAgentNames.length > 0
+        ? checkpointAgentNames
+        : (manifest?.agents ?? []);
     for (const agentName of agentNames) {
       const agentPath = p(`${roundDir}/agents/${agentName}.md`);
       if (!deps.fileExists(agentPath)) {

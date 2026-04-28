@@ -271,6 +271,31 @@ describe("validateRunArtifacts", () => {
     expect(result.ok).toBe(true);
   });
 
+  test("falls back to manifest agents when checkpoint agent results are empty", () => {
+    const runDir = "/runs/test-run";
+    const checkpoint = JSON.parse(VALID_CHECKPOINT) as Record<string, unknown>;
+    checkpoint["completedRoundResults"] = [
+      {
+        round: 1,
+        agentResults: [],
+        packet: checkpoint["priorPacket"],
+      },
+      {
+        round: 2,
+        agentResults: [],
+        packet: checkpoint["priorPacket"],
+      },
+    ];
+    const files = buildValidFiles(runDir);
+    delete files[`${runDir}/round-02/agents/beta.md`];
+    files[`${runDir}/checkpoint.json`] = JSON.stringify(checkpoint);
+    const result = validateRunArtifacts(runDir, buildDeps(files));
+    expect(result.ok).toBe(false);
+    expect(
+      result.errors.some((e) => e.path.includes("round-02/agents/beta.md")),
+    ).toBe(true);
+  });
+
   test("returns error when synthesis.json fails schema validation when present", () => {
     const runDir = "/runs/test-run";
     const files = {
