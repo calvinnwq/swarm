@@ -28,7 +28,7 @@ const PROBE_FAILURE_EXIT_CODE = 127;
 const ARTIFACT_MISSING_EXIT_CODE = 0;
 
 export interface RealHarnessSmokeOptions {
-  /** Single harness to run for this smoke pass (claude or codex). */
+  /** Single harness to run for this smoke pass (claude, codex, or opencode). */
   harness: SmokeHarness;
   /** Topic argument forwarded to `swarm run`. */
   topic: string;
@@ -36,7 +36,7 @@ export interface RealHarnessSmokeOptions {
   cwd: string;
   /** Absolute path to the built `swarm` CLI bin (typically dist/cli.mjs). */
   cliBin: string;
-  /** Preset to use; defaults to product-decision. */
+  /** Preset to use; defaults to the selected harness's product-decision preset. */
   preset?: string;
   /** Number of rounds (1–3); defaults to 1 for the smoke gate. */
   rounds?: number;
