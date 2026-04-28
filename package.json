@@ -16,7 +16,8 @@
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
     "test": "vitest run",
     "test:e2e": "pnpm build && vitest run --config vitest.e2e.config.ts",
-    "smoke": "pnpm build && vitest run --config vitest.e2e.config.ts test/e2e/smoke.test.ts"
+    "smoke": "pnpm build && vitest run --config vitest.e2e.config.ts test/e2e/smoke.test.ts",
+    "smoke:real": "pnpm build && node dist/scripts/real-harness-smoke.mjs"
   },
   "packageManager": "pnpm@10.32.1",
   "dependencies": {

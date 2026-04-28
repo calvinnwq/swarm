@@ -17,6 +17,7 @@ export * from "./orchestrator-output.js";
 export * from "./orchestrator-prompt.js";
 export * from "./parse-command.js";
 export * from "./preset-registry.js";
+export * from "./real-harness-smoke.js";
 export * from "./round-runner.js";
 export * from "./scheduler.js";
 export * from "./run-swarm.js";

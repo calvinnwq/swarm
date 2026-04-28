@@ -184,6 +184,56 @@ Run `swarm doctor` to validate your setup before a run. It checks that `.swarm/c
 swarm doctor
 ```
 
+### Real-harness smoke gate (`pnpm smoke:real`)
+
+`pnpm smoke:real` is a **manual release gate** that runs the built `swarm` CLI against one or more real harness CLIs and prints a normalized JSON summary. It is intentionally **not** part of `pnpm test`, `pnpm test:e2e`, or CI — those suites use stubbed harnesses for speed and determinism. Reach for `smoke:real` when you want to verify a release candidate end-to-end against the actual harness binaries.
+
+Prerequisites:
+
+- The target harness CLIs are on `PATH` and authenticated (`claude auth login`, `codex login`, `opencode auth login`).
+- The repo has been built (the script runs `pnpm build` for you).
+
+Quickstart:
+
+```bash
+# Single harness — uses bundled product-decision (claude default)
+pnpm smoke:real --harness claude --topic "release readiness check"
+
+# Mixed harnesses, run sequentially with isolated working dirs
+pnpm smoke:real --harness claude,codex --topic "release readiness check"
+
+# OpenCode end-to-end — uses bundled product-decision-opencode preset
+pnpm smoke:real --harness opencode --topic "release readiness check"
+```
+
+By default each harness uses its bundled preset (`product-decision` for claude, `product-decision-codex` for codex, `product-decision-opencode` for opencode). Pass `--preset <name>` to override every pass, `--rounds <1-3>` to bump rounds (default `1`), `--timeout-ms <n>` to cap each run, and `--keep-artifacts` to retain the per-harness temp directories for post-mortem inspection.
+
+Output is a single JSON object on stdout:
+
+```json
+{
+  "status": "ok" | "failed",
+  "runs": [
+    {
+      "harness": "claude",
+      "status": "ok",
+      "exitCode": 0,
+      "command": ["node", "/path/to/dist/cli.mjs", "run", "1", "...", "--preset", "product-decision", "--quiet"],
+      "durationMs": 12345,
+      "startedAt": "2026-04-28T00:00:00.000Z",
+      "finishedAt": "2026-04-28T00:00:12.345Z",
+      "artifactDir": "/tmp/swarm-real-smoke-claude-XYZ/.swarm/runs/...",
+      "harnessVersion": "1.2.3 (anthropic-claude)",
+      "failureReason": null,
+      "stdoutTail": "...",
+      "stderrTail": "..."
+    }
+  ]
+}
+```
+
+Aggregated `status` is `"ok"` only if every entry in `runs` is `"ok"`. The script exits `0` when `status === "ok"`, exits `1` when any pass failed, and exits `2` on argument-parse errors. Per-pass `failureReason` is one of `harness-binary-missing | swarm-run-nonzero | swarm-run-timeout | artifact-dir-not-found`.
+
 ## Project config (`.swarm/config.yml`)
 
 Optional. Set project defaults so teammates don't have to remember the flags.
