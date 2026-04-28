@@ -806,6 +806,82 @@ describe("resumeSwarm", () => {
     );
   });
 
+  it("replays pending between-round orchestration before resuming the next round", async () => {
+    const orchestratorAgent: AgentDefinition = {
+      name: "orchestrator",
+      description: "orch",
+      persona: "orch",
+      prompt: "orch",
+      backend: "claude",
+    };
+    const orchConfig: SwarmRunConfig = {
+      ...config,
+      resolveMode: "orchestrator",
+      goal: "ship",
+      decision: "go",
+    };
+    checkpointReadMock.mockReturnValue({
+      ...checkpoint,
+      lastCompletedRound: 1,
+      priorPacket: { ...priorPacket, round: 1 },
+      pendingBetweenRounds: true,
+    });
+    runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+    dispatchOrchestratorPassMock.mockResolvedValue({
+      ok: true,
+      output: {
+        round: 2,
+        directive: "fresh resumed directive",
+        questionResolutions: [],
+        questionResolutionLimit: 0,
+        deferredQuestions: [],
+        confidence: "high",
+      },
+      raw: null,
+    });
+
+    const { createRoundRunner } =
+      await import("../../../src/lib/round-runner.js");
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    await resumeSwarm({
+      config: orchConfig,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+      orchestratorAgent,
+    });
+
+    expect(dispatchOrchestratorPassMock).toHaveBeenCalledWith(
+      expect.objectContaining({ nextRound: 2 }),
+    );
+    expect(inboxStageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "broadcast",
+        payload: { directive: "fresh resumed directive", fromRound: 1 },
+        roundNumber: 2,
+      }),
+    );
+    const finalCheckpointWrite = checkpointWriteMock.mock.calls.at(-1)![0] as {
+      lastCompletedRound: number;
+      orchestratorDirective?: string;
+      pendingBetweenRounds?: boolean;
+    };
+    expect(finalCheckpointWrite).toEqual(
+      expect.objectContaining({
+        lastCompletedRound: 1,
+        orchestratorDirective: "fresh resumed directive",
+      }),
+    );
+    expect(finalCheckpointWrite).not.toHaveProperty("pendingBetweenRounds");
+    expect(vi.mocked(createRoundRunner).mock.calls.at(-1)![0]).toEqual(
+      expect.objectContaining({
+        startRound: 2,
+        initialOrchestratorDirective: "fresh resumed directive",
+      }),
+    );
+  });
+
   it("does not call ArtifactWriter.init on resume, preserving the existing manifest.json (B2)", async () => {
     checkpointReadMock.mockReturnValue(checkpoint);
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });

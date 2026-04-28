@@ -34,6 +34,7 @@ export const RunCheckpointSchema = z.object({
   completedRoundResults: z.array(CheckpointRoundResultSchema).optional(),
   orchestratorDirective: z.string().optional(),
   orchestratorPasses: z.array(OrchestratorPassRecordSchema).optional(),
+  pendingBetweenRounds: z.boolean().optional(),
   checkpointedAt: z.iso.datetime(),
   startedAt: z.iso.datetime(),
 });

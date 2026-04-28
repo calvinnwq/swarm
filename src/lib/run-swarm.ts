@@ -331,6 +331,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       ...(orchestratorPasses.length > 0
         ? { orchestratorPasses: [...orchestratorPasses] }
         : {}),
+      pendingBetweenRounds: true,
       checkpointedAt: new Date().toISOString(),
       startedAt: startedAtIso,
     });
@@ -407,8 +408,6 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
           : {}),
       }),
     );
-    // Checkpoint after the directive is durable so resumed round N+1 receives
-    // the same orchestrator guidance as an uninterrupted run.
     checkpoint.write({
       runId: manifest.runId,
       lastCompletedRound: round,
@@ -757,6 +756,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
       ...(orchestratorPasses.length > 0
         ? { orchestratorPasses: [...orchestratorPasses] }
         : {}),
+      pendingBetweenRounds: true,
       checkpointedAt: new Date().toISOString(),
       startedAt,
     });
@@ -851,6 +851,13 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     return { directive };
   };
 
+  if (savedCheckpoint.pendingBetweenRounds) {
+    await betweenRounds({
+      round: lastCompletedRound,
+      packet: currentPriorPacket,
+    });
+  }
+
   const { emitter, run } = createRoundRunner({
     config,
     agents,
@@ -861,7 +868,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     resolveRuntime: opts.resolveRuntime,
     startRound,
     initialPriorPacket: priorPacket,
-    initialOrchestratorDirective: orchestratorDirective,
+    initialOrchestratorDirective: currentOrchestratorDirective,
     carryForwardDocPackets,
   });
 

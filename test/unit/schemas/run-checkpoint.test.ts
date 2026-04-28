@@ -39,6 +39,14 @@ describe("RunCheckpointSchema", () => {
     );
   });
 
+  it("accepts a checkpoint with pendingBetweenRounds", () => {
+    const parsed = RunCheckpointSchema.parse({
+      ...valid,
+      pendingBetweenRounds: true,
+    });
+    expect(parsed.pendingBetweenRounds).toBe(true);
+  });
+
   it("accepts lastCompletedRound > 1", () => {
     const parsed = RunCheckpointSchema.parse({
       ...valid,
