@@ -152,15 +152,14 @@ Presets are resolved from three roots in priority order — the first match wins
 
 A project-local preset with the same `name` as a bundled preset fully replaces it for that project. A user-global preset with the same name overrides the bundled version machine-wide but yields to any project-local definition. Duplicate `name` values within the same root (two files in `.swarm/presets/` declaring the same name) are an error. Drop a YAML file into `.swarm/presets/<name>.yml` (project) or `~/.swarm/presets/<name>.yml` (global) to define your own.
 
-For Codex-backed runs, use the dedicated preset and backend pair:
+For Codex-backed runs, use the dedicated preset:
 
 ```bash
 swarm run 2 "Should we adopt server components?" \
-  --preset product-decision-codex \
-  --backend codex
+  --preset product-decision-codex
 ```
 
-This requires the `codex` CLI to be installed, available on `PATH`, already authenticated with `codex login`, and new enough to support `codex exec` because the Codex backend shells out to `codex exec` at runtime. The Claude backend likewise requires the `claude` CLI on `PATH` and an existing `claude auth login` session.
+The bundled Codex preset pins Codex-backed agents, and `--resolve orchestrator` dispatches the orchestrator through Codex when every selected agent resolves to Codex. Use `--backend codex` only when you want to override unpinned agents at the run level. This requires the `codex` CLI to be installed, available on `PATH`, already authenticated with `codex login`, and new enough to support `codex exec` because the Codex backend shells out to `codex exec` at runtime. The Claude backend likewise requires the `claude` CLI on `PATH` and an existing `claude auth login` session.
 
 Custom preset files are strict YAML objects with required `name` and `agents` fields plus optional `description`, `resolve`, `goal`, and `decision` fields:
 
@@ -427,6 +426,7 @@ The CLI provides two rendering modes:
 pnpm test            # unit tests
 pnpm test:e2e        # end-to-end tests (builds first)
 pnpm smoke           # golden-path smoke check (builds, runs doctor + preset flow)
+pnpm smoke:real      # manual real-harness smoke gate (builds first)
 pnpm typecheck       # type checking
 pnpm lint            # eslint
 pnpm format:check    # prettier check
