@@ -97,7 +97,7 @@ export interface RealHarnessSmokeDeps {
   nowIso: () => string;
   /** Returns immediate child names of `<cwd>/.swarm/runs` (empty when missing). */
   listRunDirs: (runsDir: string) => string[];
-  /** Validates run artifacts in the given directory; called when artifactDir is resolved. */
+  /** Validates artifacts for otherwise successful runs with a resolved artifactDir. */
   validateArtifacts: (artifactDir: string) => ArtifactValidationResult;
 }
 
