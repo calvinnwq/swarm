@@ -235,13 +235,14 @@ Output is a single JSON object on stdout:
       "harnessVersion": "1.2.3 (anthropic-claude)",
       "failureReason": null,
       "stdoutTail": "...",
-      "stderrTail": "..."
+      "stderrTail": "...",
+      "validatorResult": { "ok": true, "errors": [] }
     }
   ]
 }
 ```
 
-Aggregated `status` is `"ok"` only if every entry in `runs` is `"ok"`. The script exits `0` when `status === "ok"`, exits `1` when any pass failed, and exits `2` on argument-parse errors. Per-pass `failureReason` is one of `harness-binary-missing | swarm-run-nonzero | swarm-run-timeout | artifact-dir-not-found`.
+Aggregated `status` is `"ok"` only if every entry in `runs` is `"ok"`. The script exits `0` when `status === "ok"`, exits `1` when any pass failed, and exits `2` on argument-parse errors. Per-pass `failureReason` is one of `harness-binary-missing | swarm-run-nonzero | swarm-run-timeout | artifact-dir-not-found | artifact-validation-failed`. `validatorResult` contains offline artifact validation results for successful runs with an artifact directory and is `null` otherwise.
 
 ## Project config (`.swarm/config.yml`)
 
