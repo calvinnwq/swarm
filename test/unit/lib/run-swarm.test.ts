@@ -857,6 +857,91 @@ describe("runSwarm", () => {
       expect(mutablePacket).toEqual(snapshot);
     });
 
+    it("appends a successful orchestrator pass to the checkpoint's orchestratorPasses", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+      const output = {
+        round: 2,
+        directive: "llm-derived directive",
+        questionResolutions: [],
+        questionResolutionLimit: 3,
+        deferredQuestions: ["When can we ramp?"],
+        confidence: "high" as const,
+      };
+      dispatchOrchestratorPassMock.mockResolvedValue({
+        ok: true,
+        output,
+        raw: null,
+      });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("orchestrator"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      checkpointWriteMock.mockReset();
+      ledgerAppendEventMock.mockReset();
+      await opts.betweenRounds?.({ round: 1, packet: samplePacket });
+
+      const orchPassRecord = {
+        round: 1,
+        agentName: orchestratorAgent.name,
+        output,
+      };
+      expect(checkpointWriteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orchestratorPasses: [expect.objectContaining(orchPassRecord)],
+        }),
+      );
+
+      const orchEvent = ledgerAppendEventMock.mock.calls.find(
+        ([event]) => (event as { kind: string }).kind === "orchestrator:pass",
+      );
+      expect(orchEvent).toBeDefined();
+      expect(orchEvent![0].metadata).toEqual(
+        expect.objectContaining({
+          agentName: orchestratorAgent.name,
+          directive: "llm-derived directive",
+          confidence: "high",
+          questionResolutionsCount: 0,
+          questionResolutionLimit: 3,
+          deferredQuestionsCount: 1,
+        }),
+      );
+    });
+
+    it("does not write orchestratorPasses on the checkpoint when resolveMode is off", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("off"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      checkpointWriteMock.mockReset();
+      await opts.betweenRounds?.({ round: 1, packet: samplePacket });
+
+      const lastWrite = checkpointWriteMock.mock.calls.at(-1)![0] as {
+        orchestratorPasses?: unknown;
+      };
+      expect(lastWrite.orchestratorPasses).toBeUndefined();
+    });
+
     it("throws an OrchestratorDispatchError out of betweenRounds when dispatch returns ok:false", async () => {
       runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
       dispatchOrchestratorPassMock.mockResolvedValue({

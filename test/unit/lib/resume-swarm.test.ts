@@ -716,6 +716,96 @@ describe("resumeSwarm", () => {
     );
   });
 
+  it("rehydrates orchestratorPasses from the checkpoint and appends new ones from subsequent passes", async () => {
+    const orchestratorAgent: AgentDefinition = {
+      name: "orchestrator",
+      description: "orch",
+      persona: "orch",
+      prompt: "orch",
+      backend: "claude",
+    };
+    const orchConfig: SwarmRunConfig = {
+      ...config,
+      resolveMode: "orchestrator",
+      goal: "ship",
+      decision: "go",
+    };
+    const persistedPass = {
+      round: 1,
+      agentName: "orchestrator",
+      output: {
+        round: 2,
+        directive: "earlier directive",
+        questionResolutions: [],
+        questionResolutionLimit: 1,
+        deferredQuestions: [],
+        confidence: "medium" as const,
+      },
+    };
+    checkpointReadMock.mockReturnValue({
+      ...checkpoint,
+      lastCompletedRound: 1,
+      priorPacket: { ...priorPacket, round: 1 },
+      orchestratorPasses: [persistedPass],
+    });
+    runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+    const newOutput = {
+      round: 3,
+      directive: "fresh directive",
+      questionResolutions: [],
+      questionResolutionLimit: 2,
+      deferredQuestions: [],
+      confidence: "high" as const,
+    };
+    dispatchOrchestratorPassMock.mockResolvedValue({
+      ok: true,
+      output: newOutput,
+      raw: null,
+    });
+
+    const { createRoundRunner } =
+      await import("../../../src/lib/round-runner.js");
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    await resumeSwarm({
+      config: orchConfig,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+      orchestratorAgent,
+    });
+
+    const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+    const mutablePacket: RoundPacket = {
+      round: 2,
+      agents: ["alpha", "beta"],
+      summaries: [],
+      keyObjections: [],
+      sharedRisks: [],
+      openQuestions: [],
+      questionResolutions: [],
+      questionResolutionLimit: 0,
+      deferredQuestions: [],
+    };
+    checkpointWriteMock.mockReset();
+    await opts.betweenRounds?.({ round: 2, packet: mutablePacket });
+
+    expect(checkpointWriteMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orchestratorPasses: [
+          expect.objectContaining({
+            round: 1,
+            output: expect.objectContaining({ directive: "earlier directive" }),
+          }),
+          expect.objectContaining({
+            round: 2,
+            output: expect.objectContaining({ directive: "fresh directive" }),
+          }),
+        ],
+      }),
+    );
+  });
+
   it("does not call ArtifactWriter.init on resume, preserving the existing manifest.json (B2)", async () => {
     checkpointReadMock.mockReturnValue(checkpoint);
     runMock.mockResolvedValue({ rounds: [], ok: true, error: null });

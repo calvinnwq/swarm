@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
   AgentDefinition,
+  OrchestratorPassRecord,
   ResolvedAgentRuntime,
   RunManifest,
   RunEvent,
@@ -245,6 +246,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   let orchestratorDirective: string | undefined = undefined;
   const completedRoundPackets: RoundPacket[] = [];
   const completedRoundResults: RoundResult[] = [];
+  const orchestratorPasses: OrchestratorPassRecord[] = [];
   const pendingRoundWrites = new Map<number, Promise<void>>();
   const activeRoundMessages = new Map<number, Set<string>>();
 
@@ -263,6 +265,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
     await awaitRoundWrite(round);
 
     let directive = buildOrchestratorPassDirective(packet);
+    let orchestratorPassMetadata: RunEvent["metadata"] | undefined;
     if (
       config.resolveMode === "orchestrator" &&
       opts.orchestratorAgent !== undefined
@@ -286,6 +289,19 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       packet.questionResolutions = result.output.questionResolutions;
       packet.questionResolutionLimit = result.output.questionResolutionLimit;
       packet.deferredQuestions = result.output.deferredQuestions;
+      orchestratorPasses.push({
+        round,
+        agentName: orchAgent.name,
+        output: result.output,
+      });
+      orchestratorPassMetadata = {
+        agentName: orchAgent.name,
+        directive,
+        confidence: result.output.confidence,
+        questionResolutionsCount: result.output.questionResolutions.length,
+        questionResolutionLimit: result.output.questionResolutionLimit,
+        deferredQuestionsCount: result.output.deferredQuestions.length,
+      };
     }
     orchestratorDirective = directive;
 
@@ -312,7 +328,14 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       activeRoundMessages.set(round + 1, activeMessages);
     }
     activeMessages.add(message.messageId);
-    ledger.appendEvent(makeEvent("orchestrator:pass", { roundNumber: round }));
+    ledger.appendEvent(
+      makeEvent("orchestrator:pass", {
+        roundNumber: round,
+        ...(orchestratorPassMetadata
+          ? { metadata: orchestratorPassMetadata }
+          : {}),
+      }),
+    );
     // Checkpoint after the directive is durable so resumed round N+1 receives
     // the same orchestrator guidance as an uninterrupted run.
     checkpoint.write({
@@ -322,6 +345,9 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       completedRoundPackets: [...completedRoundPackets],
       completedRoundResults: checkpointRoundResults(completedRoundResults),
       orchestratorDirective: directive,
+      ...(orchestratorPasses.length > 0
+        ? { orchestratorPasses: [...orchestratorPasses] }
+        : {}),
       checkpointedAt: new Date().toISOString(),
       startedAt: startedAtIso,
     });
@@ -465,6 +491,9 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
           completedRoundPackets: [...completedRoundPackets],
           completedRoundResults: checkpointRoundResults(completedRoundResults),
           orchestratorDirective,
+          ...(orchestratorPasses.length > 0
+            ? { orchestratorPasses: [...orchestratorPasses] }
+            : {}),
           checkpointedAt: new Date().toISOString(),
           startedAt: startedAtIso,
         });
@@ -614,6 +643,9 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     (result) => result.packet,
   );
   const completedRoundResults: RoundResult[] = [...resumedRoundResults];
+  const orchestratorPasses: OrchestratorPassRecord[] = [
+    ...(savedCheckpoint.orchestratorPasses ?? []),
+  ];
   const pendingRoundWrites = new Map<number, Promise<void>>();
   const startRound = lastCompletedRound + 1;
   const activeRoundMessages = new Map<number, Set<string>>();
@@ -645,6 +677,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
     await awaitRoundWrite(round);
 
     let directive = buildOrchestratorPassDirective(packet);
+    let orchestratorPassMetadata: RunEvent["metadata"] | undefined;
     if (
       config.resolveMode === "orchestrator" &&
       opts.orchestratorAgent !== undefined
@@ -668,6 +701,19 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
       packet.questionResolutions = result.output.questionResolutions;
       packet.questionResolutionLimit = result.output.questionResolutionLimit;
       packet.deferredQuestions = result.output.deferredQuestions;
+      orchestratorPasses.push({
+        round,
+        agentName: orchAgent.name,
+        output: result.output,
+      });
+      orchestratorPassMetadata = {
+        agentName: orchAgent.name,
+        directive,
+        confidence: result.output.confidence,
+        questionResolutionsCount: result.output.questionResolutions.length,
+        questionResolutionLimit: result.output.questionResolutionLimit,
+        deferredQuestionsCount: result.output.deferredQuestions.length,
+      };
     }
     currentOrchestratorDirective = directive;
 
@@ -694,7 +740,14 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
       activeRoundMessages.set(round + 1, activeMessages);
     }
     activeMessages.add(message.messageId);
-    ledger.appendEvent(makeEvent("orchestrator:pass", { roundNumber: round }));
+    ledger.appendEvent(
+      makeEvent("orchestrator:pass", {
+        roundNumber: round,
+        ...(orchestratorPassMetadata
+          ? { metadata: orchestratorPassMetadata }
+          : {}),
+      }),
+    );
     checkpoint.write({
       runId: manifest.runId,
       lastCompletedRound: round,
@@ -702,6 +755,9 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
       completedRoundPackets: [...completedRoundPackets],
       completedRoundResults: checkpointRoundResults(completedRoundResults),
       orchestratorDirective: directive,
+      ...(orchestratorPasses.length > 0
+        ? { orchestratorPasses: [...orchestratorPasses] }
+        : {}),
       checkpointedAt: new Date().toISOString(),
       startedAt,
     });
@@ -848,6 +904,9 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
           completedRoundPackets: [...completedRoundPackets],
           completedRoundResults: checkpointRoundResults(completedRoundResults),
           orchestratorDirective: currentOrchestratorDirective,
+          ...(orchestratorPasses.length > 0
+            ? { orchestratorPasses: [...orchestratorPasses] }
+            : {}),
           checkpointedAt: new Date().toISOString(),
           startedAt,
         });

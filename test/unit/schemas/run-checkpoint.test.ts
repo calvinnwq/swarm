@@ -124,4 +124,65 @@ describe("RunCheckpointSchema", () => {
     );
     expect(roundTripped).toEqual(checkpoint);
   });
+
+  it("accepts a checkpoint with orchestratorPasses", () => {
+    const parsed = RunCheckpointSchema.parse({
+      ...valid,
+      orchestratorPasses: [
+        {
+          round: 1,
+          agentName: "orchestrator",
+          output: {
+            round: 2,
+            directive: "tighten on Postgres",
+            questionResolutions: [],
+            questionResolutionLimit: 3,
+            deferredQuestions: ["Rollout cadence?"],
+            confidence: "high",
+          },
+        },
+      ],
+    });
+    expect(parsed.orchestratorPasses).toEqual([
+      expect.objectContaining({
+        round: 1,
+        agentName: "orchestrator",
+        output: expect.objectContaining({
+          directive: "tighten on Postgres",
+          confidence: "high",
+        }),
+      }),
+    ]);
+  });
+
+  it("rejects an orchestratorPasses entry missing the output field", () => {
+    expect(() =>
+      RunCheckpointSchema.parse({
+        ...valid,
+        orchestratorPasses: [{ round: 1, agentName: "orchestrator" }],
+      }),
+    ).toThrow();
+  });
+
+  it("rejects an orchestratorPasses entry with non-int round", () => {
+    expect(() =>
+      RunCheckpointSchema.parse({
+        ...valid,
+        orchestratorPasses: [
+          {
+            round: 1.5,
+            agentName: "orchestrator",
+            output: {
+              round: 2,
+              directive: "x",
+              questionResolutions: [],
+              questionResolutionLimit: 0,
+              deferredQuestions: [],
+              confidence: "low",
+            },
+          },
+        ],
+      }),
+    ).toThrow();
+  });
 });
