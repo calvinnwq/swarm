@@ -138,8 +138,12 @@ export function validateRunArtifacts(
     errors.push({ path: p("seed-brief.md"), message: "file not found" });
   }
 
-  // Check round brief files using rounds from manifest
-  const rounds = manifest?.rounds ?? 0;
+  const rounds =
+    manifest === undefined
+      ? 0
+      : manifest.status === "done"
+        ? manifest.rounds
+        : (checkpoint?.lastCompletedRound ?? 0);
   for (let r = 1; r <= rounds; r++) {
     const roundDir = `round-${String(r).padStart(2, "0")}`;
     const briefPath = p(`${roundDir}/brief.md`);

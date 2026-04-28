@@ -339,6 +339,28 @@ describe("validateRunArtifacts", () => {
     expect(result.ok).toBe(true);
   });
 
+  test("uses last completed round for non-completed run artifact checks", () => {
+    const runDir = "/runs/test-run";
+    const manifest = JSON.parse(VALID_MANIFEST) as Record<string, unknown>;
+    manifest["status"] = "running";
+    manifest["rounds"] = 3;
+    delete manifest["finishedAt"];
+    const checkpoint = JSON.parse(VALID_CHECKPOINT) as Record<string, unknown>;
+    checkpoint["lastCompletedRound"] = 1;
+    const files: Record<string, string> = {
+      ...buildValidFiles(runDir),
+      [`${runDir}/manifest.json`]: JSON.stringify(manifest),
+      [`${runDir}/checkpoint.json`]: JSON.stringify(checkpoint),
+    };
+    delete files[`${runDir}/round-02/brief.md`];
+    delete files[`${runDir}/round-02/agents/alpha.md`];
+    delete files[`${runDir}/round-02/agents/beta.md`];
+    delete files[`${runDir}/synthesis.json`];
+    delete files[`${runDir}/synthesis.md`];
+    const result = validateRunArtifacts(runDir, buildDeps(files));
+    expect(result.ok).toBe(true);
+  });
+
   test("skips round checks when manifest is missing (no rounds to iterate)", () => {
     const runDir = "/runs/test-run";
     const files = buildValidFiles(runDir);
