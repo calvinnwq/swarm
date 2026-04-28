@@ -7,6 +7,7 @@ import type {
   RunManifest,
   RunEvent,
   RoundPacket,
+  QuestionResolution,
   MessageEnvelope,
 } from "../schemas/index.js";
 import type { BackendAdapter } from "../backends/index.js";
@@ -176,6 +177,62 @@ function restoreCheckpointRoundResults(
   }));
 }
 
+function addUniqueStrings(target: string[], values: readonly string[]): void {
+  const seen = new Set(target);
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    target.push(value);
+  }
+}
+
+function addUniqueQuestionResolutions(
+  target: QuestionResolution[],
+  values: readonly QuestionResolution[],
+): void {
+  const seen = new Set(target.map((resolution) => resolution.question));
+  for (const resolution of values) {
+    if (seen.has(resolution.question)) continue;
+    seen.add(resolution.question);
+    target.push(resolution);
+  }
+}
+
+function packetWithPriorResolutionContext(
+  packet: RoundPacket,
+  orchestratorPasses: readonly OrchestratorPassRecord[],
+): RoundPacket {
+  if (orchestratorPasses.length === 0) return packet;
+
+  const questionResolutions: QuestionResolution[] = [];
+  const deferredQuestions: string[] = [];
+
+  for (const pass of orchestratorPasses) {
+    addUniqueQuestionResolutions(
+      questionResolutions,
+      pass.output.questionResolutions,
+    );
+    addUniqueStrings(deferredQuestions, pass.output.deferredQuestions);
+  }
+  addUniqueQuestionResolutions(questionResolutions, packet.questionResolutions);
+  addUniqueStrings(deferredQuestions, packet.deferredQuestions);
+
+  return {
+    ...packet,
+    questionResolutions,
+    deferredQuestions,
+    questionResolutionLimit:
+      packet.questionResolutionLimit > 0
+        ? packet.questionResolutionLimit
+        : Math.max(
+            0,
+            ...orchestratorPasses.map(
+              (pass) => pass.output.questionResolutionLimit,
+            ),
+          ),
+  };
+}
+
 /**
  * Full pipeline orchestrator: runs rounds, writes artifacts, synthesizes.
  * Returns 0 on success, 1 on failure.
@@ -264,6 +321,20 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
   }) => {
     await awaitRoundWrite(round);
 
+    checkpoint.write({
+      runId: manifest.runId,
+      lastCompletedRound: round,
+      priorPacket: packet,
+      completedRoundPackets: [...completedRoundPackets],
+      completedRoundResults: checkpointRoundResults(completedRoundResults),
+      orchestratorDirective,
+      ...(orchestratorPasses.length > 0
+        ? { orchestratorPasses: [...orchestratorPasses] }
+        : {}),
+      checkpointedAt: new Date().toISOString(),
+      startedAt: startedAtIso,
+    });
+
     let directive = buildOrchestratorPassDirective(packet);
     let orchestratorPassMetadata: RunEvent["metadata"] | undefined;
     if (
@@ -275,7 +346,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
       const result = await dispatchOrchestratorPass({
         backend: orchBackend,
         agent: orchAgent,
-        packet,
+        packet: packetWithPriorResolutionContext(packet, orchestratorPasses),
         goal: config.goal,
         decision: config.decision,
         nextRound: round + 1,
@@ -676,6 +747,20 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
   }) => {
     await awaitRoundWrite(round);
 
+    checkpoint.write({
+      runId: manifest.runId,
+      lastCompletedRound: round,
+      priorPacket: packet,
+      completedRoundPackets: [...completedRoundPackets],
+      completedRoundResults: checkpointRoundResults(completedRoundResults),
+      orchestratorDirective: currentOrchestratorDirective,
+      ...(orchestratorPasses.length > 0
+        ? { orchestratorPasses: [...orchestratorPasses] }
+        : {}),
+      checkpointedAt: new Date().toISOString(),
+      startedAt,
+    });
+
     let directive = buildOrchestratorPassDirective(packet);
     let orchestratorPassMetadata: RunEvent["metadata"] | undefined;
     if (
@@ -687,7 +772,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
       const result = await dispatchOrchestratorPass({
         backend: orchBackend,
         agent: orchAgent,
-        packet,
+        packet: packetWithPriorResolutionContext(packet, orchestratorPasses),
         goal: config.goal,
         decision: config.decision,
         nextRound: round + 1,
