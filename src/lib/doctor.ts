@@ -121,12 +121,17 @@ export async function runDoctor(
       agentRegistry,
       presetRegistry,
     );
-    for (const harness of harnesses) {
-      checks.push(
-        await checkHarnessCapability(harness, {
-          env: options.env,
-        }),
-      );
+    for (const { harness, agents } of harnesses) {
+      const check = await checkHarnessCapability(harness, {
+        env: options.env,
+      });
+      if (check.status === "fail" && agents.length > 0) {
+        const attribution = `required by: ${agents.join(", ")}`;
+        check.detail = check.detail
+          ? `${check.detail}\n${attribution}`
+          : attribution;
+      }
+      checks.push(check);
     }
   }
 
@@ -415,25 +420,32 @@ function buildConfigBackendCheck(
   };
 }
 
+type HarnessWithAgents = { harness: HarnessId; agents: string[] };
+
 function resolveDoctorHarnesses(
   config: LoadedProjectConfig["config"],
   agentRegistry: AgentRegistry | null,
   presetRegistry: PresetRegistry | null,
-): HarnessId[] {
+): HarnessWithAgents[] {
   const backend = config.backend ?? "claude";
   const runtimeBackend = config.backend === undefined ? undefined : backend;
   const agents = resolveConfiguredAgents(config, agentRegistry, presetRegistry);
   if (!agents) {
-    return [backendToHarness(backend)];
+    return [{ harness: backendToHarness(backend), agents: [] }];
   }
 
-  return [
-    ...new Set(
-      resolveAgentRuntimes(agents, runtimeBackend).map(
-        (runtime) => runtime.harness,
-      ),
-    ),
-  ];
+  const runtimes = resolveAgentRuntimes(agents, runtimeBackend);
+  const harnessMap = new Map<HarnessId, string[]>();
+  for (const runtime of runtimes) {
+    const existing = harnessMap.get(runtime.harness) ?? [];
+    existing.push(runtime.agentName);
+    harnessMap.set(runtime.harness, existing);
+  }
+
+  return Array.from(harnessMap.entries()).map(([harness, agentNames]) => ({
+    harness,
+    agents: agentNames,
+  }));
 }
 
 function resolveConfiguredAgents(

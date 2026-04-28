@@ -1,4 +1,5 @@
 export * from "./agent-registry.js";
+export * from "./artifact-validator.js";
 export * from "./checkpoint-writer.js";
 export * from "./output-router.js";
 export * from "./backend-selection.js";

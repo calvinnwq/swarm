@@ -1,9 +1,12 @@
+import type { ArtifactValidationResult } from "./artifact-validator.js";
+
 /**
  * Manual real-harness smoke runner core (NGX-143 / M9-02).
  *
  * Pure logic for the manual release gate: probes the selected harness CLI,
- * shells out to the built `swarm` bin, normalizes the outcome, and returns a
- * machine-readable summary. The runner does not own its working directory,
+ * shells out to the built `swarm` bin, validates resolved artifacts for
+ * successful runs, normalizes the outcome, and returns a machine-readable
+ * summary. The runner does not own its working directory,
  * timeouts, or stdio — those are the caller's responsibility — so this
  * function is straightforward to unit-test with stubbed deps.
  */
@@ -48,7 +51,8 @@ export type FailureReason =
   | "harness-binary-missing"
   | "swarm-run-nonzero"
   | "swarm-run-timeout"
-  | "artifact-dir-not-found";
+  | "artifact-dir-not-found"
+  | "artifact-validation-failed";
 
 export interface RealHarnessSmokeSummary {
   harness: SmokeHarness;
@@ -63,6 +67,7 @@ export interface RealHarnessSmokeSummary {
   failureReason: FailureReason | null;
   stdoutTail: string;
   stderrTail: string;
+  validatorResult: ArtifactValidationResult | null;
 }
 
 export interface SpawnSyncResult {
@@ -92,6 +97,8 @@ export interface RealHarnessSmokeDeps {
   nowIso: () => string;
   /** Returns immediate child names of `<cwd>/.swarm/runs` (empty when missing). */
   listRunDirs: (runsDir: string) => string[];
+  /** Validates artifacts for otherwise successful runs with a resolved artifactDir. */
+  validateArtifacts: (artifactDir: string) => ArtifactValidationResult;
 }
 
 function tail(text: string, limit: number = TAIL_LIMIT): string {
@@ -184,6 +191,7 @@ export function runRealHarnessSmoke(
       failureReason: "harness-binary-missing",
       stdoutTail: "",
       stderrTail: "",
+      validatorResult: null,
     };
   }
 
@@ -219,6 +227,15 @@ export function runRealHarnessSmoke(
     status = "failed";
   }
 
+  let validatorResult: ArtifactValidationResult | null = null;
+  if (artifactDir !== null && status === "ok") {
+    validatorResult = deps.validateArtifacts(artifactDir);
+    if (!validatorResult.ok) {
+      failureReason = "artifact-validation-failed";
+      status = "failed";
+    }
+  }
+
   return {
     harness: opts.harness,
     command,
@@ -232,6 +249,7 @@ export function runRealHarnessSmoke(
     failureReason,
     stdoutTail: tail(runResult.stdout),
     stderrTail: tail(runResult.stderr),
+    validatorResult,
   };
 }
 
