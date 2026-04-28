@@ -43,6 +43,21 @@ try {
   counters = JSON.parse(fs.readFileSync(statePath, "utf8"));
 } catch {}
 
+if (prompt.includes("# Orchestrator Resolution Pass")) {
+  const nextRoundMatch = prompt.match(/Round (\\d+)/);
+  const nextRound = nextRoundMatch ? Number(nextRoundMatch[1]) : 1;
+  process.stdout.write(JSON.stringify({
+    round: nextRound,
+    directive:
+      "Round " + nextRound + " focus: validate Codex adoption against the shared codex risk before deciding.",
+    questionResolutions: [],
+    questionResolutionLimit: 3,
+    deferredQuestions: [],
+    confidence: "medium",
+  }));
+  process.exit(0);
+}
+
 const agent = /product manager/i.test(prompt)
   ? "product-manager-codex"
   : /principal engineer/i.test(prompt)

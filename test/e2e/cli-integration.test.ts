@@ -54,6 +54,43 @@ const statePath = path.join(path.dirname(process.argv[1]), ".stub-state.json");
 let counters = {};
 try { counters = JSON.parse(fs.readFileSync(statePath, "utf8")); } catch {}
 
+if (brief.startsWith("# Orchestrator Resolution Pass")) {
+  const nextRoundMatch = brief.match(/Round (\\d+)/);
+  const nextRound = nextRoundMatch ? Number(nextRoundMatch[1]) : 1;
+  const openLines = brief.split("\\n");
+  const openSection = openLines.indexOf("### Open questions");
+  const openQs = [];
+  if (openSection >= 0) {
+    for (let i = openSection + 1; i < openLines.length; i++) {
+      const line = openLines[i];
+      if (!line.startsWith("- ")) break;
+      openQs.push(line.slice(2));
+    }
+  }
+  process.stdout.write(JSON.stringify({
+    round: nextRound,
+    directive:
+      "STUB_ORCHESTRATOR_DIRECTIVE: revisit the migration sequencing in round " + nextRound + ".",
+    questionResolutions: openQs.slice(0, 1).map((question) => ({
+      question,
+      status: "directional",
+      answer: "Lean Adopt; defer hard sequencing to next round.",
+      basis: "All agents recommended Adopt in the prior round.",
+      confidence: "medium",
+      askedBy: ["product-manager"],
+      supportingAgents: ["product-manager", "principal-engineer"],
+      supportingReasoning: ["Both agents agreed"],
+      relatedObjections: [],
+      relatedRisks: ["shared risk"],
+      blockingScore: 1,
+    })),
+    questionResolutionLimit: 3,
+    deferredQuestions: openQs.slice(1),
+    confidence: "medium",
+  }));
+  process.exit(0);
+}
+
 const agent = /product manager/i.test(systemPrompt)
   ? "product-manager"
   : /principal engineer/i.test(systemPrompt)
@@ -186,6 +223,82 @@ describe("e2e: CLI integration with --agents flag", () => {
     );
     expect(synthesisMd).toContain("### Round 1");
     expect(synthesisMd).toContain("### Round 2");
+  });
+
+  it("runs --resolve orchestrator end-to-end and persists orchestrator artifacts", () => {
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "2",
+        "Should we adopt server components",
+        "--agents",
+        "product-manager,principal-engineer",
+        "--resolve",
+        "orchestrator",
+        "--goal",
+        "Decide on adoption",
+        "--decision",
+        "Adopt / Defer / Reject",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ""}` },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("[run] complete rounds=2");
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const [entry] = readdirSync(runsDir);
+    const runDir = join(runsDir, entry);
+
+    // events.jsonl: orchestrator:pass with full metadata
+    const events = readFileSync(join(runDir, "events.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const orchPassEvents = events.filter(
+      (e: { kind: string }) => e.kind === "orchestrator:pass",
+    );
+    expect(orchPassEvents).toHaveLength(1);
+    const orchPass = orchPassEvents[0] as {
+      roundNumber: number;
+      metadata: Record<string, unknown>;
+    };
+    expect(orchPass.roundNumber).toBe(1);
+    expect(orchPass.metadata).toBeDefined();
+    expect(orchPass.metadata.agentName).toBe("orchestrator");
+    expect(orchPass.metadata.confidence).toBe("medium");
+    expect(orchPass.metadata.questionResolutionLimit).toBe(3);
+    expect(orchPass.metadata.questionResolutionsCount).toBeGreaterThanOrEqual(
+      0,
+    );
+    expect(typeof orchPass.metadata.directive).toBe("string");
+    expect(orchPass.metadata.directive).toContain(
+      "STUB_ORCHESTRATOR_DIRECTIVE",
+    );
+
+    // checkpoint.json: orchestratorPasses captured with the full output
+    const checkpoint = JSON.parse(
+      readFileSync(join(runDir, "checkpoint.json"), "utf-8"),
+    );
+    expect(Array.isArray(checkpoint.orchestratorPasses)).toBe(true);
+    expect(checkpoint.orchestratorPasses).toHaveLength(1);
+    const pass = checkpoint.orchestratorPasses[0];
+    expect(pass.round).toBe(1);
+    expect(pass.agentName).toBe("orchestrator");
+    expect(pass.output.directive).toContain("STUB_ORCHESTRATOR_DIRECTIVE");
+    expect(pass.output.questionResolutionLimit).toBe(3);
+    expect(pass.output.confidence).toBe("medium");
+
+    // round-02/brief.md embeds the LLM-derived directive instead of the
+    // deterministic templated summary.
+    const r2brief = readFileSync(join(runDir, "round-02", "brief.md"), "utf-8");
+    expect(r2brief).toContain("STUB_ORCHESTRATOR_DIRECTIVE");
   });
 
   it("runs 1 round with --resolve off via --agents flag and skips synthesis", () => {

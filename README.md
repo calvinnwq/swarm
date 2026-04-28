@@ -2,7 +2,7 @@
 
 Standalone TypeScript CLI for running agent swarms — parse a topic, fan out agents in parallel rounds, collect structured output, synthesize.
 
-> **Alpha status.** This README documents the one supported golden path. Features not listed here (and especially modes flagged _stub_ or _not yet implemented_) are not part of the alpha contract and may not behave as advertised.
+> **Alpha status.** This README documents the one supported golden path. Features not listed here (and especially modes flagged _not yet implemented_) are not part of the alpha contract and may not behave as advertised.
 
 ## Install
 
@@ -82,8 +82,10 @@ Arguments:
 Options:
   --agents <list>    comma-separated agent names
   --backend <name>   runtime backend adapter (currently: claude, codex)
-  --resolve <mode>   record resolution mode in manifest: off | orchestrator | agents
-                     (mode-specific resolution is stubbed)
+  --resolve <mode>   between-round resolution mode: off | orchestrator | agents.
+                     orchestrator runs an LLM-driven pass that updates question
+                     resolutions and the next-round directive; off uses the
+                     deterministic directive only; agents is reserved.
   --goal <text>      primary goal for the swarm
   --decision <text>  decision target for the swarm
   --doc <path>       carry-forward document (repeatable)
@@ -92,7 +94,30 @@ Options:
   -h, --help         display help for command
 ```
 
-> **Heads up — `--resolve` behavior is limited for alpha.** The value is accepted, persisted in the run manifest, and carried through synthesis. A between-round orchestrator pass now feeds later round briefs, but resolve modes do not yet change question-resolution behavior.
+#### Resolution modes
+
+`--resolve` controls what happens **between rounds** while the run is in flight, in addition to being recorded in the manifest:
+
+| Mode           | Between-round behavior                                                                                                                                                                                                                                                                                                                                          |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `off`          | Deterministic only — the next-round brief gets a templated `Orchestrator Pass` summary built from the prior packet. No extra LLM call. Question resolutions stay empty.                                                                                                                                                                                          |
+| `orchestrator` | Real LLM pass — the bundled `orchestrator` agent receives the prior packet and returns a structured `OrchestratorOutput` (directive, `questionResolutions`, `questionResolutionLimit`, `deferredQuestions`, `confidence`). The directive feeds round N+1's brief, the resolutions are merged into the round-N packet, and each pass is captured in the manifests below. |
+| `agents`       | Reserved — accepted and persisted in `manifest.json`/`synthesis.json` but currently behaves like `off` between rounds. Kept on the CLI surface so future agent-driven resolution can be wired in without a flag rename.                                                                                                                                          |
+
+In `orchestrator` mode the run produces three additional audit signals:
+
+- `events.jsonl` gets an `orchestrator:pass` event per between-round pass, with metadata for `agentName`, `directive`, `confidence`, `questionResolutionsCount`, `questionResolutionLimit`, and `deferredQuestionsCount`.
+- `checkpoint.json` gains an `orchestratorPasses` array, one entry per pass with the full `OrchestratorOutput` snapshot for resume/rehydration.
+- The next round's `brief.md` embeds the LLM-derived directive instead of the deterministic templated summary.
+
+If the orchestrator dispatch fails (timeout, malformed JSON after the single repair attempt, non-zero exit), the run finalizes with status `failed`, emits a `run:failed` event, and exits `1`. Earlier successful passes remain captured in `checkpoint.json` so a resume can pick up cleanly.
+
+```bash
+# Run with orchestrator-driven resolution (default for the bundled preset)
+swarm run 2 "Should we adopt server components?" \
+  --preset product-decision \
+  --resolve orchestrator
+```
 
 Carry-forward docs from `--doc` are resolved before the run, deduplicated by path, and must be readable files. Their first 4,000 characters are packed into the seed brief with provenance, so agents receive bounded source context rather than path-only metadata.
 
@@ -170,7 +195,7 @@ preset: product-decision
 backend: claude
 goal: Decide on migration strategy
 decision: Adopt / Defer / Reject
-resolve: off # off | orchestrator | agents (limited; see note above)
+resolve: off # off | orchestrator | agents — see "Resolution modes" above
 docs:
   - docs/architecture.md
 ```

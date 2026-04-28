@@ -56,7 +56,7 @@ program
   .option("--agents <list>", "comma-separated agent names")
   .option(
     "--resolve <mode>",
-    "record resolution mode in manifest: off | orchestrator | agents (mode-specific resolution is stubbed)",
+    "between-round resolution mode: off | orchestrator | agents. orchestrator runs an LLM-driven pass that updates question resolutions and the next-round directive; off uses the deterministic directive only; agents is reserved.",
   )
   .option("--goal <text>", "primary goal for the swarm")
   .option("--decision <text>", "decision target for the swarm")

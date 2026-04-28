@@ -59,6 +59,35 @@ try {
   counters = JSON.parse(fs.readFileSync(statePath, "utf8"));
 } catch {}
 
+// Orchestrator resolution pass — return an OrchestratorOutput JSON instead.
+if (brief.startsWith("# Orchestrator Resolution Pass")) {
+  const nextRoundMatch = brief.match(/Round (\\d+)/);
+  const nextRound = nextRoundMatch ? Number(nextRoundMatch[1]) : 1;
+  const openQs = (brief.match(/^- (.+)$/gm) ?? []).map((line) => line.slice(2));
+  process.stdout.write(JSON.stringify({
+    round: nextRound,
+    directive:
+      "Round " + nextRound + " focus: validate the strongest recommendation against the shared migration risk before deciding.",
+    questionResolutions: openQs.slice(0, 1).map((question) => ({
+      question,
+      status: "directional",
+      answer: "Lean toward Adopt; revisit migration risk in the next round.",
+      basis: "Both agents recommended Adopt with high confidence in round " + (nextRound - 1) + ".",
+      confidence: "medium",
+      askedBy: ["product-manager"],
+      supportingAgents: ["product-manager", "principal-engineer"],
+      supportingReasoning: ["Both agents lean Adopt"],
+      relatedObjections: [],
+      relatedRisks: ["shared migration risk"],
+      blockingScore: 1,
+    })),
+    questionResolutionLimit: 3,
+    deferredQuestions: openQs.slice(1),
+    confidence: "medium",
+  }));
+  process.exit(0);
+}
+
 const agent = /product manager/i.test(systemPrompt)
   ? "product-manager"
   : /principal engineer/i.test(systemPrompt)
