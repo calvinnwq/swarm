@@ -139,7 +139,7 @@ describe("dispatchOrchestratorPass", () => {
     expect(backend.dispatch).toHaveBeenCalledTimes(1);
     const [, agentArg, optsArg] = backend.dispatch.mock.calls[0]!;
     expect(agentArg).toBe(orchestratorAgent);
-    expect(optsArg).toEqual({ timeoutMs: 4242 });
+    expect(optsArg).toEqual({ timeoutMs: 4242, outputSchema: "orchestrator" });
   });
 
   it("returns ok=false when the backend dispatch throws", async () => {

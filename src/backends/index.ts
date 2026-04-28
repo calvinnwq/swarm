@@ -9,6 +9,13 @@ export interface AgentResponse {
   durationMs: number;
 }
 
+export type BackendOutputSchema = "agent" | "orchestrator";
+
+export interface BackendDispatchOptions {
+  timeoutMs: number;
+  outputSchema?: BackendOutputSchema;
+}
+
 export interface BackendAdapter {
   readonly wrapperName?: string;
   extractOutputJson?(raw: string): unknown;
@@ -16,7 +23,7 @@ export interface BackendAdapter {
   dispatch(
     prompt: string,
     agent: AgentDefinition,
-    opts: { timeoutMs: number },
+    opts: BackendDispatchOptions,
   ): Promise<AgentResponse>;
 }
 

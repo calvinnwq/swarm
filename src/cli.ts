@@ -16,6 +16,7 @@ import {
   SwarmCommandError,
   type AgentSelectionSource,
 } from "./lib/index.js";
+import type { AgentDefinition, HarnessId } from "./schemas/index.js";
 import {
   buildHarnessAdapterRegistry,
   createAgentAdapterResolver,
@@ -37,6 +38,30 @@ function parseRoundsArg(value: string): number {
     throw new InvalidArgumentError("rounds must be an integer");
   }
   return parsed;
+}
+
+function resolveOrchestratorAgent(
+  orchestratorAgent: AgentDefinition,
+  agents: readonly AgentDefinition[],
+  hasRunBackendOverride: boolean,
+): AgentDefinition {
+  if (hasRunBackendOverride || orchestratorAgent.harness !== undefined) {
+    return orchestratorAgent;
+  }
+
+  const explicitHarnesses = new Set<HarnessId>();
+  for (const agent of agents) {
+    if (agent.harness !== undefined) {
+      explicitHarnesses.add(agent.harness);
+    }
+  }
+
+  if (explicitHarnesses.size !== 1) {
+    return orchestratorAgent;
+  }
+
+  const [harness] = explicitHarnesses;
+  return { ...orchestratorAgent, harness };
 }
 
 const program = new Command();
@@ -144,12 +169,19 @@ program
         });
         const registry = await loadAgentRegistry();
         const agents = config.agents.map((name) => registry.getAgent(name));
-        const orchestratorAgent =
+        const rawOrchestratorAgent =
           config.resolveMode === "orchestrator"
             ? registry.getAgent("orchestrator")
             : undefined;
         const runtimeBackend =
           resolvedBackend === undefined ? undefined : config.backend;
+        const orchestratorAgent = rawOrchestratorAgent
+          ? resolveOrchestratorAgent(
+              rawOrchestratorAgent,
+              agents,
+              runtimeBackend !== undefined,
+            )
+          : undefined;
         const resolutionTargets = orchestratorAgent
           ? [...agents, orchestratorAgent]
           : agents;

@@ -67,7 +67,10 @@ export async function dispatchOrchestratorPass(
 
   const dispatch = async (input: string): Promise<DispatchAttempt> => {
     try {
-      const response = await backend.dispatch(input, agent, { timeoutMs });
+      const response = await backend.dispatch(input, agent, {
+        timeoutMs,
+        outputSchema: "orchestrator",
+      });
       return { kind: "response", response };
     } catch (err) {
       return {

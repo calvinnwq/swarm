@@ -183,6 +183,48 @@ describe("CodexCliAdapter", () => {
     );
   });
 
+  it("uses the orchestrator schema when requested", async () => {
+    vi.mocked(execa).mockResolvedValueOnce({
+      exitCode: 0,
+      stdout:
+        '{"round":2,"directive":"continue","questionResolutions":[],"questionResolutionLimit":0,"deferredQuestions":[],"confidence":"medium"}',
+      stderr: "",
+      timedOut: false,
+    } as Awaited<ReturnType<typeof execa>>);
+
+    const adapter = new CodexCliAdapter();
+    await adapter.dispatch("brief", agent, {
+      timeoutMs: 5_000,
+      outputSchema: "orchestrator",
+    });
+
+    const args = vi.mocked(execa).mock.calls[0]?.[1] as string[];
+    const outputSchemaPath = args[args.indexOf("--output-schema") + 1];
+    const schema = JSON.parse(
+      await import("node:fs/promises").then(({ readFile }) =>
+        readFile(outputSchemaPath, "utf8"),
+      ),
+    ) as {
+      additionalProperties?: boolean;
+      required?: string[];
+      properties?: Record<string, unknown>;
+    };
+
+    expect(outputSchemaPath).toContain("orchestrator-output");
+    expect(schema.additionalProperties).toBe(false);
+    expect(schema.required).toEqual(
+      expect.arrayContaining([
+        "round",
+        "directive",
+        "questionResolutions",
+        "questionResolutionLimit",
+        "deferredQuestions",
+        "confidence",
+      ]),
+    );
+    expect(schema.properties?.directive).toEqual({ type: "string" });
+  });
+
   it("creates an isolated workdir for each dispatch", async () => {
     vi.mocked(execa)
       .mockResolvedValueOnce({
