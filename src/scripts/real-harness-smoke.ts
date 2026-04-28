@@ -10,7 +10,8 @@
  *   - mkdtemp a fresh working dir per harness pass under os.tmpdir()
  *   - resolve dist/cli.mjs next to this script after `pnpm build`
  *   - print one matrix JSON object on stdout, exit 0 when every pass is ok,
- *     exit 1 when any pass failed (run failed or artifacts missing)
+ *     exit 1 when any pass failed (run failed, artifacts missing, or artifact
+ *     validation failed)
  *
  * Run via `pnpm smoke:real --harness claude --topic "alpha"` for a single
  * harness, or `--harness claude,codex` for a sequential mixed run.
