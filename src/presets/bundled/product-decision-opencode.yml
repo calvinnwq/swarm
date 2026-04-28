@@ -1,0 +1,9 @@
+name: product-decision-opencode
+description: >
+  Opinionated two-agent swarm for product decisions on the OpenCode harness.
+agents:
+  - product-manager-opencode
+  - principal-engineer-opencode
+resolve: orchestrator
+goal: Reach a decision-ready recommendation grounded in user value and engineering feasibility.
+decision: Proceed / Defer / Reject

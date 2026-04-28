@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
 import type { AgentDefinition } from "../schemas/index.js";
-import type { AgentResponse, BackendAdapter } from "./index.js";
+import type {
+  AgentResponse,
+  BackendAdapter,
+  BackendDispatchOptions,
+} from "./index.js";
 import { extractAgentOutputJson } from "./json-output.js";
 import { joinPromptSections, resolveAgentPrompt } from "./shared.js";
 
@@ -82,7 +86,7 @@ export class OpenCodeCliAdapter implements BackendAdapter {
   async dispatch(
     brief: string,
     agent: AgentDefinition,
-    opts: { timeoutMs: number },
+    opts: BackendDispatchOptions,
   ): Promise<AgentResponse> {
     const promptBody = await resolveAgentPrompt(agent);
     const prompt = composeOpenCodePrompt(agent.persona, promptBody, brief);

@@ -114,14 +114,28 @@ function installOpenCodeStub(binDir: string): void {
 const fs = require("node:fs");
 
 const prompt = fs.readFileSync(0, "utf8");
-const match = prompt.match(/AGENT-NAME:(\\S+)/);
+if (prompt.includes("# Orchestrator Resolution Pass")) {
+  const nextRoundMatch = prompt.match(/Round (\\d+)/);
+  const nextRound = nextRoundMatch ? Number(nextRoundMatch[1]) : 2;
+  process.stdout.write(JSON.stringify({
+    round: nextRound,
+    directive: "opencode orchestrator directive for round " + nextRound,
+    questionResolutions: [],
+    questionResolutionLimit: 0,
+    deferredQuestions: [],
+    confidence: "medium",
+  }));
+  process.exit(0);
+}
+const match = prompt.match(/AGENT-NAME:(\\S+)/) || prompt.match(/You are the ([a-z-]+) agent/);
 const agent = match ? match[1] : "unknown-opencode-agent";
 const modelIdx = process.argv.indexOf("--model");
 const model = modelIdx >= 0 ? (process.argv[modelIdx + 1] ?? "") : "";
+const round = prompt.includes("Prior Round Packet") ? 2 : 1;
 
 process.stdout.write(JSON.stringify({
   agent,
-  round: 1,
+  round,
   stance: "Adopt",
   recommendation: agent + " dispatched via opencode harness model=" + model,
   reasoning: [agent + " reasoned through the opencode CLI"],
@@ -456,5 +470,43 @@ describe("e2e: mixed-harness swarm run", () => {
     expect(peMd).toContain("Harness: rovo");
     expect(peMd).toContain("Model: harness-default");
     expect(peMd).toContain("pe-rovo dispatched via rovo harness model=");
+  });
+
+  it("runs the bundled OpenCode preset orchestrator through opencode", () => {
+    const result = spawnSync(
+      "node",
+      [
+        cliPath,
+        "run",
+        "2",
+        "Should we use the opencode preset",
+        "--preset",
+        "product-decision-opencode",
+      ],
+      {
+        cwd: baseDir,
+        encoding: "utf-8",
+        env: { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ""}` },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("[run] complete rounds=2");
+
+    const runsDir = join(baseDir, ".swarm", "runs");
+    const [entry] = readdirSync(runsDir);
+    expect(entry).toBeTruthy();
+    const runDir = join(runsDir, entry);
+    const manifest = JSON.parse(
+      readFileSync(join(runDir, "manifest.json"), "utf-8"),
+    );
+
+    expect(manifest.resolveMode).toBe("orchestrator");
+    expect(manifest.agentRuntimes).toContainEqual({
+      agentName: "orchestrator",
+      harness: "opencode",
+      model: null,
+      source: { harness: "agent.harness", model: "harness-default" },
+    });
   });
 });

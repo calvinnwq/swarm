@@ -30,6 +30,17 @@ describe("swarm cli", () => {
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
   });
 
+  it("describes --resolve modes honestly in run --help (no stub language)", () => {
+    const { status, stdout } = runCli(["run", "--help"]);
+    expect(status).toBe(0);
+    // The orchestrator pass is now a real LLM-driven step; help text must
+    // not call resolution stubbed.
+    expect(stdout.toLowerCase()).not.toContain("stub");
+    // Help must call out that orchestrator mode runs an LLM-driven pass.
+    expect(stdout).toMatch(/orchestrator/);
+    expect(stdout).toMatch(/off\s*\|\s*orchestrator/);
+  });
+
   // Note: the "run" command now dispatches to the real claude binary,
   // so a full CLI integration test requires CLAUDE_CLI=1.
   // The programmatic e2e test (e2e.test.ts) covers the full pipeline

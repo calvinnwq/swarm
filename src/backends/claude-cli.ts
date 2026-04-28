@@ -1,7 +1,11 @@
 import { execa } from "execa";
 import { AgentOutputSchema } from "../schemas/index.js";
 import type { AgentDefinition, AgentOutput } from "../schemas/index.js";
-import type { AgentResponse, BackendAdapter } from "./index.js";
+import type {
+  AgentResponse,
+  BackendAdapter,
+  BackendDispatchOptions,
+} from "./index.js";
 import {
   extractAgentOutputJson as extractAgentOutputJsonFromRaw,
   extractJson as extractJsonFromRaw,
@@ -60,7 +64,7 @@ export class ClaudeCliAdapter implements BackendAdapter {
   async dispatch(
     prompt: string,
     agent: AgentDefinition,
-    opts: { timeoutMs: number },
+    opts: BackendDispatchOptions,
   ): Promise<AgentResponse> {
     const promptBody = await resolveAgentPrompt(agent);
     const systemPrompt = composeSystemPrompt(agent.persona, promptBody);

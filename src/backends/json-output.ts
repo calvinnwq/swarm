@@ -31,7 +31,7 @@ export function extractJson(raw: string): unknown {
   return extractJsonCandidates(raw)[0];
 }
 
-function extractJsonCandidates(raw: string): unknown[] {
+export function extractJsonCandidates(raw: string): unknown[] {
   const trimmed = raw.trim();
   const candidates: Array<{ start: number; value: unknown }> = [];
 

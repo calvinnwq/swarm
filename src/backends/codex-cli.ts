@@ -3,13 +3,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
 import type { AgentDefinition } from "../schemas/index.js";
-import type { AgentResponse, BackendAdapter } from "./index.js";
+import type {
+  AgentResponse,
+  BackendAdapter,
+  BackendDispatchOptions,
+  BackendOutputSchema,
+} from "./index.js";
 import { extractAgentOutputJson } from "./json-output.js";
 import { joinPromptSections, resolveAgentPrompt } from "./shared.js";
 
 const AGENT_OUTPUT_JSON_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   type: "object",
+  additionalProperties: false,
   required: [
     "agent",
     "round",
@@ -36,23 +42,92 @@ const AGENT_OUTPUT_JSON_SCHEMA = {
   },
 } as const;
 
-let schemaPathPromise: Promise<string> | null = null;
+const ORCHESTRATOR_OUTPUT_JSON_SCHEMA = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "round",
+    "directive",
+    "questionResolutions",
+    "questionResolutionLimit",
+    "deferredQuestions",
+    "confidence",
+  ],
+  properties: {
+    round: { type: "integer", minimum: 0 },
+    directive: { type: "string" },
+    questionResolutions: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "question",
+          "status",
+          "answer",
+          "basis",
+          "confidence",
+          "askedBy",
+          "supportingAgents",
+          "supportingReasoning",
+          "relatedObjections",
+          "relatedRisks",
+          "blockingScore",
+        ],
+        properties: {
+          question: { type: "string" },
+          status: {
+            type: "string",
+            enum: ["consensus", "directional", "deferred"],
+          },
+          answer: { type: "string" },
+          basis: { type: "string" },
+          confidence: { type: "string", enum: ["low", "medium", "high"] },
+          askedBy: { type: "array", items: { type: "string" } },
+          supportingAgents: { type: "array", items: { type: "string" } },
+          supportingReasoning: { type: "array", items: { type: "string" } },
+          relatedObjections: { type: "array", items: { type: "string" } },
+          relatedRisks: { type: "array", items: { type: "string" } },
+          blockingScore: { type: "integer", minimum: 0 },
+        },
+      },
+    },
+    questionResolutionLimit: { type: "integer", minimum: 0 },
+    deferredQuestions: { type: "array", items: { type: "string" } },
+    confidence: { type: "string", enum: ["low", "medium", "high"] },
+  },
+} as const;
 
-async function ensureOutputSchemaPath(): Promise<string> {
+const OUTPUT_SCHEMAS: Readonly<Record<BackendOutputSchema, unknown>> = {
+  agent: AGENT_OUTPUT_JSON_SCHEMA,
+  orchestrator: ORCHESTRATOR_OUTPUT_JSON_SCHEMA,
+};
+
+const schemaPathPromises = new Map<BackendOutputSchema, Promise<string>>();
+
+async function ensureOutputSchemaPath(
+  outputSchema: BackendOutputSchema,
+): Promise<string> {
+  let schemaPathPromise = schemaPathPromises.get(outputSchema);
   if (!schemaPathPromise) {
     schemaPathPromise = (async () => {
-      const filePath = join(tmpdir(), "swarm-codex-agent-output.schema.json");
+      const filePath = join(
+        tmpdir(),
+        `swarm-codex-${outputSchema}-output.schema.json`,
+      );
       await writeFile(
         filePath,
-        JSON.stringify(AGENT_OUTPUT_JSON_SCHEMA, null, 2) + "\n",
+        JSON.stringify(OUTPUT_SCHEMAS[outputSchema], null, 2) + "\n",
         "utf-8",
       );
 
       return filePath;
     })().catch((error) => {
-      schemaPathPromise = null;
+      schemaPathPromises.delete(outputSchema);
       throw error;
     });
+    schemaPathPromises.set(outputSchema, schemaPathPromise);
   }
 
   return await schemaPathPromise;
@@ -131,10 +206,12 @@ export class CodexCliAdapter implements BackendAdapter {
   async dispatch(
     brief: string,
     agent: AgentDefinition,
-    opts: { timeoutMs: number },
+    opts: BackendDispatchOptions,
   ): Promise<AgentResponse> {
     const promptBody = await resolveAgentPrompt(agent);
-    const schemaPath = await ensureOutputSchemaPath();
+    const schemaPath = await ensureOutputSchemaPath(
+      opts.outputSchema ?? "agent",
+    );
     const workdir = await ensureCodexWorkdir();
     const prompt = composeCodexPrompt(agent.persona, promptBody, brief);
 

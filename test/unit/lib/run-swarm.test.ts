@@ -21,6 +21,7 @@ const emitterMock = new EventEmitter();
 const checkpointWriteMock = vi.fn();
 const ledgerAppendEventMock = vi.fn();
 const inboxStageMock = vi.fn();
+const dispatchOrchestratorPassMock = vi.fn();
 
 vi.mock("../../../src/lib/round-runner.js", () => ({
   createRoundRunner: vi.fn(() => ({
@@ -86,6 +87,10 @@ vi.mock("../../../src/lib/brief-generator.js", () => ({
   buildOrchestratorPassDirective: vi.fn(() => "pass directive"),
 }));
 
+vi.mock("../../../src/lib/orchestrator-dispatcher.js", () => ({
+  dispatchOrchestratorPass: dispatchOrchestratorPassMock,
+}));
+
 vi.mock("../../../src/ui/index.js", () => ({
   attachLiveRenderer: attachLiveRendererMock,
   attachQuietLogger: attachQuietLoggerMock,
@@ -104,6 +109,7 @@ describe("runSwarm", () => {
     checkpointWriteMock.mockReset();
     ledgerAppendEventMock.mockReset();
     inboxStageMock.mockReset();
+    dispatchOrchestratorPassMock.mockReset();
     emitterMock.removeAllListeners();
   });
 
@@ -515,5 +521,570 @@ describe("runSwarm", () => {
         recipients: ["alpha"],
       }),
     );
+  });
+
+  describe('resolveMode === "orchestrator"', () => {
+    const orchestratorAgent: AgentDefinition = {
+      name: "orchestrator",
+      description: "orch",
+      persona: "orch",
+      prompt: "orch",
+      backend: "claude",
+    };
+
+    const baseAgents: AgentDefinition[] = [
+      {
+        name: "alpha",
+        description: "a",
+        persona: "a",
+        prompt: "a",
+        backend: "claude",
+      },
+    ];
+
+    const baseConfig = (
+      resolveMode: SwarmRunConfig["resolveMode"],
+    ): SwarmRunConfig => ({
+      topic: "topic",
+      rounds: 3,
+      backend: "claude",
+      preset: null,
+      agents: ["alpha"],
+      selectionSource: "explicit-agents",
+      resolveMode,
+      goal: "ship",
+      decision: "go-no-go",
+      docs: [],
+      commandText: "swarm run 3 topic --agents alpha",
+    });
+
+    const samplePacket: RoundPacket = {
+      round: 1,
+      agents: ["alpha"],
+      summaries: [],
+      keyObjections: [],
+      sharedRisks: [],
+      openQuestions: [],
+      questionResolutions: [],
+      questionResolutionLimit: 0,
+      deferredQuestions: [],
+    };
+
+    it("dispatches the orchestrator pass and uses its directive when resolveMode is orchestrator", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+      dispatchOrchestratorPassMock.mockResolvedValue({
+        ok: true,
+        output: {
+          round: 2,
+          directive: "llm-derived directive",
+          questionResolutions: [],
+          questionResolutionLimit: 0,
+          deferredQuestions: [],
+          confidence: "high",
+        },
+        raw: {
+          ok: true,
+          exitCode: 0,
+          stdout: "{}",
+          stderr: "",
+          timedOut: false,
+          durationMs: 5,
+        },
+      });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      const orchestratorBackendDispatch = vi.fn();
+      const orchestratorBackend = {
+        dispatch: orchestratorBackendDispatch,
+      } as unknown as BackendAdapter;
+      const resolveBackend = vi.fn(() => orchestratorBackend);
+
+      await runSwarm({
+        config: baseConfig("orchestrator"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+        resolveBackend,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      checkpointWriteMock.mockReset();
+      inboxStageMock.mockReset();
+      await opts.betweenRounds?.({ round: 1, packet: samplePacket });
+
+      expect(dispatchOrchestratorPassMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          backend: orchestratorBackend,
+          agent: orchestratorAgent,
+          packet: samplePacket,
+          goal: "ship",
+          decision: "go-no-go",
+          nextRound: 2,
+        }),
+      );
+      expect(resolveBackend).toHaveBeenCalledWith(orchestratorAgent);
+      expect(checkpointWriteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orchestratorDirective: "llm-derived directive",
+        }),
+      );
+      expect(inboxStageMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "broadcast",
+          payload: expect.objectContaining({
+            directive: "llm-derived directive",
+          }),
+        }),
+      );
+    });
+
+    it("falls back to the default backend for the orchestrator agent when no resolver is provided", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+      dispatchOrchestratorPassMock.mockResolvedValue({
+        ok: true,
+        output: {
+          round: 2,
+          directive: "fallback directive",
+          questionResolutions: [],
+          questionResolutionLimit: 0,
+          deferredQuestions: [],
+          confidence: "medium",
+        },
+        raw: null,
+      });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      const defaultBackend = {} as BackendAdapter;
+
+      await runSwarm({
+        config: baseConfig("orchestrator"),
+        agents: baseAgents,
+        backend: defaultBackend,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      await opts.betweenRounds?.({ round: 1, packet: samplePacket });
+
+      expect(dispatchOrchestratorPassMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          backend: defaultBackend,
+          agent: orchestratorAgent,
+        }),
+      );
+    });
+
+    it("does not dispatch the orchestrator when resolveMode is off", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("off"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      await opts.betweenRounds?.({ round: 1, packet: samplePacket });
+
+      expect(dispatchOrchestratorPassMock).not.toHaveBeenCalled();
+    });
+
+    it("does not dispatch the orchestrator when resolveMode is orchestrator but no orchestratorAgent is provided", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("orchestrator"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      await opts.betweenRounds?.({ round: 1, packet: samplePacket });
+
+      expect(dispatchOrchestratorPassMock).not.toHaveBeenCalled();
+      // Falls back to deterministic directive
+      expect(checkpointWriteMock).toHaveBeenCalledWith(
+        expect.objectContaining({ orchestratorDirective: "pass directive" }),
+      );
+    });
+
+    it("fails the run when an OrchestratorDispatchError escapes the round runner", async () => {
+      const { OrchestratorDispatchError, runSwarm } =
+        await import("../../../src/lib/run-swarm.js");
+      runMock.mockImplementationOnce(async () => {
+        throw new OrchestratorDispatchError(
+          "Orchestrator dispatch failed: backend exited with code 1",
+        );
+      });
+
+      const code = await runSwarm({
+        config: baseConfig("orchestrator"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      expect(code).toBe(1);
+      expect(finalizeMock).toHaveBeenCalledWith(expect.any(String), "failed");
+      expect(
+        ledgerAppendEventMock.mock.calls.some(
+          ([event]) => (event as { kind: string }).kind === "run:failed",
+        ),
+      ).toBe(true);
+    });
+
+    it("populates the packet's question resolutions from a successful orchestrator pass", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+      const resolution = {
+        question: "Which DB?",
+        status: "consensus" as const,
+        answer: "Postgres",
+        basis: "Most agents agreed",
+        confidence: "high" as const,
+        askedBy: ["alpha"],
+        supportingAgents: ["alpha", "beta"],
+        supportingReasoning: ["maturity", "ecosystem"],
+        relatedObjections: [],
+        relatedRisks: [],
+        blockingScore: 5,
+      };
+      dispatchOrchestratorPassMock.mockResolvedValue({
+        ok: true,
+        output: {
+          round: 2,
+          directive: "llm-derived directive",
+          questionResolutions: [resolution],
+          questionResolutionLimit: 3,
+          deferredQuestions: ["When will the team be ready?"],
+          confidence: "high",
+        },
+        raw: null,
+      });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("orchestrator"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      checkpointWriteMock.mockReset();
+      const mutablePacket: RoundPacket = {
+        round: 1,
+        agents: ["alpha"],
+        summaries: [],
+        keyObjections: [],
+        sharedRisks: [],
+        openQuestions: ["Which DB?"],
+        questionResolutions: [],
+        questionResolutionLimit: 0,
+        deferredQuestions: [],
+      };
+      await opts.betweenRounds?.({ round: 1, packet: mutablePacket });
+
+      expect(mutablePacket.questionResolutions).toEqual([resolution]);
+      expect(mutablePacket.questionResolutionLimit).toBe(3);
+      expect(mutablePacket.deferredQuestions).toEqual([
+        "When will the team be ready?",
+      ]);
+      expect(checkpointWriteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          priorPacket: expect.objectContaining({
+            questionResolutions: [resolution],
+            questionResolutionLimit: 3,
+            deferredQuestions: ["When will the team be ready?"],
+          }),
+        }),
+      );
+    });
+
+    it("does not mutate packet resolution fields when resolveMode is off", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("off"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      const mutablePacket: RoundPacket = {
+        round: 1,
+        agents: ["alpha"],
+        summaries: [],
+        keyObjections: [],
+        sharedRisks: [],
+        openQuestions: [],
+        questionResolutions: [],
+        questionResolutionLimit: 0,
+        deferredQuestions: [],
+      };
+      const snapshot = JSON.parse(JSON.stringify(mutablePacket));
+      await opts.betweenRounds?.({ round: 1, packet: mutablePacket });
+
+      expect(mutablePacket).toEqual(snapshot);
+    });
+
+    it("appends a successful orchestrator pass to the checkpoint's orchestratorPasses", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+      const output = {
+        round: 2,
+        directive: "llm-derived directive",
+        questionResolutions: [],
+        questionResolutionLimit: 3,
+        deferredQuestions: ["When can we ramp?"],
+        confidence: "high" as const,
+      };
+      dispatchOrchestratorPassMock.mockResolvedValue({
+        ok: true,
+        output,
+        raw: null,
+      });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("orchestrator"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      checkpointWriteMock.mockReset();
+      ledgerAppendEventMock.mockReset();
+      await opts.betweenRounds?.({ round: 1, packet: samplePacket });
+
+      const orchPassRecord = {
+        round: 1,
+        agentName: orchestratorAgent.name,
+        output,
+      };
+      expect(checkpointWriteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orchestratorPasses: [expect.objectContaining(orchPassRecord)],
+        }),
+      );
+
+      const orchEvent = ledgerAppendEventMock.mock.calls.find(
+        ([event]) => (event as { kind: string }).kind === "orchestrator:pass",
+      );
+      expect(orchEvent).toBeDefined();
+      expect(orchEvent![0].metadata).toEqual(
+        expect.objectContaining({
+          agentName: orchestratorAgent.name,
+          directive: "llm-derived directive",
+          confidence: "high",
+          questionResolutionsCount: 0,
+          questionResolutionLimit: 3,
+          deferredQuestionsCount: 1,
+        }),
+      );
+    });
+
+    it("does not write orchestratorPasses on the checkpoint when resolveMode is off", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("off"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      checkpointWriteMock.mockReset();
+      await opts.betweenRounds?.({ round: 1, packet: samplePacket });
+
+      const lastWrite = checkpointWriteMock.mock.calls.at(-1)![0] as {
+        orchestratorPasses?: unknown;
+      };
+      expect(lastWrite.orchestratorPasses).toBeUndefined();
+    });
+
+    it("passes prior orchestrator resolutions into later orchestrator passes", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+      const resolution = {
+        question: "Which DB?",
+        status: "consensus" as const,
+        answer: "Postgres",
+        basis: "Most agents agreed",
+        confidence: "high" as const,
+        askedBy: ["alpha"],
+        supportingAgents: ["alpha", "beta"],
+        supportingReasoning: ["maturity", "ecosystem"],
+        relatedObjections: [],
+        relatedRisks: [],
+        blockingScore: 5,
+      };
+      dispatchOrchestratorPassMock
+        .mockResolvedValueOnce({
+          ok: true,
+          output: {
+            round: 2,
+            directive: "first directive",
+            questionResolutions: [resolution],
+            questionResolutionLimit: 2,
+            deferredQuestions: ["Rollout cadence?"],
+            confidence: "high",
+          },
+          raw: null,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          output: {
+            round: 3,
+            directive: "second directive",
+            questionResolutions: [],
+            questionResolutionLimit: 2,
+            deferredQuestions: [],
+            confidence: "medium",
+          },
+          raw: null,
+        });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("orchestrator"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      await opts.betweenRounds?.({ round: 1, packet: samplePacket });
+      await opts.betweenRounds?.({
+        round: 2,
+        packet: { ...samplePacket, round: 2 },
+      });
+
+      expect(dispatchOrchestratorPassMock.mock.calls.at(-1)![0]).toEqual(
+        expect.objectContaining({
+          packet: expect.objectContaining({
+            questionResolutions: [resolution],
+            deferredQuestions: ["Rollout cadence?"],
+            questionResolutionLimit: 2,
+          }),
+        }),
+      );
+    });
+
+    it("checkpoints a completed round before failed orchestrator dispatch fails the run", async () => {
+      writeRoundMock.mockResolvedValue(undefined);
+      dispatchOrchestratorPassMock.mockResolvedValue({
+        ok: false,
+        error: "backend exited with code 1",
+        raw: null,
+      });
+      const agentResults: AgentResult[] = [
+        { agent: "alpha", ok: true, output: null, error: null, raw: null },
+        { agent: "beta", ok: true, output: null, error: null, raw: null },
+      ];
+      runMock.mockImplementationOnce(async () => {
+        const { createRoundRunner } =
+          await import("../../../src/lib/round-runner.js");
+        const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+        emitterMock.emit("round:done", {
+          round: 1,
+          packet: samplePacket,
+          agentResults,
+        });
+        await opts.betweenRounds?.({ round: 1, packet: samplePacket });
+        return { rounds: [], ok: true, error: null };
+      });
+
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      const code = await runSwarm({
+        config: baseConfig("orchestrator"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      expect(code).toBe(1);
+      expect(checkpointWriteMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lastCompletedRound: 1,
+          priorPacket: samplePacket,
+          completedRoundPackets: [samplePacket],
+          completedRoundResults: [
+            expect.objectContaining({ round: 1, packet: samplePacket }),
+          ],
+        }),
+      );
+      expect(finalizeMock).toHaveBeenCalledWith(expect.any(String), "failed");
+    });
+
+    it("throws an OrchestratorDispatchError out of betweenRounds when dispatch returns ok:false", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+      dispatchOrchestratorPassMock.mockResolvedValue({
+        ok: false,
+        error: "backend exited with code 1",
+        raw: null,
+      });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: baseConfig("orchestrator"),
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      await expect(
+        opts.betweenRounds?.({ round: 1, packet: samplePacket }),
+      ).rejects.toThrow(/orchestrator/i);
+    });
   });
 });

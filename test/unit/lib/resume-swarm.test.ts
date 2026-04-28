@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AgentDefinition,
   AgentOutput,
+  MessageEnvelope,
 } from "../../../src/schemas/index.js";
 import type { BackendAdapter } from "../../../src/backends/index.js";
 import type { SwarmRunConfig } from "../../../src/lib/config.js";
@@ -34,6 +35,9 @@ const ledgerAppendMessageMock = vi.fn();
 const inboxRehydrateMock = vi.fn();
 const inboxStageMock = vi.fn();
 const inboxCommitMock = vi.fn();
+const inboxGetStagedMock = vi.fn<() => MessageEnvelope[]>(() => []);
+const inboxStagedRecipientsMock = vi.fn<() => string[]>(() => []);
+const dispatchOrchestratorPassMock = vi.fn();
 
 vi.mock("../../../src/lib/round-runner.js", () => ({
   createRoundRunner: vi.fn(() => ({
@@ -85,9 +89,9 @@ vi.mock("../../../src/lib/inbox-manager.js", () => ({
       rehydrate: inboxRehydrateMock,
       stage: inboxStageMock,
       commit: inboxCommitMock,
-      getStaged: vi.fn(() => []),
+      getStaged: inboxGetStagedMock,
       getCommitted: vi.fn(() => []),
-      stagedRecipients: vi.fn(() => []),
+      stagedRecipients: inboxStagedRecipientsMock,
     };
   }),
 }));
@@ -100,6 +104,10 @@ vi.mock("../../../src/lib/brief-generator.js", () => ({
   buildSeedBrief: vi.fn(() => "seed brief"),
   buildRoundBrief: vi.fn(() => "round brief"),
   buildOrchestratorPassDirective: vi.fn(() => "pass directive"),
+}));
+
+vi.mock("../../../src/lib/orchestrator-dispatcher.js", () => ({
+  dispatchOrchestratorPass: dispatchOrchestratorPassMock,
 }));
 
 vi.mock("../../../src/ui/index.js", () => ({
@@ -226,6 +234,9 @@ describe("resumeSwarm", () => {
     inboxRehydrateMock.mockReset();
     inboxStageMock.mockReset();
     inboxCommitMock.mockReset();
+    inboxGetStagedMock.mockReset().mockReturnValue([]);
+    inboxStagedRecipientsMock.mockReset().mockReturnValue([]);
+    dispatchOrchestratorPassMock.mockReset();
     emitterMock.removeAllListeners();
   });
 
@@ -620,6 +631,375 @@ describe("resumeSwarm", () => {
         recipients: ["alpha", "beta"],
       }),
     );
+  });
+
+  it("populates the packet's question resolutions from a successful orchestrator pass on resume", async () => {
+    const orchestratorAgent: AgentDefinition = {
+      name: "orchestrator",
+      description: "orch",
+      persona: "orch",
+      prompt: "orch",
+      backend: "claude",
+    };
+    const orchConfig: SwarmRunConfig = {
+      ...config,
+      resolveMode: "orchestrator",
+      goal: "ship",
+      decision: "go",
+    };
+    const resolution = {
+      question: "Latency budget?",
+      status: "consensus" as const,
+      answer: "200ms p99",
+      basis: "Both agents agree",
+      confidence: "high" as const,
+      askedBy: ["alpha"],
+      supportingAgents: ["alpha", "beta"],
+      supportingReasoning: ["Aligned with SLO"],
+      relatedObjections: [],
+      relatedRisks: [],
+      blockingScore: 4,
+    };
+
+    checkpointReadMock.mockReturnValue({
+      ...checkpoint,
+      lastCompletedRound: 1,
+      priorPacket: { ...priorPacket, round: 1 },
+    });
+    runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+    dispatchOrchestratorPassMock.mockResolvedValue({
+      ok: true,
+      output: {
+        round: 3,
+        directive: "llm directive",
+        questionResolutions: [resolution],
+        questionResolutionLimit: 2,
+        deferredQuestions: ["Rollout cadence?"],
+        confidence: "medium",
+      },
+      raw: null,
+    });
+
+    const { createRoundRunner } =
+      await import("../../../src/lib/round-runner.js");
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    await resumeSwarm({
+      config: orchConfig,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+      orchestratorAgent,
+    });
+
+    const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+    const mutablePacket: RoundPacket = {
+      round: 2,
+      agents: ["alpha", "beta"],
+      summaries: [],
+      keyObjections: [],
+      sharedRisks: [],
+      openQuestions: ["Latency budget?"],
+      questionResolutions: [],
+      questionResolutionLimit: 0,
+      deferredQuestions: [],
+    };
+    checkpointWriteMock.mockReset();
+    await opts.betweenRounds?.({ round: 2, packet: mutablePacket });
+
+    expect(mutablePacket.questionResolutions).toEqual([resolution]);
+    expect(mutablePacket.questionResolutionLimit).toBe(2);
+    expect(mutablePacket.deferredQuestions).toEqual(["Rollout cadence?"]);
+    expect(checkpointWriteMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        priorPacket: expect.objectContaining({
+          questionResolutions: [resolution],
+          questionResolutionLimit: 2,
+          deferredQuestions: ["Rollout cadence?"],
+        }),
+      }),
+    );
+  });
+
+  it("rehydrates orchestratorPasses from the checkpoint and appends new ones from subsequent passes", async () => {
+    const orchestratorAgent: AgentDefinition = {
+      name: "orchestrator",
+      description: "orch",
+      persona: "orch",
+      prompt: "orch",
+      backend: "claude",
+    };
+    const orchConfig: SwarmRunConfig = {
+      ...config,
+      resolveMode: "orchestrator",
+      goal: "ship",
+      decision: "go",
+    };
+    const persistedPass = {
+      round: 1,
+      agentName: "orchestrator",
+      output: {
+        round: 2,
+        directive: "earlier directive",
+        questionResolutions: [],
+        questionResolutionLimit: 1,
+        deferredQuestions: [],
+        confidence: "medium" as const,
+      },
+    };
+    checkpointReadMock.mockReturnValue({
+      ...checkpoint,
+      lastCompletedRound: 1,
+      priorPacket: { ...priorPacket, round: 1 },
+      orchestratorPasses: [persistedPass],
+    });
+    runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+    const newOutput = {
+      round: 3,
+      directive: "fresh directive",
+      questionResolutions: [],
+      questionResolutionLimit: 2,
+      deferredQuestions: [],
+      confidence: "high" as const,
+    };
+    dispatchOrchestratorPassMock.mockResolvedValue({
+      ok: true,
+      output: newOutput,
+      raw: null,
+    });
+
+    const { createRoundRunner } =
+      await import("../../../src/lib/round-runner.js");
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    await resumeSwarm({
+      config: orchConfig,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+      orchestratorAgent,
+    });
+
+    const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+    const mutablePacket: RoundPacket = {
+      round: 2,
+      agents: ["alpha", "beta"],
+      summaries: [],
+      keyObjections: [],
+      sharedRisks: [],
+      openQuestions: [],
+      questionResolutions: [],
+      questionResolutionLimit: 0,
+      deferredQuestions: [],
+    };
+    checkpointWriteMock.mockReset();
+    await opts.betweenRounds?.({ round: 2, packet: mutablePacket });
+
+    expect(checkpointWriteMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orchestratorPasses: [
+          expect.objectContaining({
+            round: 1,
+            output: expect.objectContaining({ directive: "earlier directive" }),
+          }),
+          expect.objectContaining({
+            round: 2,
+            output: expect.objectContaining({ directive: "fresh directive" }),
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("replays pending between-round orchestration before resuming the next round", async () => {
+    const orchestratorAgent: AgentDefinition = {
+      name: "orchestrator",
+      description: "orch",
+      persona: "orch",
+      prompt: "orch",
+      backend: "claude",
+    };
+    const orchConfig: SwarmRunConfig = {
+      ...config,
+      resolveMode: "orchestrator",
+      goal: "ship",
+      decision: "go",
+    };
+    checkpointReadMock.mockReturnValue({
+      ...checkpoint,
+      lastCompletedRound: 1,
+      priorPacket: { ...priorPacket, round: 1 },
+      pendingBetweenRounds: true,
+    });
+    runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+    dispatchOrchestratorPassMock.mockResolvedValue({
+      ok: true,
+      output: {
+        round: 2,
+        directive: "fresh resumed directive",
+        questionResolutions: [],
+        questionResolutionLimit: 0,
+        deferredQuestions: [],
+        confidence: "high",
+      },
+      raw: null,
+    });
+
+    const { createRoundRunner } =
+      await import("../../../src/lib/round-runner.js");
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    await resumeSwarm({
+      config: orchConfig,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+      orchestratorAgent,
+    });
+
+    expect(dispatchOrchestratorPassMock).toHaveBeenCalledWith(
+      expect.objectContaining({ nextRound: 2 }),
+    );
+    expect(inboxStageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "broadcast",
+        payload: { directive: "fresh resumed directive", fromRound: 1 },
+        roundNumber: 2,
+      }),
+    );
+    const finalCheckpointWrite = checkpointWriteMock.mock.calls.at(-1)![0] as {
+      lastCompletedRound: number;
+      orchestratorDirective?: string;
+      pendingBetweenRounds?: boolean;
+    };
+    expect(finalCheckpointWrite).toEqual(
+      expect.objectContaining({
+        lastCompletedRound: 1,
+        orchestratorDirective: "fresh resumed directive",
+      }),
+    );
+    expect(finalCheckpointWrite).not.toHaveProperty("pendingBetweenRounds");
+    expect(vi.mocked(createRoundRunner).mock.calls.at(-1)![0]).toEqual(
+      expect.objectContaining({
+        startRound: 2,
+        initialOrchestratorDirective: "fresh resumed directive",
+      }),
+    );
+  });
+
+  it("finalizes as failed when pending orchestrator replay fails on resume", async () => {
+    const orchestratorAgent: AgentDefinition = {
+      name: "orchestrator",
+      description: "orch",
+      persona: "orch",
+      prompt: "orch",
+      backend: "claude",
+    };
+    const orchConfig: SwarmRunConfig = {
+      ...config,
+      resolveMode: "orchestrator",
+      goal: "ship",
+      decision: "go",
+    };
+    checkpointReadMock.mockReturnValue({
+      ...checkpoint,
+      lastCompletedRound: 1,
+      priorPacket: { ...priorPacket, round: 1 },
+      pendingBetweenRounds: true,
+    });
+    dispatchOrchestratorPassMock.mockResolvedValue({
+      ok: false,
+      error: "schema mismatch",
+      raw: "{}",
+    });
+
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    const code = await resumeSwarm({
+      config: orchConfig,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+      orchestratorAgent,
+    });
+
+    expect(code).toBe(1);
+    expect(ledgerAppendEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "run:failed",
+        metadata: { error: "Orchestrator dispatch failed: schema mismatch" },
+      }),
+    );
+    expect(finalizeMock).toHaveBeenCalledWith(expect.any(String), "failed");
+    expect(runMock).not.toHaveBeenCalled();
+  });
+
+  it("does not activate stale staged broadcasts before pending replay", async () => {
+    const orchestratorAgent: AgentDefinition = {
+      name: "orchestrator",
+      description: "orch",
+      persona: "orch",
+      prompt: "orch",
+      backend: "claude",
+    };
+    const orchConfig: SwarmRunConfig = {
+      ...config,
+      resolveMode: "orchestrator",
+      goal: "ship",
+      decision: "go",
+    };
+    checkpointReadMock.mockReturnValue({
+      ...checkpoint,
+      lastCompletedRound: 1,
+      priorPacket: { ...priorPacket, round: 1 },
+      pendingBetweenRounds: true,
+    });
+    inboxStagedRecipientsMock.mockReturnValue(["alpha"]);
+    inboxGetStagedMock.mockReturnValue([
+      {
+        messageId: "stale-directive",
+        senderId: "orchestrator",
+        recipients: ["alpha"],
+        kind: "broadcast",
+        payload: { directive: "stale", fromRound: 1 },
+        deliveryStatus: "staged",
+        createdAt: "2026-04-24T00:00:00.000Z",
+        roundNumber: 2,
+      },
+    ]);
+    runMock.mockImplementation(async () => {
+      emitterMock.emit("agent:start", { round: 2, agent: "alpha" });
+      return { rounds: [], ok: true, error: null };
+    });
+    dispatchOrchestratorPassMock.mockResolvedValue({
+      ok: true,
+      output: {
+        round: 2,
+        directive: "fresh resumed directive",
+        questionResolutions: [],
+        questionResolutionLimit: 0,
+        deferredQuestions: [],
+        confidence: "high",
+      },
+      raw: null,
+    });
+
+    const { resumeSwarm } = await import("../../../src/lib/run-swarm.js");
+    await resumeSwarm({
+      config: orchConfig,
+      agents,
+      backend,
+      runDir: "/tmp/run-1",
+      ui: "silent",
+      orchestratorAgent,
+    });
+    const freshMessageId = inboxStageMock.mock.calls.at(-1)![0].messageId;
+    const commitPredicate = inboxCommitMock.mock.calls.at(-1)![1] as (message: {
+      messageId: string;
+    }) => boolean;
+
+    expect(commitPredicate({ messageId: "stale-directive" })).toBe(false);
+    expect(commitPredicate({ messageId: freshMessageId })).toBe(true);
   });
 
   it("does not call ArtifactWriter.init on resume, preserving the existing manifest.json (B2)", async () => {

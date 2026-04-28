@@ -4,6 +4,7 @@ import { Command, InvalidArgumentError } from "commander";
 import {
   assertResolvedRuntimesAvailable,
   buildConfig,
+  backendToHarness,
   formatDoctorReport,
   loadAgentRegistry,
   loadPresetRegistry,
@@ -16,6 +17,7 @@ import {
   SwarmCommandError,
   type AgentSelectionSource,
 } from "./lib/index.js";
+import type { AgentDefinition, HarnessId } from "./schemas/index.js";
 import {
   buildHarnessAdapterRegistry,
   createAgentAdapterResolver,
@@ -39,6 +41,28 @@ function parseRoundsArg(value: string): number {
   return parsed;
 }
 
+function resolveOrchestratorAgent(
+  orchestratorAgent: AgentDefinition,
+  agents: readonly AgentDefinition[],
+  hasRunBackendOverride: boolean,
+): AgentDefinition {
+  if (hasRunBackendOverride || orchestratorAgent.harness !== undefined) {
+    return orchestratorAgent;
+  }
+
+  const explicitHarnesses = new Set<HarnessId>();
+  for (const agent of agents) {
+    explicitHarnesses.add(agent.harness ?? backendToHarness(agent.backend));
+  }
+
+  if (explicitHarnesses.size !== 1) {
+    return orchestratorAgent;
+  }
+
+  const [harness] = explicitHarnesses;
+  return { ...orchestratorAgent, harness };
+}
+
 const program = new Command();
 
 program
@@ -56,7 +80,7 @@ program
   .option("--agents <list>", "comma-separated agent names")
   .option(
     "--resolve <mode>",
-    "record resolution mode in manifest: off | orchestrator | agents (mode-specific resolution is stubbed)",
+    "between-round resolution mode: off | orchestrator | agents. orchestrator runs an LLM-driven pass that updates question resolutions and the next-round directive; off uses the deterministic directive only; agents is reserved.",
   )
   .option("--goal <text>", "primary goal for the swarm")
   .option("--decision <text>", "decision target for the swarm")
@@ -144,9 +168,26 @@ program
         });
         const registry = await loadAgentRegistry();
         const agents = config.agents.map((name) => registry.getAgent(name));
+        const rawOrchestratorAgent =
+          config.resolveMode === "orchestrator"
+            ? registry.getAgent("orchestrator")
+            : undefined;
         const runtimeBackend =
           resolvedBackend === undefined ? undefined : config.backend;
-        const resolved = resolveAgentRuntimes(agents, runtimeBackend);
+        const orchestratorAgent = rawOrchestratorAgent
+          ? resolveOrchestratorAgent(
+              rawOrchestratorAgent,
+              agents,
+              runtimeBackend !== undefined,
+            )
+          : undefined;
+        const resolutionTargets = orchestratorAgent
+          ? [...agents, orchestratorAgent]
+          : agents;
+        const resolved = resolveAgentRuntimes(
+          resolutionTargets,
+          runtimeBackend,
+        );
         assertResolvedRuntimesAvailable(resolved);
         const harnessRegistry = buildHarnessAdapterRegistry(resolved);
         const resolveBackend = createAgentAdapterResolver(
@@ -164,6 +205,7 @@ program
           resolveBackend,
           resolveRuntime,
           agentRuntimes: resolved,
+          orchestratorAgent,
         });
         process.exit(exitCode);
       } catch (err) {

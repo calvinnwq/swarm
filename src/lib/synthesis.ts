@@ -34,7 +34,9 @@ export function buildOrchestratorSynthesis(
     allRounds.flatMap((r) => r.packet.keyObjections),
   );
   const openQuestions = dedupeStrings(lastPacket.openQuestions);
-  const deferredQuestions = dedupeStrings(lastPacket.deferredQuestions);
+  const deferredQuestions = dedupeStrings(
+    allRounds.flatMap((r) => r.packet.deferredQuestions),
+  );
   const overallConfidence = computeOverallConfidence(lastPacket);
 
   const json: SynthesisJson = {

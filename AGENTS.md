@@ -16,6 +16,7 @@ pnpm dev             # tsdown --watch
 pnpm test            # vitest unit tests (test/unit/**)
 pnpm test:e2e        # builds, then vitest with vitest.e2e.config.ts (test/e2e/**)
 pnpm smoke           # builds, runs only test/e2e/smoke.test.ts (golden-path verification)
+pnpm smoke:real      # builds, then runs real harness CLIs manually (not CI)
 pnpm typecheck       # tsc -p tsconfig.typecheck.json --noEmit
 pnpm lint            # eslint src
 pnpm format          # prettier --write src test
@@ -47,15 +48,15 @@ the current release workflow.
 
 `runSwarm` is the orchestrator. Lifecycle per run:
 
-1. **Resolve config + agents.** `cli.ts` layers CLI flags > project config (`.swarm/config.yml`) > preset defaults, then loads `AgentRegistry` and resolves each agent's runtime (`resolveAgentRuntimes`).
+1. **Resolve config + agents.** `cli.ts` layers CLI flags > project config (`.swarm/config.yml`) > preset defaults, then loads `AgentRegistry` and resolves each agent's runtime (`resolveAgentRuntimes`). When `resolveMode === "orchestrator"`, it also includes the bundled `orchestrator` agent in runtime resolution; without a run-level backend override, homogeneous selected-agent harnesses are inferred onto that orchestrator agent.
 2. **Resolve harnesses per agent.** Each agent picks a harness in this order: `agent.harness` → run-level `--backend`/`config.backend` → `agent.backend`. Harness ≠ backend: `BackendId` is `claude | codex` (the run-level dial), `HarnessId` is `claude | codex | opencode | rovo` (per-agent dispatch). `assertResolvedRuntimesAvailable` fails fast on unimplemented harnesses.
 3. **Per-agent dispatch.** `createAgentAdapterResolver` returns a `BackendAdapter` per agent based on its resolved harness; `round-runner.ts` calls that adapter (not the run-level `backend`) for the actual CLI shell-out. The run-level `backend` is still used for run metadata (`wrapperName`).
 4. **Round execution.** `createRoundRunner` runs agents in parallel with `DEFAULT_CONCURRENCY = 3`, `DEFAULT_TIMEOUT_MS = 120_000`, and one `MAX_FORMAT_REPAIR_ATTEMPTS` retry when JSON parse fails. Output is validated against `AgentOutputSchema` (Zod).
-5. **Between rounds.** `betweenRounds` builds an orchestrator pass directive from the prior packet, stages it as a broadcast `MessageEnvelope` for the selected next-round recipients (via `selectAgentsForRound`), and writes a checkpoint.
+5. **Between rounds.** `betweenRounds` builds the next directive from the prior packet. In `resolveMode === "orchestrator"`, `orchestrator-dispatcher.ts` calls the bundled `orchestrator` agent for a structured `OrchestratorOutput`; otherwise it uses the deterministic templated directive. The directive is staged as a broadcast `MessageEnvelope` for the selected next-round recipients (via `selectAgentsForRound`), `orchestratorPasses` and `pendingBetweenRounds` are persisted for resume, and failed orchestrator dispatch finalizes the run as failed.
 6. **Persistence.** Three append-only writers fan out from `OutputRouter`: `ArtifactWriter` (round folders + manifest), `LedgerWriter` (`events.jsonl` + `messages.jsonl`), `CheckpointWriter` (`checkpoint.json`). Round writes happen on `round:done` and are awaited in `betweenRounds` so checkpoint ordering is deterministic.
-7. **Synthesis.** `buildOrchestratorSynthesis` is fully deterministic (no LLM call) — consensus, stance tally, top recommendation by confidence with alphabetical tie-break, shared risks (≥2 agents), rounded average confidence.
+7. **Synthesis.** `buildOrchestratorSynthesis` is fully deterministic (no LLM call) — consensus, stance tally, top recommendation by confidence with alphabetical tie-break, shared risks (≥2 agents), deferred questions across all rounds, rounded average confidence.
 
-`resumeSwarm` rehydrates from `checkpoint.json` + the message ledger, reloads optional carry-forward doc snapshots, reuses the same `runDir`/`runId`, skips `ArtifactWriter.init()` (would clobber `manifest.json`/`seed-brief.md`), and restarts from `lastCompletedRound + 1`. Synthesis on resume concatenates `resumedRoundResults` with `result.rounds`.
+`resumeSwarm` rehydrates from `checkpoint.json` + the message ledger, reloads optional carry-forward doc snapshots and prior orchestrator pass state, reuses the same `runDir`/`runId`, skips `ArtifactWriter.init()` (would clobber `manifest.json`/`seed-brief.md`), and restarts from `lastCompletedRound + 1`. Synthesis on resume concatenates `resumedRoundResults` with `result.rounds`.
 
 ### Backend & harness layering (src/backends/)
 
@@ -78,7 +79,7 @@ Same-name override across scopes is allowed; duplicates inside one scope are an 
 
 ### Schemas (src/schemas/)
 
-All cross-boundary contracts are Zod schemas (no hand-rolled types). Important ones: `AgentOutputSchema` (the JSON each agent must return), `RunManifest`, `RunCheckpoint`, `RunEvent`, `MessageEnvelope`, `RoundPacket`, `ResolvedAgentRuntime`. `BackendId` and `HarnessId` are deliberately separate schemas — don't conflate them when adding new dispatch paths.
+All cross-boundary contracts are Zod schemas (no hand-rolled types). Important ones: `AgentOutputSchema` (the JSON each agent must return), `OrchestratorOutputSchema`, `RunManifest`, `RunCheckpoint`, `RunEvent`, `MessageEnvelope`, `RoundPacket`, `ResolvedAgentRuntime`. `BackendId` and `HarnessId` are deliberately separate schemas — don't conflate them when adding new dispatch paths.
 
 ### Constraints baked into validation
 
