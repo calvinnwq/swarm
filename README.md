@@ -411,6 +411,7 @@ Synthesis is deterministic (no LLM call). It aggregates all agent outputs to pro
 - **Stance tally** — count of each unique stance
 - **Top recommendation** — picked by highest confidence, alphabetical tie-break
 - **Shared risks** — risks flagged by 2+ agents, deduplicated across rounds
+- **Deferred questions** — deferred items from every round, deduplicated and rendered in `synthesis.md`
 - **Overall confidence** — rounded average of all agent confidence levels
 
 ## Terminal UX
