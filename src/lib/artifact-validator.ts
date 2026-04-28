@@ -141,9 +141,24 @@ export function validateRunArtifacts(
   // Check round brief files using rounds from manifest
   const rounds = manifest?.rounds ?? 0;
   for (let r = 1; r <= rounds; r++) {
-    const briefPath = p(`round-${String(r).padStart(2, "0")}/brief.md`);
+    const roundDir = `round-${String(r).padStart(2, "0")}`;
+    const briefPath = p(`${roundDir}/brief.md`);
     if (!deps.fileExists(briefPath)) {
       errors.push({ path: briefPath, message: "file not found" });
+    }
+
+    const checkpointRound = checkpoint?.completedRoundResults?.find(
+      (roundResult) => roundResult.round === r,
+    );
+    const agentNames =
+      checkpointRound?.agentResults.map((agentResult) => agentResult.agent) ??
+      manifest?.agents ??
+      [];
+    for (const agentName of agentNames) {
+      const agentPath = p(`${roundDir}/agents/${agentName}.md`);
+      if (!deps.fileExists(agentPath)) {
+        errors.push({ path: agentPath, message: "file not found" });
+      }
     }
   }
 
@@ -159,6 +174,15 @@ export function validateRunArtifacts(
           message: `schema validation failed: ${r.error.message}`,
         });
       }
+    }
+  }
+  if (manifest?.status === "done") {
+    if (!deps.fileExists(synthPath)) {
+      errors.push({ path: synthPath, message: "file not found" });
+    }
+    const synthMarkdownPath = p("synthesis.md");
+    if (!deps.fileExists(synthMarkdownPath)) {
+      errors.push({ path: synthMarkdownPath, message: "file not found" });
     }
   }
 

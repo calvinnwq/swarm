@@ -86,7 +86,11 @@ function buildValidFiles(runDir: string): Record<string, string> {
     [`${runDir}/messages.jsonl`]: VALID_MESSAGE_LINE,
     [`${runDir}/seed-brief.md`]: "# Seed brief",
     [`${runDir}/round-01/brief.md`]: "# Round 1 brief",
+    [`${runDir}/round-01/agents/alpha.md`]: "# Alpha",
+    [`${runDir}/round-01/agents/beta.md`]: "# Beta",
     [`${runDir}/round-02/brief.md`]: "# Round 2 brief",
+    [`${runDir}/round-02/agents/alpha.md`]: "# Alpha",
+    [`${runDir}/round-02/agents/beta.md`]: "# Beta",
     [`${runDir}/synthesis.json`]: VALID_SYNTHESIS,
     [`${runDir}/synthesis.md`]: "# Synthesis",
   };
@@ -229,6 +233,44 @@ describe("validateRunArtifacts", () => {
     expect(result.errors.some((e) => e.path.includes("round-02"))).toBe(true);
   });
 
+  test("returns error when a round agent artifact is missing based on manifest agents", () => {
+    const runDir = "/runs/test-run";
+    const files = buildValidFiles(runDir);
+    delete files[`${runDir}/round-02/agents/beta.md`];
+    const result = validateRunArtifacts(runDir, buildDeps(files));
+    expect(result.ok).toBe(false);
+    expect(
+      result.errors.some((e) => e.path.includes("round-02/agents/beta.md")),
+    ).toBe(true);
+  });
+
+  test("uses checkpoint agent results when validating round agent artifacts", () => {
+    const runDir = "/runs/test-run";
+    const checkpoint = JSON.parse(VALID_CHECKPOINT) as Record<string, unknown>;
+    checkpoint["completedRoundResults"] = [
+      {
+        round: 1,
+        agentResults: [
+          { agent: "alpha", ok: false, output: null, error: "failed" },
+        ],
+        packet: checkpoint["priorPacket"],
+      },
+      {
+        round: 2,
+        agentResults: [
+          { agent: "beta", ok: false, output: null, error: "failed" },
+        ],
+        packet: checkpoint["priorPacket"],
+      },
+    ];
+    const files = buildValidFiles(runDir);
+    delete files[`${runDir}/round-01/agents/beta.md`];
+    delete files[`${runDir}/round-02/agents/alpha.md`];
+    files[`${runDir}/checkpoint.json`] = JSON.stringify(checkpoint);
+    const result = validateRunArtifacts(runDir, buildDeps(files));
+    expect(result.ok).toBe(true);
+  });
+
   test("returns error when synthesis.json fails schema validation when present", () => {
     const runDir = "/runs/test-run";
     const files = {
@@ -267,9 +309,30 @@ describe("validateRunArtifacts", () => {
     expect(result.errors.length).toBeGreaterThanOrEqual(2);
   });
 
-  test("skips synthesis validation when synthesis.json is absent", () => {
+  test("returns error when synthesis artifacts are missing for a completed run", () => {
     const runDir = "/runs/test-run";
     const files = buildValidFiles(runDir);
+    delete files[`${runDir}/synthesis.json`];
+    delete files[`${runDir}/synthesis.md`];
+    const result = validateRunArtifacts(runDir, buildDeps(files));
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.path.includes("synthesis.json"))).toBe(
+      true,
+    );
+    expect(result.errors.some((e) => e.path.includes("synthesis.md"))).toBe(
+      true,
+    );
+  });
+
+  test("skips synthesis validation for an in-progress run when synthesis is absent", () => {
+    const runDir = "/runs/test-run";
+    const manifest = JSON.parse(VALID_MANIFEST) as Record<string, unknown>;
+    manifest["status"] = "running";
+    delete manifest["finishedAt"];
+    const files: Record<string, string> = {
+      ...buildValidFiles(runDir),
+      [`${runDir}/manifest.json`]: JSON.stringify(manifest),
+    };
     delete files[`${runDir}/synthesis.json`];
     delete files[`${runDir}/synthesis.md`];
     const result = validateRunArtifacts(runDir, buildDeps(files));
