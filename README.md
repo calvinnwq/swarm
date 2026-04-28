@@ -161,6 +161,15 @@ swarm run 2 "Should we adopt server components?" \
 
 The bundled Codex preset pins Codex-backed agents, and `--resolve orchestrator` dispatches the orchestrator through Codex when every selected agent resolves to Codex. Use `--backend codex` only when you want to override unpinned agents at the run level. This requires the `codex` CLI to be installed, available on `PATH`, already authenticated with `codex login`, and new enough to support `codex exec` because the Codex backend shells out to `codex exec` at runtime. The Claude backend likewise requires the `claude` CLI on `PATH` and an existing `claude auth login` session.
 
+For OpenCode-backed runs, use the dedicated preset:
+
+```bash
+swarm run 2 "Should we adopt server components?" \
+  --preset product-decision-opencode
+```
+
+The bundled OpenCode preset pins OpenCode-backed agents. This requires the `opencode` CLI to be installed, available on `PATH`, and already authenticated with `opencode auth login`.
+
 Custom preset files are strict YAML objects with required `name` and `agents` fields plus optional `description`, `resolve`, `goal`, and `decision` fields:
 
 ```yaml
@@ -206,7 +215,7 @@ pnpm smoke:real --harness claude,codex --topic "release readiness check"
 pnpm smoke:real --harness opencode --topic "release readiness check"
 ```
 
-By default each harness uses its bundled preset (`product-decision` for claude, `product-decision-codex` for codex, `product-decision-opencode` for opencode). Pass `--preset <name>` to override every pass, `--rounds <1-3>` to bump rounds (default `1`), `--timeout-ms <n>` to cap each run, and `--keep-artifacts` to retain the per-harness temp directories for post-mortem inspection.
+By default each harness uses its bundled preset (`product-decision` for claude, `product-decision-codex` for codex, `product-decision-opencode` for opencode). Pass `--preset <name>` to override every pass, `--rounds <1-3>` to bump rounds (default `1`), `--timeout-ms <n>` to cap each run, `--base-dir <path>` to choose where per-harness temp directories are created, `--cli-bin <path>` to point at a specific built `dist/cli.mjs`, and `--keep-artifacts` to retain temp directories for post-mortem inspection.
 
 Output is a single JSON object on stdout:
 
