@@ -15,7 +15,14 @@
  * Run via `pnpm smoke:real --harness claude --topic "alpha"` for a single
  * harness, or `--harness claude,codex` for a sequential mixed run.
  */
-import { mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import {
+  accessSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve as resolvePath } from "node:path";
 import process from "node:process";
@@ -28,6 +35,7 @@ import {
   type RealHarnessSmokeMatrixSummary,
   type SmokeHarness,
 } from "../lib/real-harness-smoke.js";
+import { validateRunArtifacts } from "../lib/artifact-validator.js";
 
 const SUPPORTED_HARNESSES: readonly SmokeHarness[] = [
   "claude",
@@ -122,6 +130,18 @@ function buildDeps(): RealHarnessSmokeDeps {
     now: () => Date.now(),
     nowIso: () => new Date().toISOString(),
     listRunDirs,
+    validateArtifacts: (artifactDir) =>
+      validateRunArtifacts(artifactDir, {
+        readFile: (p) => readFileSync(p, "utf-8"),
+        fileExists: (p) => {
+          try {
+            accessSync(p);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+      }),
   };
 }
 

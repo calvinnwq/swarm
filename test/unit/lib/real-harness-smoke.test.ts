@@ -7,6 +7,7 @@ import {
   type SpawnSyncFn,
   type SpawnSyncResult,
 } from "../../../src/lib/real-harness-smoke.js";
+import type { ArtifactValidationResult } from "../../../src/lib/artifact-validator.js";
 
 interface SpawnInvocation {
   cmd: string;
@@ -22,6 +23,7 @@ interface MakeDepsOpts {
   end?: number;
   startedIso?: string;
   finishedIso?: string;
+  validateArtifacts?: (artifactDir: string) => ArtifactValidationResult;
 }
 
 function makeDeps(opts: MakeDepsOpts = {}): {
@@ -63,6 +65,8 @@ function makeDeps(opts: MakeDepsOpts = {}): {
     now: nowMock,
     nowIso: nowIsoMock,
     listRunDirs: vi.fn(() => opts.runDirs ?? ["20260428T000003Z-some-topic"]),
+    validateArtifacts:
+      opts.validateArtifacts ?? vi.fn(() => ({ ok: true, errors: [] })),
   };
   return { deps, invocations };
 }
@@ -456,6 +460,78 @@ describe("runRealHarnessSmoke", () => {
     expect(() =>
       runRealHarnessSmoke({ ...baseOpts, harness: "claude", rounds: 4 }, deps),
     ).toThrowError(/rounds must be between 1 and 3/);
+  });
+
+  it("includes validatorResult in summary when run succeeds and artifact dir is found", () => {
+    const { deps } = makeDeps({
+      spawn: (_invocation, index) => {
+        if (index === 0)
+          return { status: 0, signal: null, stdout: "1.0.0\n", stderr: "" };
+        return { status: 0, signal: null, stdout: "", stderr: "" };
+      },
+      validateArtifacts: vi.fn(() => ({ ok: true, errors: [] })),
+    });
+
+    const summary = runRealHarnessSmoke(
+      { ...baseOpts, harness: "claude" },
+      deps,
+    );
+
+    expect(summary.validatorResult).toEqual({ ok: true, errors: [] });
+  });
+
+  it("passes the resolved artifactDir to validateArtifacts", () => {
+    const validateArtifacts = vi.fn(() => ({ ok: true, errors: [] }));
+    const { deps } = makeDeps({
+      spawn: () => ({ status: 0, signal: null, stdout: "1.0.0\n", stderr: "" }),
+      validateArtifacts,
+    });
+
+    runRealHarnessSmoke({ ...baseOpts, harness: "claude" }, deps);
+
+    expect(validateArtifacts).toHaveBeenCalledWith(
+      "/tmp/swarm-real-smoke-test/.swarm/runs/20260428T000003Z-some-topic",
+    );
+  });
+
+  it("sets status=failed and failureReason=artifact-validation-failed when validator fails", () => {
+    const { deps } = makeDeps({
+      spawn: () => ({ status: 0, signal: null, stdout: "1.0.0\n", stderr: "" }),
+      validateArtifacts: vi.fn(() => ({
+        ok: false,
+        errors: [{ path: "/run/manifest.json", message: "file not found" }],
+      })),
+    });
+
+    const summary = runRealHarnessSmoke(
+      { ...baseOpts, harness: "claude" },
+      deps,
+    );
+
+    expect(summary.status).toBe("failed");
+    expect(summary.failureReason).toBe("artifact-validation-failed");
+    expect(summary.validatorResult?.ok).toBe(false);
+  });
+
+  it("sets validatorResult=null and skips validation when artifactDir is not found", () => {
+    const validateArtifacts = vi.fn(() => ({ ok: true, errors: [] }));
+    const { deps } = makeDeps({
+      spawn: (_invocation, index) => {
+        if (index === 0)
+          return { status: 0, signal: null, stdout: "1.0.0\n", stderr: "" };
+        return { status: 0, signal: null, stdout: "", stderr: "" };
+      },
+      runDirs: [],
+      validateArtifacts,
+    });
+
+    const summary = runRealHarnessSmoke(
+      { ...baseOpts, harness: "claude" },
+      deps,
+    );
+
+    expect(summary.validatorResult).toBeNull();
+    expect(validateArtifacts).not.toHaveBeenCalled();
   });
 
   it("captures stdout and stderr tails from the swarm run", () => {
