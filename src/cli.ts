@@ -94,6 +94,10 @@ program
     "runtime backend adapter (currently: claude, codex)",
   )
   .option(
+    "--timeout-ms <ms>",
+    "per-agent and orchestrator dispatch timeout in milliseconds (default: 120000)",
+  )
+  .option(
     "--quiet",
     "force quiet (one-line-per-event) output; default auto by TTY",
   )
@@ -113,9 +117,12 @@ program
         const configPresetName = projectConfig.preset;
         const cliBackend = options.backend as string | undefined;
         const configBackend = projectConfig.backend;
+        const cliTimeoutMs = options.timeoutMs as string | undefined;
+        const configTimeoutMs = projectConfig.timeoutMs;
 
         let resolvedAgents: string | undefined = cliAgents;
         const resolvedBackend = cliBackend ?? configBackend;
+        const resolvedTimeoutMs = cliTimeoutMs ?? configTimeoutMs;
         let resolvedResolve =
           (options.resolve as string | undefined) ?? projectConfig.resolve;
         let resolvedGoal =
@@ -159,6 +166,7 @@ program
           agents: resolvedAgents,
           backend: resolvedBackend,
           resolve: resolvedResolve,
+          timeoutMs: resolvedTimeoutMs,
           goal: resolvedGoal,
           decision: resolvedDecision,
           docs: resolvedDocs,

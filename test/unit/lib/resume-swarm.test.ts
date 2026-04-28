@@ -125,6 +125,7 @@ const config: SwarmRunConfig = {
   agents: ["alpha", "beta"],
   selectionSource: "explicit-agents",
   resolveMode: "off",
+  timeoutMs: 120_000,
   goal: null,
   decision: null,
   docs: [],

@@ -1,6 +1,8 @@
 import type { BackendId } from "../schemas/backend-id.js";
 import type { ResolveMode } from "../schemas/index.js";
 
+export const DEFAULT_DISPATCH_TIMEOUT_MS = 120_000;
+
 export type AgentSelectionSource =
   | "explicit-agents"
   | "preset"
@@ -14,6 +16,7 @@ export interface SwarmRunConfig {
   agents: string[];
   selectionSource: AgentSelectionSource;
   resolveMode: ResolveMode;
+  timeoutMs: number;
   goal: string | null;
   decision: string | null;
   docs: string[];

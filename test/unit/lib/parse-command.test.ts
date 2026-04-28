@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   buildConfig,
+  DEFAULT_DISPATCH_TIMEOUT_MS,
   dedupeKeepOrder,
   parseAgentsCsv,
   parseResolveMode,
   parseRounds,
+  parseTimeoutMs,
   SwarmCommandError,
 } from "../../../src/lib/index.js";
 
@@ -58,6 +60,16 @@ describe("parseResolveMode", () => {
   });
 });
 
+describe("parseTimeoutMs", () => {
+  it.each([1, 120_000, "300000"])("accepts %s", (value) => {
+    expect(parseTimeoutMs(value)).toBe(Number(value));
+  });
+
+  it.each([0, -1, 1.5, "slow"])("rejects %s", (value) => {
+    expect(() => parseTimeoutMs(value)).toThrow(SwarmCommandError);
+  });
+});
+
 describe("dedupeKeepOrder", () => {
   it("preserves first occurrence", () => {
     expect(dedupeKeepOrder(["a", "b", "a", "c", "b"])).toEqual(["a", "b", "c"]);
@@ -80,6 +92,7 @@ describe("buildConfig", () => {
       docs: ["/tmp/a.md", "/tmp/b.md", "/tmp/a.md"],
       preset: "default",
       commandText: "run 2 sample topic --agents alpha,beta",
+      timeoutMs: "300000",
     });
     expect(config).toMatchObject({
       topic: "sample topic",
@@ -91,12 +104,14 @@ describe("buildConfig", () => {
       decision: "pick option B",
       docs: ["/tmp/a.md", "/tmp/b.md"],
       preset: "default",
+      timeoutMs: 300_000,
     });
   });
 
-  it("defaults resolveMode to off and nulls optional fields", () => {
+  it("defaults resolveMode and timeoutMs and nulls optional fields", () => {
     const config = buildConfig(baseInput);
     expect(config.resolveMode).toBe("off");
+    expect(config.timeoutMs).toBe(DEFAULT_DISPATCH_TIMEOUT_MS);
     expect(config.goal).toBeNull();
     expect(config.decision).toBeNull();
     expect(config.preset).toBeNull();
@@ -117,6 +132,12 @@ describe("buildConfig", () => {
 
   it("rejects more than 5 agents", () => {
     expect(() => buildConfig({ ...baseInput, agents: "a,b,c,d,e,f" })).toThrow(
+      SwarmCommandError,
+    );
+  });
+
+  it("rejects invalid timeout values", () => {
+    expect(() => buildConfig({ ...baseInput, timeoutMs: 0 })).toThrow(
       SwarmCommandError,
     );
   });

@@ -138,6 +138,7 @@ const config: SwarmRunConfig = {
   agents: ["alpha", "beta"],
   selectionSource: "explicit-agents",
   resolveMode: "orchestrator",
+  timeoutMs: 120_000,
   goal: "Test the durable pipeline",
   decision: "Validate checkpoints and ledgers",
   docs: [],

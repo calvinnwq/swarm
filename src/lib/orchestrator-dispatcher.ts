@@ -9,8 +9,8 @@ import {
   buildOrchestratorRepairPrompt,
   validateOrchestratorOutput,
 } from "./orchestrator-output.js";
+import { DEFAULT_DISPATCH_TIMEOUT_MS } from "./config.js";
 
-const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_FORMAT_REPAIR_ATTEMPTS = 1;
 
 export interface DispatchOrchestratorPassArgs {
@@ -59,7 +59,7 @@ export async function dispatchOrchestratorPass(
     goal,
     decision,
     nextRound,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
+    timeoutMs = DEFAULT_DISPATCH_TIMEOUT_MS,
   } = args;
 
   const prompt = buildOrchestratorResolutionPrompt({

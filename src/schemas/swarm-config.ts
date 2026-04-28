@@ -11,6 +11,7 @@ export const SwarmProjectConfigSchema = z
     agents: z.array(trimmedString).min(2).max(5).optional(),
     backend: BackendIdSchema.optional(),
     resolve: ResolveModeSchema.optional(),
+    timeoutMs: z.int().positive().optional(),
     goal: trimmedString.optional(),
     decision: trimmedString.optional(),
     docs: z.array(trimmedString).optional(),

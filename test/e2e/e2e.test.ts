@@ -120,6 +120,7 @@ describe("e2e: full pipeline with mock backend", () => {
     agents: ["product-manager", "principal-engineer"],
     selectionSource: "explicit-agents",
     resolveMode: "orchestrator",
+    timeoutMs: 120_000,
     goal: "Decide on API strategy",
     decision: "GraphQL vs REST",
     docs: [],

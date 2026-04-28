@@ -12,6 +12,7 @@ describe("SwarmProjectConfigSchema", () => {
       preset: "product-decision",
       agents: ["product-manager", "principal-engineer"],
       resolve: "orchestrator",
+      timeoutMs: 300_000,
       goal: "ship the slice",
       decision: "adopt / defer / reject",
       docs: ["docs/brief.md"],
@@ -19,6 +20,7 @@ describe("SwarmProjectConfigSchema", () => {
     expect(parsed.rounds).toBe(2);
     expect(parsed.agents).toEqual(["product-manager", "principal-engineer"]);
     expect(parsed.resolve).toBe("orchestrator");
+    expect(parsed.timeoutMs).toBe(300_000);
   });
 
   it.each([0, 4, 1.5])("rejects invalid rounds value %s", (value) => {
@@ -44,6 +46,12 @@ describe("SwarmProjectConfigSchema", () => {
   it("rejects an unknown resolve mode", () => {
     expect(
       SwarmProjectConfigSchema.safeParse({ resolve: "majority" }).success,
+    ).toBe(false);
+  });
+
+  it.each([0, -1, 1.5])("rejects invalid timeoutMs value %s", (value) => {
+    expect(
+      SwarmProjectConfigSchema.safeParse({ timeoutMs: value }).success,
     ).toBe(false);
   });
 

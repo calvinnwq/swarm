@@ -46,6 +46,7 @@ describe("loadProjectConfig", () => {
       [
         "preset: product-decision",
         "resolve: orchestrator",
+        "timeoutMs: 300000",
         "agents:",
         "  - product-manager",
         "  - principal-engineer",
@@ -58,6 +59,7 @@ describe("loadProjectConfig", () => {
     expect(result?.config).toEqual({
       preset: "product-decision",
       resolve: "orchestrator",
+      timeoutMs: 300_000,
       agents: ["product-manager", "principal-engineer"],
       goal: "ship the slice",
     });

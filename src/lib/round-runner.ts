@@ -9,6 +9,7 @@ import { AgentOutputSchema } from "../schemas/index.js";
 import type { AgentResponse, BackendAdapter } from "../backends/index.js";
 import { extractAgentOutputJson } from "../backends/json-output.js";
 import type { SwarmRunConfig } from "./config.js";
+import { DEFAULT_DISPATCH_TIMEOUT_MS } from "./config.js";
 import { buildSeedBrief, buildRoundBrief } from "./brief-generator.js";
 import type { CarryForwardDocPacket } from "./doc-inputs.js";
 import {
@@ -18,7 +19,6 @@ import {
 } from "./scheduler.js";
 
 const DEFAULT_CONCURRENCY = 3;
-const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_FORMAT_REPAIR_ATTEMPTS = 1;
 
 export interface AgentResult {
@@ -352,7 +352,7 @@ export function createRoundRunner(opts: RoundRunnerOpts): {
     backend,
     concurrency = Number(process.env["SWARM_CONCURRENCY"]) ||
       DEFAULT_CONCURRENCY,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
+    timeoutMs = config.timeoutMs ?? DEFAULT_DISPATCH_TIMEOUT_MS,
     schedulerPolicy = "all",
     startRound = 1,
     resolveBackend,
