@@ -1,6 +1,10 @@
 import { BackendIdSchema, type BackendId } from "../schemas/backend-id.js";
 import { ResolveModeSchema, type ResolveMode } from "../schemas/index.js";
-import type { AgentSelectionSource, SwarmRunConfig } from "./config.js";
+import {
+  DEFAULT_DISPATCH_TIMEOUT_MS,
+  type AgentSelectionSource,
+  type SwarmRunConfig,
+} from "./config.js";
 
 export class SwarmCommandError extends Error {
   constructor(message: string) {
@@ -71,6 +75,16 @@ export function parseBackendId(raw: string): BackendId {
   throw new SwarmCommandError(`invalid --backend: "${raw}"`);
 }
 
+export function parseTimeoutMs(raw: string | number): number {
+  const value = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new SwarmCommandError(
+      `--timeout-ms must be a positive integer (got "${raw}")`,
+    );
+  }
+  return value;
+}
+
 export function dedupeKeepOrder<T>(items: Iterable<T>): T[] {
   const seen = new Set<T>();
   const out: T[] = [];
@@ -93,6 +107,7 @@ export interface BuildConfigInput {
   decision?: string;
   docs?: string[];
   preset?: string;
+  timeoutMs?: string | number;
   selectionSource?: AgentSelectionSource;
   commandText?: string;
 }
@@ -132,6 +147,10 @@ export function buildConfig(input: BuildConfigInput): SwarmRunConfig {
 
   const resolveMode: ResolveMode =
     input.resolve === undefined ? "off" : parseResolveMode(input.resolve);
+  const timeoutMs =
+    input.timeoutMs === undefined
+      ? DEFAULT_DISPATCH_TIMEOUT_MS
+      : parseTimeoutMs(input.timeoutMs);
 
   const docs = dedupeKeepOrder(
     (input.docs ?? []).map((d) => d.trim()).filter(Boolean),
@@ -149,6 +168,7 @@ export function buildConfig(input: BuildConfigInput): SwarmRunConfig {
     agents,
     selectionSource,
     resolveMode,
+    timeoutMs,
     goal,
     decision,
     docs,

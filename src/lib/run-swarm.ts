@@ -351,6 +351,7 @@ export async function runSwarm(opts: RunSwarmOpts): Promise<number> {
         goal: config.goal,
         decision: config.decision,
         nextRound: round + 1,
+        timeoutMs: config.timeoutMs,
       });
       if (!result.ok) {
         throw new OrchestratorDispatchError(
@@ -781,6 +782,7 @@ export async function resumeSwarm(opts: ResumeSwarmOpts): Promise<number> {
         goal: config.goal,
         decision: config.decision,
         nextRound: round + 1,
+        timeoutMs: config.timeoutMs,
       });
       if (!result.ok) {
         throw new OrchestratorDispatchError(

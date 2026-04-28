@@ -42,14 +42,15 @@ The supported alpha flow uses the bundled `product-decision` preset, which pairs
 # 1. Verify your setup
 swarm doctor
 
-# 2. Run a 2-round swarm on a framed product decision
-swarm run 2 "Should we adopt server components?" \
+# 2. Run a one-round swarm on a framed product decision
+swarm run 1 "Should we adopt server components?" \
   --preset product-decision \
   --goal "Decide on migration strategy" \
-  --decision "Adopt / Defer / Reject"
+  --decision "Adopt / Defer / Reject" \
+  --timeout-ms 300000
 ```
 
-Artifacts land under `.swarm/runs/<timestamp>-<slug>/` (see [Artifact layout](#artifact-layout)), with a deterministic `synthesis.md` at the end. Use `--quiet` for CI-style one-line-per-event output.
+Artifacts land under `.swarm/runs/<timestamp>-<slug>/` (see [Artifact layout](#artifact-layout)), with a deterministic `synthesis.md` at the end. Use `--quiet` for CI-style one-line-per-event output. Real harnesses can take longer than the default 120,000ms per dispatch; `--timeout-ms` controls each agent dispatch and each orchestrator dispatch when a between-round orchestrator pass runs.
 
 ## Usage
 
@@ -90,6 +91,8 @@ Options:
   --decision <text>  decision target for the swarm
   --doc <path>       carry-forward document (repeatable)
   --preset <name>    named preset (resolves to agents when --agents not provided)
+  --timeout-ms <ms>  per-agent and orchestrator dispatch timeout in milliseconds
+                     (default: 120000)
   --quiet            force quiet (one-line-per-event) output; default auto by TTY
   -h, --help         display help for command
 ```
@@ -113,10 +116,11 @@ In `orchestrator` mode the run produces three additional audit signals:
 If the orchestrator dispatch fails (timeout, malformed JSON after the single repair attempt, non-zero exit), the run finalizes with status `failed`, emits a `run:failed` event, and exits `1`. Earlier successful passes remain captured in `checkpoint.json` so a resume can pick up cleanly.
 
 ```bash
-# Run with orchestrator-driven resolution (default for the bundled preset)
+# Deeper two-round run with orchestrator-driven between-round resolution
 swarm run 2 "Should we adopt server components?" \
   --preset product-decision \
-  --resolve orchestrator
+  --resolve orchestrator \
+  --timeout-ms 300000
 ```
 
 Carry-forward docs from `--doc` are resolved before the run, deduplicated by path, and must be readable files. Their first 4,000 characters are packed into the seed brief with provenance, so agents receive bounded source context rather than path-only metadata.
@@ -135,7 +139,9 @@ Swarm ships with four opinionated built-in presets:
 Invoke it by name — no `--agents` required:
 
 ```bash
-swarm run 2 "Should we adopt server components?" --preset product-decision
+swarm run 1 "Should we adopt server components?" \
+  --preset product-decision \
+  --timeout-ms 300000
 ```
 
 CLI flags still win over preset defaults, so you can override `--resolve`, `--goal`, or `--decision` per run.
@@ -155,8 +161,9 @@ A project-local preset with the same `name` as a bundled preset fully replaces i
 For Codex-backed runs, use the dedicated preset:
 
 ```bash
-swarm run 2 "Should we adopt server components?" \
-  --preset product-decision-codex
+swarm run 1 "Should we adopt server components?" \
+  --preset product-decision-codex \
+  --timeout-ms 300000
 ```
 
 The bundled Codex preset pins Codex-backed agents, and `--resolve orchestrator` dispatches the orchestrator through Codex when every selected agent resolves to Codex. Use `--backend codex` only when you want to override unpinned agents at the run level. This requires the `codex` CLI to be installed, available on `PATH`, already authenticated with `codex login`, and new enough to support `codex exec` because the Codex backend shells out to `codex exec` at runtime. The Claude backend likewise requires the `claude` CLI on `PATH` and an existing `claude auth login` session.
@@ -164,8 +171,9 @@ The bundled Codex preset pins Codex-backed agents, and `--resolve orchestrator` 
 For OpenCode-backed runs, use the dedicated preset:
 
 ```bash
-swarm run 2 "Should we adopt server components?" \
-  --preset product-decision-opencode
+swarm run 1 "Should we adopt server components?" \
+  --preset product-decision-opencode \
+  --timeout-ms 300000
 ```
 
 The bundled OpenCode preset pins OpenCode-backed agents. This requires the `opencode` CLI to be installed, available on `PATH`, and already authenticated with `opencode auth login`.
@@ -215,7 +223,7 @@ pnpm smoke:real --harness claude,codex --topic "release readiness check"
 pnpm smoke:real --harness opencode --topic "release readiness check"
 ```
 
-By default each harness uses its bundled preset (`product-decision` for claude, `product-decision-codex` for codex, `product-decision-opencode` for opencode). Pass `--preset <name>` to override every pass, `--rounds <1-3>` to bump rounds (default `1`), `--timeout-ms <n>` to cap each run, `--base-dir <path>` to choose where per-harness temp directories are created, `--cli-bin <path>` to point at a specific built `dist/cli.mjs`, and `--keep-artifacts` to retain temp directories for post-mortem inspection.
+By default each harness uses its bundled preset (`product-decision` for claude, `product-decision-codex` for codex, `product-decision-opencode` for opencode). Pass `--preset <name>` to override every pass, `--rounds <1-3>` to bump rounds (default `1`), `--timeout-ms <n>` to forward a per-agent/orchestrator dispatch timeout to `swarm run` and use the same value as the hard process cap, `--base-dir <path>` to choose where per-harness temp directories are created, `--cli-bin <path>` to point at a specific built `dist/cli.mjs`, and `--keep-artifacts` to retain temp directories for post-mortem inspection.
 
 Output is a single JSON object on stdout:
 
@@ -256,15 +264,16 @@ backend: claude
 goal: Decide on migration strategy
 decision: Adopt / Defer / Reject
 resolve: off # off | orchestrator | agents — see "Resolution modes" above
+timeoutMs: 300000 # per-agent/orchestrator dispatch timeout in ms; default 120000
 docs:
   - docs/architecture.md
 ```
 
 Precedence: **CLI flags > config values > preset defaults**. The file is optional — when missing, CLI flags alone fully describe the run. Validation errors (unknown keys, wrong types) are reported by `swarm doctor` and at run start.
 
-Configured `docs` use the same carry-forward behavior as repeated `--doc` flags: paths are normalized, readable files are required, and each document contributes at most 4,000 characters to the run context.
+Configured `docs` use the same carry-forward behavior as repeated `--doc` flags: paths are normalized, readable files are required, and each document contributes at most 4,000 characters to the run context. `timeoutMs` accepts a positive integer and matches `--timeout-ms`.
 
-Supported fields: `preset`, `agents` (2–5 names), `backend`, `resolve`, `goal`, `decision`, `docs`. The `rounds` key is reserved but not yet applied — pass `<rounds>` on the CLI.
+Supported fields: `preset`, `agents` (2–5 names), `backend`, `resolve`, `timeoutMs`, `goal`, `decision`, `docs`. The `rounds` key is reserved but not yet applied — pass `<rounds>` on the CLI.
 
 ## Agent configuration
 

@@ -226,7 +226,7 @@ program
   )
   .option(
     "--timeout-ms <n>",
-    "hard timeout for each swarm run in ms",
+    "timeout in ms forwarded to swarm run and also used as the hard process cap",
     parseTimeout,
   )
   .action((options: Record<string, unknown>) => {

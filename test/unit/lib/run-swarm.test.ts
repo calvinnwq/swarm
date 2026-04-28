@@ -126,6 +126,7 @@ describe("runSwarm", () => {
       agents: ["product-manager", "principal-engineer"],
       selectionSource: "explicit-agents",
       resolveMode: "off",
+      timeoutMs: 120_000,
       goal: null,
       decision: null,
       docs: [],
@@ -200,6 +201,7 @@ describe("runSwarm", () => {
       agents: ["product-manager", "principal-engineer"],
       selectionSource: "explicit-agents",
       resolveMode: "off",
+      timeoutMs: 120_000,
       goal: null,
       decision: null,
       docs: [],
@@ -318,6 +320,7 @@ describe("runSwarm", () => {
       agents: ["alpha", "beta"],
       selectionSource: "explicit-agents",
       resolveMode: "off",
+      timeoutMs: 120_000,
       goal: null,
       decision: null,
       docs: [],
@@ -407,6 +410,7 @@ describe("runSwarm", () => {
       agents: ["alpha", "beta"],
       selectionSource: "explicit-agents",
       resolveMode: "off",
+      timeoutMs: 120_000,
       goal: null,
       decision: null,
       docs: [],
@@ -474,6 +478,7 @@ describe("runSwarm", () => {
       agents: ["alpha"],
       selectionSource: "explicit-agents",
       resolveMode: "off",
+      timeoutMs: 120_000,
       goal: null,
       decision: null,
       docs: [],
@@ -552,6 +557,7 @@ describe("runSwarm", () => {
       agents: ["alpha"],
       selectionSource: "explicit-agents",
       resolveMode,
+      timeoutMs: 120_000,
       goal: "ship",
       decision: "go-no-go",
       docs: [],
@@ -679,6 +685,41 @@ describe("runSwarm", () => {
           backend: defaultBackend,
           agent: orchestratorAgent,
         }),
+      );
+    });
+
+    it("passes the configured timeout to orchestrator dispatch", async () => {
+      runMock.mockResolvedValue({ rounds: [], ok: true, error: null });
+      dispatchOrchestratorPassMock.mockResolvedValue({
+        ok: true,
+        output: {
+          round: 2,
+          directive: "timeout-aware directive",
+          questionResolutions: [],
+          questionResolutionLimit: 0,
+          deferredQuestions: [],
+          confidence: "medium",
+        },
+        raw: null,
+      });
+
+      const { createRoundRunner } =
+        await import("../../../src/lib/round-runner.js");
+      const { runSwarm } = await import("../../../src/lib/run-swarm.js");
+
+      await runSwarm({
+        config: { ...baseConfig("orchestrator"), timeoutMs: 300_000 },
+        agents: baseAgents,
+        backend: {} as BackendAdapter,
+        ui: "silent",
+        orchestratorAgent,
+      });
+
+      const opts = vi.mocked(createRoundRunner).mock.calls.at(-1)![0];
+      await opts.betweenRounds?.({ round: 1, packet: samplePacket });
+
+      expect(dispatchOrchestratorPassMock).toHaveBeenCalledWith(
+        expect.objectContaining({ timeoutMs: 300_000 }),
       );
     });
 

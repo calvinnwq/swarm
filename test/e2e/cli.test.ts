@@ -39,6 +39,7 @@ describe("swarm cli", () => {
     // Help must call out that orchestrator mode runs an LLM-driven pass.
     expect(stdout).toMatch(/orchestrator/);
     expect(stdout).toMatch(/off\s*\|\s*orchestrator/);
+    expect(stdout).toContain("--timeout-ms <ms>");
   });
 
   // Note: the "run" command now dispatches to the real claude binary,

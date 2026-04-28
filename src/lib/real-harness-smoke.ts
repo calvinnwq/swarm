@@ -43,7 +43,7 @@ export interface RealHarnessSmokeOptions {
   preset?: string;
   /** Number of rounds (1–3); defaults to 1 for the smoke gate. */
   rounds?: number;
-  /** Hard timeout for the swarm run; passed through to spawnSync. */
+  /** Timeout in ms passed to swarm run and also used as the hard process cap. */
   timeoutMs?: number;
 }
 
@@ -128,8 +128,9 @@ function buildSwarmCommand(opts: {
   rounds: number;
   topic: string;
   preset: string;
+  timeoutMs?: number;
 }): string[] {
-  return [
+  const command = [
     "node",
     opts.cliBin,
     "run",
@@ -139,6 +140,10 @@ function buildSwarmCommand(opts: {
     opts.preset,
     "--quiet",
   ];
+  if (opts.timeoutMs !== undefined) {
+    command.push("--timeout-ms", String(opts.timeoutMs));
+  }
+  return command;
 }
 
 function resolveArtifactDir(
@@ -264,7 +269,7 @@ export interface RealHarnessSmokeMatrixOptions {
   preset?: string;
   /** Number of rounds (1–3) for every pass; defaults to 1. */
   rounds?: number;
-  /** Hard timeout in ms applied to each swarm invocation. */
+  /** Timeout in ms forwarded to swarm run and applied as a hard process cap. */
   timeoutMs?: number;
   /** Returns a fresh cwd per pass so artifact dirs from different harnesses do not collide. */
   resolveCwd: (harness: SmokeHarness) => string;

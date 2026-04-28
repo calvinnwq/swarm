@@ -13,7 +13,7 @@
 | M9-01 | Codex JSON schema strict validation | ✅ PASS | [see below](#m9-01-codex-json-schema) |
 | M9-02 | Manual real-harness smoke runner | ✅ PASS | [see below](#m9-02-real-harness-smoke-runner) |
 | M9-03 | Real Codex run end-to-end | ❌ BLOCKED | [NGX-144](https://linear.app/ngxcalvin/issue/NGX-144) — no Codex credentials in environment |
-| M9-04 | Real Claude run (or documented timeout limitation) | ❌ BLOCKED | [NGX-145](https://linear.app/ngxcalvin/issue/NGX-145) — no Claude credentials in environment |
+| M9-04 | Real Claude run end-to-end | ❌ BLOCKED | [NGX-145](https://linear.app/ngxcalvin/issue/NGX-145) — no Claude credentials in environment |
 | M9-05 | Real OpenCode run end-to-end | ❌ BLOCKED | [NGX-146](https://linear.app/ngxcalvin/issue/NGX-146) — OpenCode not installed |
 | M9-06 | Mixed Claude + Codex real harness run | ❌ BLOCKED | [NGX-147](https://linear.app/ngxcalvin/issue/NGX-147) — blocked on M9-03 and M9-04 |
 | M9-07 | Offline artifact integrity validator | ✅ PASS | [see below](#m9-07-artifact-integrity-validator) |
@@ -155,7 +155,7 @@ Result:  all clean
 ### M9-04 Real Claude run
 
 **Issue:** [NGX-145](https://linear.app/ngxcalvin/issue/NGX-145)  
-**Blocker:** No Claude CLI credentials available in this environment. The 120 s per-agent timeout may also require tuning for real workloads; this is documented as an open question in the issue.
+**Blocker:** No Claude CLI credentials available in this environment. Real workload dispatch timeouts can be tuned with `--timeout-ms` or project `timeoutMs`.
 
 ### M9-05 Real OpenCode run
 

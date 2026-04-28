@@ -293,8 +293,8 @@ describe("runRealHarnessSmoke", () => {
     );
   });
 
-  it("flags swarm-run-timeout when spawnSync reports the run was killed by timeout", () => {
-    const { deps } = makeDeps({
+  it("forwards timeoutMs to swarm run and flags process timeouts", () => {
+    const { deps, invocations } = makeDeps({
       spawn: (_invocation, index) => {
         if (index === 0) {
           return {
@@ -321,6 +321,11 @@ describe("runRealHarnessSmoke", () => {
     expect(summary.status).toBe("failed");
     expect(summary.failureReason).toBe("swarm-run-timeout");
     expect(summary.exitCode).toBe(124);
+    expect(invocations[1]?.timeout).toBe(250);
+    expect(invocations[1]?.args).toContain("--timeout-ms");
+    expect(invocations[1]?.args).toContain("250");
+    expect(summary.command).toContain("--timeout-ms");
+    expect(summary.command).toContain("250");
   });
 
   it("flags artifact-dir-not-found when the swarm exit code is 0 but no run dir was created", () => {

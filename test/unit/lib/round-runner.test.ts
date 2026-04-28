@@ -25,6 +25,7 @@ function makeConfig(overrides: Partial<SwarmRunConfig> = {}): SwarmRunConfig {
     agents: ["alpha", "beta", "gamma"],
     selectionSource: "explicit-agents",
     resolveMode: "off",
+    timeoutMs: 120_000,
     goal: null,
     decision: null,
     docs: [],
@@ -167,6 +168,28 @@ describe("createRoundRunner", () => {
       expect(prompt).toContain(
         "SHA-256: 4b121dc7b2bf33d116671cb681e46d66281a92fcdd43c93bca98b4cf051f70b5",
       );
+    }
+  });
+
+  it("passes the configured timeout to each backend dispatch", async () => {
+    const config = makeConfig({
+      rounds: 1,
+      agents: ["alpha", "beta"],
+      timeoutMs: 300_000,
+    });
+    const agents = ["alpha", "beta"].map(makeAgent);
+    const backend = makeStubBackend((_prompt, agent) =>
+      makeSuccessResponse(makeAgentOutput(agent.name, 1)),
+    );
+
+    const { run } = createRoundRunner({ config, agents, backend });
+
+    await run();
+
+    expect(backend.dispatch).toHaveBeenCalledTimes(2);
+    for (const call of (backend.dispatch as ReturnType<typeof vi.fn>).mock
+      .calls) {
+      expect(call[2]).toEqual({ timeoutMs: 300_000 });
     }
   });
 
