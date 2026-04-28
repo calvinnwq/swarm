@@ -1,6 +1,6 @@
 {
   "name": "swarm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Standalone TypeScript swarm CLI — fan out agents, collect structured output, synthesize",
   "type": "module",
   "bin": {
