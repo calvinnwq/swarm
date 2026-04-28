@@ -49,7 +49,7 @@ Key assertion: schema.additionalProperties === false
 
 **Issue:** [NGX-143](https://linear.app/ngxcalvin/issue/NGX-143)
 
-Added `src/scripts/real-harness-smoke.ts` (built to `dist/scripts/real-harness-smoke.mjs`) and a `pnpm smoke:real` convenience script. Supports `--harness`, `--topic`, `--preset`, `--rounds`, `--keep-artifacts`, `--cwd`, `--cli-bin`, `--timeout-ms`, and emits a machine-readable JSON summary on stdout.
+Added `src/scripts/real-harness-smoke.ts` (built to `dist/scripts/real-harness-smoke.mjs`) and a `pnpm smoke:real` convenience script. Supports `--harness`, `--topic`, `--preset`, `--rounds`, `--keep-artifacts`, `--base-dir`, `--cli-bin`, `--timeout-ms`, and emits a machine-readable JSON summary on stdout.
 
 ```
 Command: pnpm build && node dist/scripts/real-harness-smoke.mjs --help

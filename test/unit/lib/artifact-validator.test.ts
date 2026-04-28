@@ -296,6 +296,41 @@ describe("validateRunArtifacts", () => {
     ).toBe(true);
   });
 
+  test("uses completed round packet agents when checkpoint round results are absent", () => {
+    const runDir = "/runs/test-run";
+    const checkpoint = JSON.parse(VALID_CHECKPOINT) as Record<string, unknown>;
+    checkpoint["completedRoundPackets"] = [
+      {
+        round: 1,
+        agents: ["alpha"],
+        summaries: [],
+        keyObjections: [],
+        sharedRisks: [],
+        openQuestions: [],
+        questionResolutions: [],
+        questionResolutionLimit: 0,
+        deferredQuestions: [],
+      },
+      {
+        round: 2,
+        agents: ["beta"],
+        summaries: [],
+        keyObjections: [],
+        sharedRisks: [],
+        openQuestions: [],
+        questionResolutions: [],
+        questionResolutionLimit: 0,
+        deferredQuestions: [],
+      },
+    ];
+    const files = buildValidFiles(runDir);
+    delete files[`${runDir}/round-01/agents/beta.md`];
+    delete files[`${runDir}/round-02/agents/alpha.md`];
+    files[`${runDir}/checkpoint.json`] = JSON.stringify(checkpoint);
+    const result = validateRunArtifacts(runDir, buildDeps(files));
+    expect(result.ok).toBe(true);
+  });
+
   test("returns error when synthesis.json fails schema validation when present", () => {
     const runDir = "/runs/test-run";
     const files = {
